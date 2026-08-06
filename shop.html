@@ -818,7 +818,23 @@ async function renderShopGrid() {
     }
   });
 
-  const groupList = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+  const unverifiedGroupList = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+
+  // The "no image, no listing" rule above only checks that image_path is a
+  // non-empty string -- it doesn't catch a path that 404s. A 404 used to only
+  // surface later, via buildCardHtml's onerror stripping that card from an
+  // already-paginated grid, which shorted whichever row it landed in without
+  // itemsPerPage ever knowing a slot had gone empty. Verifying the image loads
+  // before it enters productGroupList keeps the pagination math in sync with
+  // what will actually render.
+  const groupList = (await Promise.all(unverifiedGroupList.map(async (g) => {
+    try {
+      const res = await fetch(g.imgUrl, { method: 'HEAD' });
+      return res.ok ? g : null;
+    } catch (err) {
+      return null;
+    }
+  }))).filter(Boolean);
   productGroupList = groupList;
 
   // Categories present in the live data, ordered to match the confirmed
