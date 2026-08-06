@@ -21,14 +21,14 @@ header{ display:flex; flex-direction:column; padding:14px 20px; border-bottom:1p
 .logo-word{ font-weight:700; font-size:1.2rem; }
 .logo-word .forge{ color:var(--navy); }
 .logo-word .well{ color:#3FA34D; }
-.menu-toggle{ display:flex; align-items:center; gap:14px; margin-left:auto; }
+.menu-toggle{ display:flex; align-items:center; gap:14px; margin-left:auto; position:relative; }
 .hamburger{ display:flex; flex-direction:column; gap:4px; cursor:pointer; padding:4px; }
 .hamburger span{ width:20px; height:2px; background:var(--navy); display:block; }
-.nav-overlay{ display:none; position:fixed; inset:0; background:rgba(18,48,86,0.97); z-index:9999; }
-.nav-overlay.open{ display:flex; }
-.nav-overlay-inner{ margin:auto; display:flex; flex-direction:column; align-items:center; gap:26px; }
-.nav-overlay-inner a{ color:#fff; font-size:1.4rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; }
-.nav-overlay-close{ position:absolute; top:20px; right:24px; color:#fff; font-size:2rem; cursor:pointer; line-height:1; }
+.nav-overlay{ display:none; position:absolute; top:calc(100% + 12px); right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(18,48,86,0.16); z-index:9999; min-width:170px; padding:6px 0; }
+.nav-overlay.open{ display:block; }
+.nav-overlay-inner{ display:flex; flex-direction:column; }
+.nav-overlay-inner a{ color:var(--navy-dark); font-size:0.9rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; padding:11px 18px; }
+.nav-overlay-inner a:hover{ background:var(--panel); }
 .cart-icon{ font-size:0.7rem; color:var(--navy); font-weight:700; white-space:nowrap; cursor:pointer; padding:6px 10px; border:1px solid var(--navy); border-radius:6px; transition:background 0.15s, color 0.15s; }
 .login-icon{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
@@ -635,16 +635,23 @@ function wireHeaderFooter() {
 
   var hamBtn = document.getElementById('hamburger-btn');
   var overlay = document.getElementById('nav-overlay');
-  var closeBtn = document.getElementById('nav-overlay-close');
   if (hamBtn && overlay) {
-    hamBtn.addEventListener('click', function() { overlay.classList.add('open'); });
-  }
-  if (closeBtn && overlay) {
-    closeBtn.addEventListener('click', function() { overlay.classList.remove('open'); });
+    hamBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      overlay.classList.toggle('open');
+    });
   }
   if (overlay) {
     overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) overlay.classList.remove('open');
+      if (e.target.closest('a')) overlay.classList.remove('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (overlay.classList.contains('open') && !overlay.contains(e.target)) {
+        overlay.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') overlay.classList.remove('open');
     });
   }
 
@@ -680,6 +687,14 @@ function wireHeaderFooter() {
   var cartIcon = document.querySelector('.cart-icon');
   if (cartIcon) {
     cartIcon.addEventListener('click', function() {
+      renderCart();
+      document.getElementById('cart-panel').style.right = '0';
+    });
+  }
+  var navCartLink = document.getElementById('nav-cart-link');
+  if (navCartLink) {
+    navCartLink.addEventListener('click', function(e) {
+      e.preventDefault();
       renderCart();
       document.getElementById('cart-panel').style.right = '0';
     });

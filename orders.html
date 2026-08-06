@@ -17,7 +17,7 @@ header{padding:14px 20px 0;}
 .logo-mark{display:flex; align-items:center; gap:8px;}
 .logo-word{font-family:'Quicksand',sans-serif; font-weight:700; font-size:1.1rem; color:var(--navy);}
 .logo-word .well{color:var(--green);}
-.menu-toggle{display:flex; align-items:center; gap:18px;}
+.menu-toggle{display:flex; align-items:center; gap:18px; position:relative;}
 .cart-icon{font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.8rem; color:var(--navy); cursor:pointer;}
 .login-icon{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
@@ -28,11 +28,11 @@ header{padding:14px 20px 0;}
 .header-search-row .search-icon-btn{ left:12px; width:16px; height:16px; }
 .header-search-row input{ width:100%; box-sizing:border-box; padding:11px 14px 11px 40px; border-radius:6px; border:1.5px solid var(--line); background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 12px center/16px 16px; color:#333; font-size:0.9rem; font-family:'Quicksand',sans-serif; }
 
-.nav-overlay{ display:none; position:fixed; inset:0; background:rgba(18,48,86,0.97); z-index:9999; }
-.nav-overlay.open{ display:flex; }
-.nav-overlay-inner{ margin:auto; display:flex; flex-direction:column; align-items:center; gap:26px; }
-.nav-overlay-inner a{ color:#fff; font-size:1.4rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; }
-.nav-overlay-close{ position:absolute; top:20px; right:24px; color:#fff; font-size:2rem; cursor:pointer; line-height:1; }
+.nav-overlay{ display:none; position:absolute; top:calc(100% + 12px); right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(18,48,86,0.16); z-index:9999; min-width:170px; padding:6px 0; }
+.nav-overlay.open{ display:block; }
+.nav-overlay-inner{ display:flex; flex-direction:column; }
+.nav-overlay-inner a{ color:var(--navy-dark); font-size:0.9rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; padding:11px 18px; }
+.nav-overlay-inner a:hover{ background:var(--panel); }
 
 /* ---- footer (matches shop.html) ---- */
 footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--panel); border-top:1px solid var(--line); font-family:'Quicksand',sans-serif;}
@@ -327,16 +327,23 @@ function wireHeaderFooter() {
 
   var hamBtn = document.getElementById('hamburger-btn');
   var overlay = document.getElementById('nav-overlay');
-  var closeBtn = document.getElementById('nav-overlay-close');
   if (hamBtn && overlay) {
-    hamBtn.addEventListener('click', function() { overlay.classList.add('open'); });
-  }
-  if (closeBtn && overlay) {
-    closeBtn.addEventListener('click', function() { overlay.classList.remove('open'); });
+    hamBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      overlay.classList.toggle('open');
+    });
   }
   if (overlay) {
     overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) overlay.classList.remove('open');
+      if (e.target.closest('a')) overlay.classList.remove('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (overlay.classList.contains('open') && !overlay.contains(e.target)) {
+        overlay.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') overlay.classList.remove('open');
     });
   }
 
@@ -372,6 +379,14 @@ function wireHeaderFooter() {
   var cartIcon = document.querySelector('.cart-icon');
   if (cartIcon) {
     cartIcon.addEventListener('click', function() {
+      renderCart();
+      document.getElementById('cart-panel').style.right = '0';
+    });
+  }
+  var navCartLink = document.getElementById('nav-cart-link');
+  if (navCartLink) {
+    navCartLink.addEventListener('click', function(e) {
+      e.preventDefault();
       renderCart();
       document.getElementById('cart-panel').style.right = '0';
     });
