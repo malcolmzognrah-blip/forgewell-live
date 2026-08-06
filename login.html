@@ -285,9 +285,10 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 let allProducts = [];
 let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
 
-function catalogSearchJump(query) {
+async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
   if (!query) return;
+  await productsReady;
   const match = allProducts.find(p => {
     const base = (p.name || '').replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)\)?\s*$/i, '').trim().toLowerCase();
     return base === query || base.indexOf(query) !== -1;
@@ -714,7 +715,7 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-loadProducts().then(populateMostPopular);
+let productsReady = loadProducts().then(populateMostPopular);
 
 function populateMostPopular() {
   const featured = ['Semaglutide', 'Tesamorelin', 'BPC-157', 'GHK-Cu'];

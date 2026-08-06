@@ -583,9 +583,10 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
-function catalogSearchJump(query) {
+async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
   if (!query) return;
+  await productsReady;
   const match = allProducts.find(p => {
     const base = baseLabel(p.name).toLowerCase();
     return base === query || base.indexOf(query) !== -1;
@@ -1170,7 +1171,7 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-renderShopGrid();
+let productsReady = renderShopGrid();
 buildCartPanel();
 updateCartIcon();
 </script>
