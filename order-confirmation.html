@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Confirmation — Forgewell</title>
+<style>
+:root{
+  --navy:#1B4B8C; --navy-dark:#123056; --green:#3FA34D;
+  --gray:#6b6b6b; --panel:#F7F8F6; --line:#E4E4E0;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:#fff; color:#222;
+  font-family:'Quicksand',-apple-system,sans-serif;
+}
+header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 24px; border-bottom:1px solid var(--line);
+}
+.logo-mark{ display:flex; align-items:center; gap:8px; text-decoration:none; }
+.logo-word .forge{ color:var(--navy); font-weight:800; }
+.logo-word .well{ color:var(--green); font-weight:800; }
+
+main{ max-width:640px; margin:0 auto; padding:40px 20px 60px; }
+
+.status-icon{ display:flex; justify-content:center; margin-bottom:20px; }
+.status-icon svg{ width:64px; height:64px; }
+
+h1{ text-align:center; color:var(--navy-dark); font-size:1.6rem; margin:0 0 8px; }
+.status-sub{ text-align:center; color:var(--gray); font-size:0.95rem; margin:0 0 32px; }
+
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:20px; margin-bottom:20px;
+}
+.card h2{ font-size:0.95rem; color:var(--navy-dark); margin:0 0 14px; }
+
+.order-id{
+  font-family:monospace; font-size:0.8rem; color:var(--gray);
+  background:#fff; border:1px solid var(--line); border-radius:6px;
+  padding:8px 10px; word-break:break-all;
+}
+
+.line-item{
+  display:flex; justify-content:space-between; padding:8px 0;
+  border-bottom:1px solid var(--line); font-size:0.9rem;
+}
+.line-item:last-child{ border-bottom:none; }
+.line-item .name{ color:#333; }
+.line-item .qty{ color:var(--gray); font-size:0.8rem; }
+.line-item .price{ font-weight:700; color:var(--navy-dark); }
+
+.totals-row{
+  display:flex; justify-content:space-between; padding:6px 0; font-size:0.88rem; color:var(--gray);
+}
+.totals-row.final{
+  border-top:1px solid var(--line); margin-top:8px; padding-top:12px;
+  font-size:1.05rem; font-weight:800; color:var(--navy-dark);
+}
+
+.address-block{ font-size:0.88rem; color:#333; line-height:1.6; }
+
+.spinner{
+  width:32px; height:32px; border-radius:50%;
+  border:3px solid var(--line); border-top-color:var(--navy);
+  animation:spin 0.8s linear infinite; margin:0 auto 20px;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+.shop-link{
+  display:block; text-align:center; margin-top:28px;
+  color:var(--navy); font-weight:700; text-decoration:none; font-size:0.9rem;
+}
+.shop-link:hover{ text-decoration:underline; }
+
+.error-box{
+  text-align:center; padding:20px; color:var(--gray); font-size:0.9rem;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/shop.html" class="logo-mark">
+    <svg width="24" height="24" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 60 C20 45 35 35 55 35 L105 35 C125 35 138 45 138 58 L138 68 L20 68 Z" fill="#1B4B8C"/>
+      <path d="M132 42 L158 36 L158 52 L138 58 Z" fill="#1B4B8C"/>
+      <rect x="65" y="68" width="20" height="16" fill="#1B4B8C"/>
+      <rect x="45" y="84" width="60" height="8" rx="1.5" fill="#123056"/>
+    </svg>
+    <span class="logo-word"><span class="forge">FORGE</span><span class="well">WELL</span></span>
+  </a>
+</header>
+
+<main id="main-content">
+  <div class="spinner"></div>
+  <h1 style="text-align:center;">Confirming your order…</h1>
+</main>
+
+<script>
+function getOrderId() {
+  const params = new URLSearchParams(window.location.search);
+  // Different possible param names PayRam or our own redirect might use —
+  // check all of them rather than assuming one specific name.
+  const fromQuery = params.get('orderId') || params.get('order_id') || params.get('reference_id') || params.get('ref');
+  if (fromQuery) return fromQuery;
+  // Fall back to what shop.html saved right before redirecting to PayRam.
+  return localStorage.getItem('forgewell_last_order_id');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function renderNotFound() {
+  document.getElementById('main-content').innerHTML = `
+    <h1>Thank you for your order!</h1>
+    <p class="status-sub">We couldn't automatically look up your order details, but if your payment completed, you'll receive a confirmation email shortly.</p>
+    <div class="error-box">
+      If you have questions about your order, please contact support and reference the email address you checked out with.
+    </div>
+    <a href="/shop.html" class="shop-link">&larr; Back to shop</a>
+  `;
+}
+
+function statusDisplay(status) {
+  if (status === 'paid') return { icon: 'check', title: 'Payment confirmed!', sub: 'Your order is being processed.' };
+  if (status === 'pending_payment') return { icon: 'clock', title: 'Awaiting payment confirmation', sub: 'This page will update automatically once your payment is confirmed on-chain.' };
+  if (status === 'cancelled') return { icon: 'x', title: 'Order cancelled', sub: 'This order was cancelled or the payment did not complete.' };
+  return { icon: 'clock', title: 'Order status: ' + escapeHtml(status), sub: '' };
+}
+
+function iconSvg(kind) {
+  if (kind === 'check') {
+    return '<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="#3FA34D"/><path d="M20 33l8 8 16-16" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  if (kind === 'x') {
+    return '<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="#c0392b"/><path d="M22 22l20 20M42 22L22 42" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>';
+  }
+  return '<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="#1B4B8C"/><path d="M32 18v16l10 6" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function renderOrder(order) {
+  const s = statusDisplay(order.status);
+  const items = (order.line_items || []).map(li => `
+    <div class="line-item">
+      <div>
+        <div class="name">${escapeHtml(li.name)}</div>
+        <div class="qty">Qty ${escapeHtml(li.qty)}</div>
+      </div>
+      <div class="price">$${Number(li.lineTotal).toFixed(2)}</div>
+    </div>
+  `).join('');
+
+  const addr = order.shipping_address || {};
+  const addressHtml = addr.name ? `
+    <div class="address-block">
+      ${escapeHtml(addr.name)}<br>
+      ${escapeHtml(addr.line1)}${addr.line2 ? '<br>' + escapeHtml(addr.line2) : ''}<br>
+      ${escapeHtml(addr.city)}, ${escapeHtml(addr.state)} ${escapeHtml(addr.zip)}<br>
+      ${escapeHtml(addr.country)}
+    </div>
+  ` : '<div class="address-block">No shipping address on file for this order.</div>';
+
+  const shippingCost = Number(order.shipping_cost || 0);
+  const shippingLine = shippingCost === 0 ? 'Free' : '$' + shippingCost.toFixed(2);
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="status-icon">${iconSvg(s.icon)}</div>
+    <h1>${escapeHtml(s.title)}</h1>
+    <p class="status-sub">${escapeHtml(s.sub)}</p>
+
+    <div class="card">
+      <h2>Order details</h2>
+      <div class="order-id">Order ID: ${escapeHtml(order.id)}</div>
+    </div>
+
+    <div class="card">
+      <h2>Items</h2>
+      ${items || '<p style="color:var(--gray);font-size:0.85rem;">No item details available.</p>'}
+      <div class="totals-row"><span>Subtotal</span><span>$${Number(order.subtotal).toFixed(2)}</span></div>
+      ${order.discount_applied ? '<div class="totals-row"><span>Bulk discount</span><span>Applied</span></div>' : ''}
+      <div class="totals-row"><span>Shipping</span><span>${shippingLine}</span></div>
+      <div class="totals-row final"><span>Total</span><span>$${Number(order.total).toFixed(2)}</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Shipping to</h2>
+      ${addressHtml}
+    </div>
+
+    <a href="/shop.html" class="shop-link">&larr; Back to shop</a>
+  `;
+}
+
+let pollCount = 0;
+let pollTimer = null;
+
+async function pollOrder(orderId) {
+  try {
+    const res = await fetch('/api/checkout/' + encodeURIComponent(orderId));
+    if (res.status === 404) {
+      renderNotFound();
+      return;
+    }
+    const order = await res.json();
+    renderOrder(order);
+
+    // Keep polling while payment is still pending, so the page updates
+    // itself once the webhook confirms the on-chain payment — up to
+    // roughly 5 minutes, then stop so we don't poll forever.
+    pollCount++;
+    if (order.status === 'pending_payment' && pollCount < 60) {
+      pollTimer = setTimeout(() => pollOrder(orderId), 5000);
+    }
+  } catch (err) {
+    console.error('Failed to fetch order status:', err);
+    renderNotFound();
+  }
+}
+
+const orderId = getOrderId();
+if (orderId) {
+  pollOrder(orderId);
+} else {
+  renderNotFound();
+}
+</script>
+
+</body>
+</html>
