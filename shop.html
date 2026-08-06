@@ -38,13 +38,13 @@ header{ display:flex; flex-direction:column; padding:14px 20px; border-bottom:1p
 .hero h1{ font-weight:700; font-size:1.9rem; color:var(--navy-dark); margin-bottom:6px; }
 .hero p{ color:var(--gray); font-size:0.85rem; max-width:420px; margin:0 auto; }
 
-.section-heading{ padding:30px 20px 6px; font-weight:700; font-size:1.5rem; color:var(--navy-dark); }
+.section-heading{ padding:30px 20px 6px; font-weight:700; font-size:1.5rem; color:var(--navy-dark); max-width:1200px; margin:0 auto; }
 
-.cat-tabs{ display:flex; gap:8px; overflow-x:auto; padding:12px 20px 10px; }
+.cat-tabs{ display:flex; gap:8px; overflow-x:auto; padding:12px 20px 10px; max-width:1200px; margin:0 auto; }
 .cat-tab{ flex:0 0 auto; padding:9px 16px; border-radius:20px; font-size:0.74rem; font-weight:700; border:1.5px solid var(--line); color:var(--gray); white-space:nowrap; cursor:pointer; background:#fff; }
 .cat-tab.active{ color:#fff; }
 
-.section{ padding:10px 20px 50px; }
+.section{ padding:10px 20px 50px; max-width:1200px; margin:0 auto; }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:14px; }
 .card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 14px 14px; position:relative; cursor:pointer; display:flex; flex-direction:column; }
 .badge{ position:absolute; top:10px; left:10px; background:#141414; color:#fff; font-size:0.55rem; font-weight:700; padding:3px 8px; border-radius:12px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
@@ -325,7 +325,7 @@ body.gate-active{ overflow:hidden; }
 .mission-section{padding:40px 20px;max-width:700px;margin:0 auto;text-align:center;}
 .mission-section h2{font-size:1.3rem;color:var(--navy-dark);margin-bottom:12px;}
 .mission-section p{font-size:0.9rem;color:#444;line-height:1.6;}
-.most-popular-heading{padding:30px 20px 6px;font-weight:700;font-size:1.5rem;color:var(--navy-dark);text-align:left;}
+.most-popular-heading{padding:30px 20px 6px;font-weight:700;font-size:1.5rem;color:var(--navy-dark);text-align:left;max-width:1200px;margin:0 auto;}
 
 #most-popular-grid{ display:flex; overflow-x:auto; gap:20px; padding:8px 20px 20px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
 #most-popular-grid::-webkit-scrollbar{ display:none; }
