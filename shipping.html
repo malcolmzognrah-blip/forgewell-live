@@ -181,31 +181,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 </head>
 <body>
 
-<header>
-  <div class="header-top-row">
-    <a href="/shop.html" class="logo-mark" style="text-decoration:none;">
-      <svg width="26" height="26" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 60 C20 45 35 35 55 35 L105 35 C125 35 138 45 138 58 L138 68 L20 68 Z" fill="#1B4B8C"/>
-    <path d="M132 42 L158 36 L158 52 L138 58 Z" fill="#1B4B8C"/>
-    <rect x="65" y="68" width="20" height="16" fill="#1B4B8C"/>
-    <rect x="45" y="84" width="60" height="8" rx="1.5" fill="#123056"/>
-    <path d="M75 -20 C90 -10 60 5 75 15 C90 25 60 35 75 45" stroke="#3FA34D" stroke-width="6" fill="none" stroke-linecap="round"/>
-    <path d="M75 -20 C60 -10 90 5 75 15 C60 25 90 35 75 45" stroke="#1B4B8C" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.55"/>
-  </svg>
-      <span class="logo-word"><span class="forge">FORGE</span><span class="well">WELL</span></span>
-    </a>
-    <div class="menu-toggle">
-      <a href="/login.html" class="login-icon" title="Account">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </a>
-      <div class="cart-icon">CART (0)</div>
-      <div class="hamburger" id="hamburger-btn"><span></span><span></span><span></span></div>
-    </div>
-  </div>
-  <div class="header-search-row">
-    <input type="text" id="header-catalog-search-input" placeholder="Search the catalog...">
-  </div>
-</header>
+<div id="header-placeholder"></div>
 
 
 
@@ -272,15 +248,6 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 </div>
 
 
-<div id="nav-overlay" class="nav-overlay">
-  <div class="nav-overlay-inner">
-    <div class="nav-overlay-close" id="nav-overlay-close">&times;</div>
-    <a href="/shop.html">Home</a>
-    <a href="/shop.html#tabs">Shop</a>
-    <a href="/cart.html">Cart</a>
-    <a href="mailto:support@forgewellpeptide.com">Contact Us</a>
-  </div>
-</div>
 
 
 
@@ -308,49 +275,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 </div>
 
 
-<footer class="footer-main">
-  <div class="footer-grid">
-    <div class="footer-col">
-      <h4>Contact Us</h4>
-      <a href="mailto:support@forgewellpeptide.com">support@forgewellpeptide.com</a>
-      <p>Questions about an order or product? Reach out anytime.</p>
-    </div>
-
-    <div class="footer-col">
-      <h4>Follow Us</h4>
-      <div class="footer-social">
-        <a href="#" title="Instagram">IG</a>
-        <a href="#" title="X / Twitter">X</a>
-        <a href="#" title="Facebook">FB</a>
-      </div>
-      <p style="margin-top:10px;">(Links to be added — placeholder handles)</p>
-    </div>
-
-    <div class="footer-col">
-      <h4>Get 15% Off</h4>
-      <input type="email" class="footer-signup-input" id="footer-email-input" placeholder="you@example.com">
-      <button class="footer-signup-btn" id="footer-signup-btn" type="button">Sign Up</button>
-      <div class="footer-signup-msg" id="footer-signup-msg"></div>
-    </div>
-  </div>
-
-  <div class="footer-legal">
-    All products are designated For Research Use Only and are supplied solely for laboratory, analytical, or scientific research by qualified professionals. Not for human or veterinary use. Not for use in diagnostic or therapeutic procedures. Not approved by the FDA or any regulatory body for human consumption, treatment, cure, or prevention of any disease. By purchasing, the buyer certifies they are a qualified researcher acquiring these products exclusively for laboratory use, and assumes full responsibility for their legal, safe, and appropriate handling in accordance with all applicable laws.
-  </div>
-
-  <div class="footer-bottom">
-    <p class="footer-copyright">&copy; 2026 Forgewell. All rights reserved.</p>
-    <div class="footer-legal-links">
-      <a href="/terms.html">Terms</a>
-      <a href="/privacy.html">Privacy</a>
-      <a href="/shipping.html">Shipping Policy</a>
-      <a href="/ruo-agreement.html">RUO Agreement</a>
-    </div>
-    <div class="footer-catalog-search">
-      <input type="text" id="footer-catalog-search-input" placeholder="Search the catalog...">
-    </div>
-  </div>
-</footer>
+<div id="footer-placeholder"></div>
 
 <script>
 let allProducts = [];
@@ -394,7 +319,10 @@ function catalogSearchJump(query) {
   }
 }
 
-(function() {
+// Wires up all header/footer interactivity. Runs only after header.html and
+// footer.html have been fetched and injected below -- their elements don't
+// exist in the DOM before then.
+function wireHeaderFooter() {
   var footerSearchInput = document.getElementById('footer-catalog-search-input');
   if (footerSearchInput) {
     footerSearchInput.addEventListener('keydown', function(e) {
@@ -409,9 +337,7 @@ function catalogSearchJump(query) {
       catalogSearchJump(headerSearchInput.value);
     });
   }
-})();
 
-(function() {
   var hamBtn = document.getElementById('hamburger-btn');
   var overlay = document.getElementById('nav-overlay');
   var closeBtn = document.getElementById('nav-overlay-close');
@@ -426,37 +352,60 @@ function catalogSearchJump(query) {
       if (e.target === overlay) overlay.classList.remove('open');
     });
   }
-})();
 
-// Checks whether the person is logged in and updates the header's account
-// icon accordingly -- links to order history if logged in, to the
-// login/signup page otherwise. Runs on every page that shares this header.
-(function() {
+  // Checks whether the person is logged in and updates the header's account
+  // icon accordingly -- links to order history if logged in, to the
+  // login/signup page otherwise. Runs on every page that shares this header.
   var loginIcon = document.querySelector('.login-icon');
-  if (!loginIcon) return;
-  fetch('/api/auth/me', { credentials: 'include' })
-    .then(function(res) { return res.ok ? res.json() : null; })
-    .then(function(customer) {
-      if (customer) {
-        loginIcon.href = '/orders.html';
-        loginIcon.title = 'My Account (' + customer.email + ')';
-        var navInner = document.querySelector('.nav-overlay-inner');
-        if (navInner && !document.getElementById('nav-logout-link')) {
-          var logoutLink = document.createElement('a');
-          logoutLink.href = '#';
-          logoutLink.id = 'nav-logout-link';
-          logoutLink.textContent = 'Log Out';
-          logoutLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-              .then(function() { window.location.href = '/shop.html'; });
-          });
-          navInner.appendChild(logoutLink);
+  if (loginIcon) {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : null; })
+      .then(function(customer) {
+        if (customer) {
+          loginIcon.href = '/orders.html';
+          loginIcon.title = 'My Account (' + customer.email + ')';
+          var navInner = document.querySelector('.nav-overlay-inner');
+          if (navInner && !document.getElementById('nav-logout-link')) {
+            var logoutLink = document.createElement('a');
+            logoutLink.href = '#';
+            logoutLink.id = 'nav-logout-link';
+            logoutLink.textContent = 'Log Out';
+            logoutLink.addEventListener('click', function(e) {
+              e.preventDefault();
+              fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+                .then(function() { window.location.href = '/shop.html'; });
+            });
+            navInner.appendChild(logoutLink);
+          }
         }
-      }
-    })
-    .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
-})();
+      })
+      .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
+  }
+
+  var cartIcon = document.querySelector('.cart-icon');
+  if (cartIcon) {
+    cartIcon.addEventListener('click', function() {
+      renderCart();
+      document.getElementById('cart-panel').style.right = '0';
+    });
+  }
+
+  // Restores the header's cart count from localStorage now that the header
+  // actually exists in the DOM (it didn't yet when updateCartIcon() first
+  // ran further down this script).
+  updateCartIcon();
+}
+
+Promise.all([
+  fetch('/header.html').then(function(r) { return r.text(); }).then(function(html) {
+    document.getElementById('header-placeholder').innerHTML = html;
+  }),
+  fetch('/footer.html').then(function(r) { return r.text(); }).then(function(html) {
+    document.getElementById('footer-placeholder').innerHTML = html;
+  })
+]).then(wireHeaderFooter).catch(function(err) {
+  console.error('Failed to load shared header/footer', err);
+});
 
 async function loadProducts() {
   try {
@@ -807,10 +756,6 @@ function populateMostPopular() {
 }
 buildCartPanel();
 updateCartIcon();
-document.querySelector('.cart-icon').addEventListener('click', () => {
-  renderCart();
-  document.getElementById('cart-panel').style.right = '0';
-});
 
 
 
