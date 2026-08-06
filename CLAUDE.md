@@ -28,9 +28,9 @@ treat them as an external contract.
 
 `header.html` and `footer.html` are the one exception to the "no shared markup" rule: on
 `shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`, `shipping.html`,
-and `ruo-agreement.html`, the header (logo/search/hamburger/login-icon/cart-icon), the hamburger's
-`#nav-overlay` slide-out menu, and the footer are all fetched at runtime from `/header.html` and
-`/footer.html` and injected into `<div id="header-placeholder">` / `<div id="footer-placeholder">`.
+`ruo-agreement.html`, and `contact.html`, the header (logo/search/hamburger/login-icon/cart-icon), the
+hamburger's `#nav-overlay` dropdown menu, and the footer are all fetched at runtime from `/header.html`
+and `/footer.html` and injected into `<div id="header-placeholder">` / `<div id="footer-placeholder">`.
 Each of those pages calls this loader near the top of its trailing `<script>` block:
 ```js
 Promise.all([
@@ -40,9 +40,9 @@ Promise.all([
 ```
 **All header/footer DOM wiring (hamburger toggle, login-icon session check, header/footer search
 inputs, footer email-signup, the cart-icon's click-to-open-panel) lives inside `wireHeaderFooter()`**,
-duplicated verbatim in each of those 8 pages, and is only invoked from that `.then()` — never at
+duplicated verbatim in each of those 9 pages, and is only invoked from that `.then()` — never at
 top-level script-parse time. If you add new header/footer interactivity, it must go inside
-`wireHeaderFooter()` (in every one of the 8 pages) rather than as a top-level statement, or it will
+`wireHeaderFooter()` (in every one of the 9 pages) rather than as a top-level statement, or it will
 silently no-op (or throw, for unguarded lookups) because the fragment hasn't loaded yet when the
 script runs. `updateCartIcon()` is also called at the end of `wireHeaderFooter()` for the same reason
 — the header's `.cart-icon` doesn't exist yet the first time the page tries to restore the cart count
@@ -86,10 +86,10 @@ fetch) — separate from the localStorage cart state. Customer auth (`/api/auth/
 Both the cart panel's "Checkout" button and a card's "Buy Now" button POST to `/api/checkout` with
 `{ items: [{ productId, qty }], customerEmail, shippingAddress }`. A successful response is expected to
 contain `payment.paymentUrl`, and the browser redirects there (an external hosted payment page — no
-payment provider SDK is loaded in this repo). There is no dedicated `cart.html` page — every nav bar links
-to `/cart.html`, but the cart itself is a slide-out `<div id="cart-panel">` injected by `buildCartPanel()`,
-not a route. Don't try to "fix" that link by making it navigate anywhere; it's dead by design as long as
-the cart stays a JS panel.
+payment provider SDK is loaded in this repo). There is no dedicated `cart.html` page and no nav element
+should ever link to it as a route — the cart itself is a slide-out `<div id="cart-panel">` injected by
+`buildCartPanel()`. Both the header's `.cart-icon` and the hamburger dropdown's `#nav-cart-link` open
+that panel via JS (`renderCart()` + setting `style.right = '0'`) instead of navigating.
 
 ### Images
 
