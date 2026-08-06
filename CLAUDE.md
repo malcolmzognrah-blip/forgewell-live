@@ -48,30 +48,25 @@ script runs. `updateCartIcon()` is also called at the end of `wireHeaderFooter()
 — the header's `.cart-icon` doesn't exist yet the first time the page tries to restore the cart count
 from `localStorage`.
 
-The 20 legacy `forgewell-product-*.html` pages and `admin.html`/`order-confirmation.html` were
-deliberately left out of this — they have a different, simpler header (or none) and no footer at all,
-so pointing them at `header.html`/`footer.html` would add UI they don't currently have, not just
-dedupe markup.
+`admin.html`/`order-confirmation.html` were deliberately left out of this — they have a different,
+simpler header (or none) and no footer at all, so pointing them at `header.html`/`footer.html` would
+add UI they don't currently have, not just dedupe markup.
 
 Cart state logic (`addToCart`/`saveCart`/`renderCart`/`buildCartPanel`) and checkout logic are still
 duplicated inline per page with no shared `.js` file. **A fix or feature to that logic must be manually
 re-applied to every page that has a copy of it**, or the pages will silently drift out of sync. Grep for
-the function/variable name across `*.html` before assuming a single-file edit is sufficient — e.g.
-`grep -l PRODUCT_PAGE_MAP *.html` currently returns `login.html`, `terms.html`, `product.html`,
-`orders.html`, `ruo-agreement.html`, `privacy.html`, `shipping.html`.
+the function/variable name across `*.html` before assuming a single-file edit is sufficient.
 
-### Two different product-page mechanisms coexist
+### Product pages are rendered dynamically
 
-- **Dynamic (current)**: `shop.html` fetches the live catalog from `GET /api/products` and renders cards
-  into `#grid`/`#most-popular-grid`. Clicking a card navigates to `/product.html?id=<productId>`, which
-  re-fetches `/api/products`, finds the matching product client-side, and renders it into `#product-root`.
-  This is the canonical per-product page today.
-- **Legacy static pages**: `forgewell-product-<slug>.html` (one per product, ~1.8MB each because they
-  embed a base64 Quicksand font inline) are pre-rendered standalone pages. They're no longer linked from
-  the shop grid, but the `PRODUCT_PAGE_MAP` object (duplicated in the pages listed above) still routes the
-  header search box's "jump to product" feature to these static files by product name. Don't assume
-  editing `forgewell-product-*.html` affects what shoppers see from the shop grid — it doesn't; edit
-  `product.html`'s rendering logic instead for anything reachable via normal browsing.
+`shop.html` fetches the live catalog from `GET /api/products` and renders cards into
+`#grid`/`#most-popular-grid`. Clicking a card navigates to `/product.html?id=<productId>`, which
+re-fetches `/api/products`, finds the matching product client-side, and renders it into
+`#product-root`. The header search box's "jump to product" feature on the 7 pages that embed the
+shared header (see above) also routes to `/product.html?id=<productId>` against the same live
+catalog. The 20 legacy pre-rendered `forgewell-product-<slug>.html` pages and the `PRODUCT_PAGE_MAP`
+object that used to route search to them have been removed — `product.html` is now the only
+per-product page.
 
 ### Client-side state is localStorage, not cookies
 
