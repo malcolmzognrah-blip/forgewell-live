@@ -285,39 +285,15 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 let allProducts = [];
 let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
 
-// Maps each product's display name (must match the <h3> text on its
-// card exactly) to its detail page filename.
-const PRODUCT_PAGE_MAP = {
-  'Semaglutide': 'forgewell-product-semaglutide.html',
-  'Tirzepatide': 'forgewell-product-tirzepatide.html',
-  'Retatrutide': 'forgewell-product-retatrutide.html',
-  'Cagrilintide': 'forgewell-product-cagrilintide.html',
-  'AOD9604': 'forgewell-product-aod9604.html',
-  'Tesamorelin': 'forgewell-product-tesamorelin.html',
-  'CJC-1295': 'forgewell-product-cjc-1295.html',
-  'Ipamorelin': 'forgewell-product-ipamorelin.html',
-  'IGF-1 LR3': 'forgewell-product-igf-1-lr3.html',
-  'HCG': 'forgewell-product-hcg.html',
-  'HMG': 'forgewell-product-hmg.html',
-  'BPC-157': 'forgewell-product-bpc-157.html',
-  'TB-500': 'forgewell-product-tb-500.html',
-  'BB Blend': 'forgewell-product-bb-blend.html',
-  'KLOW Blend': 'forgewell-product-klow-blend.html',
-  'GHK-Cu': 'forgewell-product-ghk-cu.html',
-  'Glutathione': 'forgewell-product-glutathione.html',
-  'Melanotan II': 'forgewell-product-melanotan-ii.html',
-  'Snap-8': 'forgewell-product-snap-8.html',
-  'Bacteriostatic Water (30mL)': 'forgewell-product-bacteriostatic-water.html',
-};
-
 function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
   if (!query) return;
-  var names = Object.keys(PRODUCT_PAGE_MAP);
-  var match = names.find(function(n) { return n.toLowerCase() === query; });
-  if (!match) match = names.find(function(n) { return n.toLowerCase().indexOf(query) !== -1; });
+  const match = allProducts.find(p => {
+    const base = (p.name || '').replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)\)?\s*$/i, '').trim().toLowerCase();
+    return base === query || base.indexOf(query) !== -1;
+  });
   if (match) {
-    window.location.href = '/' + PRODUCT_PAGE_MAP[match];
+    window.location.href = '/product.html?id=' + encodeURIComponent(match.id);
   } else {
     window.location.href = '/shop.html#tabs';
   }
@@ -731,13 +707,9 @@ document.addEventListener('click', async (e) => {
   // and return early, so they're excluded from this navigation.
   const card = e.target.closest('.card');
   if (card) {
-    const nameEl = card.querySelector('h3');
-    const name = nameEl?.textContent.trim();
-    const filename = PRODUCT_PAGE_MAP[name];
-    if (filename) {
-      window.location.href = filename;
-    } else {
-      console.warn('No product detail page mapped for:', name);
+    const productId = card.dataset.productId;
+    if (productId) {
+      window.location.href = '/product.html?id=' + encodeURIComponent(productId);
     }
   }
 });
