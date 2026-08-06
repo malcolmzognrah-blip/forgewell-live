@@ -46,6 +46,12 @@ header{ display:flex; flex-direction:column; padding:14px 20px; border-bottom:1p
 
 .section{ padding:10px 24px 50px; max-width:1200px; margin:0 auto; }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:14px; }
+
+.pagination{ display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; padding-top:28px; }
+.page-btn{ flex:0 0 auto; padding:9px 15px; border-radius:20px; font-size:0.78rem; font-weight:700; border:1.5px solid var(--line); color:var(--gray); white-space:nowrap; cursor:pointer; background:#fff; font-family:'Quicksand',sans-serif; }
+.page-btn.active{ background:#141414; color:#fff; border-color:#141414; }
+.page-btn.ellipsis{ cursor:default; border-color:transparent; padding:9px 4px; }
+.page-btn:disabled{ opacity:0.4; cursor:not-allowed; pointer-events:none; }
 .card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 14px 14px; position:relative; cursor:pointer; display:flex; flex-direction:column; }
 .badge{ position:absolute; top:10px; left:10px; background:#141414; color:#fff; font-size:0.55rem; font-weight:700; padding:3px 8px; border-radius:12px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
 .tag-pill{ position:absolute; top:10px; right:10px; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
@@ -357,6 +363,8 @@ body.gate-active{ overflow:hidden; }
   .most-popular-heading{padding:24px 16px 4px;font-size:1.2rem;}
   .logo-word{font-size:0.95rem;}
   header{padding:10px 14px;}
+  .pagination{gap:6px;padding-top:20px;}
+  .page-btn{padding:8px 12px;font-size:0.72rem;}
 }
 </style>
 
@@ -395,6 +403,7 @@ body.gate-active{ overflow:hidden; }
 
 <div class="section">
   <div class="grid" id="grid"></div>
+  <div class="pagination" id="pagination"></div>
 </div>
 </div>
 
@@ -543,6 +552,9 @@ document.querySelectorAll('.faq-question').forEach(btn => {
 
 let allProducts = [];
 let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
+let productGroupList = [];
+let currentCategoryFilter = 'all';
+let currentPage = 1;
 
 // Ids that are base component records for blend/kit products -- intentionally
 // $0, never meant to be sold standalone. Excluded from the shop grid and
@@ -807,6 +819,7 @@ async function renderShopGrid() {
   });
 
   const groupList = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+  productGroupList = groupList;
 
   // Categories present in the live data, ordered to match the confirmed
   // DB values (peptide/amino/kit/essential), any unexpected value sorts last.
@@ -820,7 +833,9 @@ async function renderShopGrid() {
       return ai - bi;
     });
 
-  gridEl.innerHTML = groupList.map(g => buildCardHtml(g)).join('');
+  currentCategoryFilter = 'all';
+  currentPage = 1;
+  renderProductsPage();
 
   // Rebuild tabs from real categories.
   if (tabsEl) {
@@ -843,10 +858,9 @@ async function renderShopGrid() {
         tab.style.background = color;
         tab.style.color = '#fff';
         tab.style.borderColor = color;
-        const filter = tab.dataset.filter;
-        document.querySelectorAll('#grid .card').forEach(card => {
-          card.style.display = (filter === 'all' || card.dataset.tag === filter) ? '' : 'none';
-        });
+        currentCategoryFilter = tab.dataset.filter;
+        currentPage = 1;
+        renderProductsPage();
       });
     });
   }
@@ -896,6 +910,90 @@ async function renderShopGrid() {
     popularEl.innerHTML = picks.map(g => buildCardHtml(g)).join('');
   }
 }
+
+// .grid uses grid-template-columns:repeat(auto-fill, minmax(160px,1fr)) with
+// no breakpoint overrides, so column count is fluid rather than fixed per
+// screen size. auto-fill (unlike auto-fit) always resolves to one computed
+// track per column that fits the container, even when the grid is empty or
+// partially filled, so this reads the real current column count straight
+// from layout instead of guessing at breakpoints.
+function computeGridColumns() {
+  const gridEl = document.getElementById('grid');
+  if (!gridEl) return 1;
+  const cols = getComputedStyle(gridEl).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length;
+  return cols || 1;
+}
+
+function renderProductsPage() {
+  const gridEl = document.getElementById('grid');
+  if (!gridEl) return;
+
+  const filtered = currentCategoryFilter === 'all'
+    ? productGroupList
+    : productGroupList.filter(g => g.category === currentCategoryFilter);
+
+  const itemsPerPage = computeGridColumns() * 4;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  currentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const start = (currentPage - 1) * itemsPerPage;
+  const pageItems = filtered.slice(start, start + itemsPerPage);
+  gridEl.innerHTML = pageItems.length
+    ? pageItems.map(g => buildCardHtml(g)).join('')
+    : '<p style="padding:20px;color:#6b6b6b;">No products in this category.</p>';
+
+  renderPaginationControls(totalPages, currentPage);
+}
+
+function renderPaginationControls(totalPages, page) {
+  const pagerEl = document.getElementById('pagination');
+  if (!pagerEl) return;
+
+  if (totalPages <= 1) {
+    pagerEl.innerHTML = '';
+    return;
+  }
+
+  // First/last + neighbors of the current page, with an ellipsis filling
+  // any gap -- keeps the control from growing unbounded as the catalog does.
+  const pageNumbers = [1];
+  for (let p = page - 1; p <= page + 1; p++) {
+    if (p > 1 && p < totalPages) pageNumbers.push(p);
+  }
+  if (totalPages > 1) pageNumbers.push(totalPages);
+  const uniquePages = [...new Set(pageNumbers)].sort((a, b) => a - b);
+
+  let html = '<button class="page-btn" data-page="prev"' + (page === 1 ? ' disabled' : '') + '>‹ Prev</button>';
+  let prevPage = 0;
+  uniquePages.forEach(p => {
+    if (p - prevPage > 1) {
+      html += '<span class="page-btn ellipsis">…</span>';
+    }
+    html += '<button class="page-btn' + (p === page ? ' active' : '') + '" data-page="' + p + '">' + p + '</button>';
+    prevPage = p;
+  });
+  html += '<button class="page-btn" data-page="next"' + (page === totalPages ? ' disabled' : '') + '>Next ›</button>';
+
+  pagerEl.innerHTML = html;
+}
+
+let gridResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(gridResizeTimer);
+  gridResizeTimer = setTimeout(renderProductsPage, 150);
+});
+
+document.addEventListener('click', (e) => {
+  const pageBtn = e.target.closest('.page-btn[data-page]');
+  if (!pageBtn || pageBtn.disabled) return;
+  const target = pageBtn.dataset.page;
+  if (target === 'prev') currentPage -= 1;
+  else if (target === 'next') currentPage += 1;
+  else currentPage = parseInt(target, 10);
+  renderProductsPage();
+  const heading = document.querySelector('.section-heading');
+  if (heading) heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 function saveCart() {
   localStorage.setItem('forgewell_cart', JSON.stringify(cart));
