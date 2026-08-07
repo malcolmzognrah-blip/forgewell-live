@@ -16,8 +16,9 @@ treat them as an external contract.
 ## Commands
 
 - **Preview locally**: serve the directory with any static file server, e.g. `python3 -m http.server 8000`,
-  then open `http://localhost:8000/shop.html`. API calls to `/api/*` will fail unless proxied to wherever
-  the real backend is running — expect fetches on pages like `shop.html`/`product.html` to error out when
+  then open `http://localhost:8000/home.html` (marketing landing page) or `http://localhost:8000/shop.html`
+  (product catalog). API calls to `/api/*` will fail unless proxied to wherever the real backend is
+  running — expect fetches on pages like `home.html`/`shop.html`/`product.html` to error out when
   previewed fully offline.
 - **No build, lint, or test commands exist.** Do not invent `npm run` scripts — verify changes by opening
   the page in a browser and exercising the flow manually.
@@ -27,11 +28,12 @@ treat them as an external contract.
 ### Every page is (mostly) self-contained — cart/checkout/search logic has no shared JS
 
 `header.html` and `footer.html` are the one exception to the "no shared markup" rule: on
-`shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`, `shipping.html`,
-`ruo-agreement.html`, and `contact.html`, the header (logo/search/hamburger/login-icon/cart-icon), the
-hamburger's `#nav-overlay` dropdown menu, and the footer are all fetched at runtime from `/header.html`
-and `/footer.html` and injected into `<div id="header-placeholder">` / `<div id="footer-placeholder">`.
-Each of those pages calls this loader near the top of its trailing `<script>` block:
+`home.html`, `shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`,
+`shipping.html`, `ruo-agreement.html`, and `contact.html`, the header (logo, "Home"/"Shop" nav links,
+search, login-icon/cart-icon/hamburger — all in a single row), the hamburger's `#nav-overlay` dropdown
+menu, and the footer are all fetched at runtime from `/header.html` and `/footer.html` and injected into
+`<div id="header-placeholder">` / `<div id="footer-placeholder">`. Each of those pages calls this loader
+near the top of its trailing `<script>` block:
 ```js
 Promise.all([
   fetch('/header.html').then(r => r.text()).then(html => { document.getElementById('header-placeholder').innerHTML = html; }),
@@ -40,9 +42,9 @@ Promise.all([
 ```
 **All header/footer DOM wiring (hamburger toggle, login-icon session check, header/footer search
 inputs, footer email-signup, the cart-icon's click-to-open-panel) lives inside `wireHeaderFooter()`**,
-duplicated verbatim in each of those 9 pages, and is only invoked from that `.then()` — never at
+duplicated verbatim in each of those 10 pages, and is only invoked from that `.then()` — never at
 top-level script-parse time. If you add new header/footer interactivity, it must go inside
-`wireHeaderFooter()` (in every one of the 9 pages) rather than as a top-level statement, or it will
+`wireHeaderFooter()` (in every one of the 10 pages) rather than as a top-level statement, or it will
 silently no-op (or throw, for unguarded lookups) because the fragment hasn't loaded yet when the
 script runs. `updateCartIcon()` is also called at the end of `wireHeaderFooter()` for the same reason
 — the header's `.cart-icon` doesn't exist yet the first time the page tries to restore the cart count
@@ -59,10 +61,13 @@ the function/variable name across `*.html` before assuming a single-file edit is
 
 ### Product pages are rendered dynamically
 
-`shop.html` fetches the live catalog from `GET /api/products` and renders cards into
-`#grid`/`#most-popular-grid`. Clicking a card navigates to `/product.html?id=<productId>`, which
+`shop.html` fetches the live catalog from `GET /api/products` and renders cards into `#grid`
+(category tabs + pagination). `home.html` does its own separate `GET /api/products` fetch and renders
+a fixed top-8 selection into `#most-popular-grid` (a horizontal-scroll list, no pagination/filtering).
+Both pages render `.card` markup via the same `buildCardHtml()` function, duplicated in each file per
+the no-shared-JS rule above. Clicking a card navigates to `/product.html?id=<productId>`, which
 re-fetches `/api/products`, finds the matching product client-side, and renders it into
-`#product-root`. The header search box's "jump to product" feature on the 7 pages that embed the
+`#product-root`. The header search box's "jump to product" feature on all 10 pages that embed the
 shared header (see above) also routes to `/product.html?id=<productId>` against the same live
 catalog. The 20 legacy pre-rendered `forgewell-product-<slug>.html` pages and the `PRODUCT_PAGE_MAP`
 object that used to route search to them have been removed — `product.html` is now the only
