@@ -118,6 +118,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .gallery-thumbs{display:flex; gap:10px; margin-top:10px;}
 .gallery-thumbs img{width:64px; height:64px; object-fit:cover; border-radius:6px; border:1.5px solid var(--line); cursor:pointer;}
 .gallery-thumbs img.active{border-color:var(--navy);}
+.gallery-thumb-doc{width:64px; height:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border-radius:6px; border:1.5px solid var(--line); background:var(--panel); color:var(--navy); text-decoration:none; cursor:pointer;}
+.gallery-thumb-doc:hover{border-color:var(--navy);}
+.gallery-thumb-doc span{font-size:0.55rem; font-weight:700;}
 
 .purity-badge{display:inline-block; background:var(--green); color:#fff; font-size:0.7rem; font-weight:700; padding:4px 10px; border-radius:20px; margin-bottom:10px;}
 .product-title{font-size:1.7rem; color:var(--navy-dark); margin:0 0 4px; font-weight:700;}
@@ -478,6 +481,7 @@ function renderProduct(product, siblings) {
       '<div class="product-main">' +
         '<div class="gallery-col">' +
           '<div class="gallery-main"><img id="gallery-main-img" src="' + imgUrl + '" alt="' + product.name + '" onerror="this.closest(\'.product-wrap\').innerHTML=\'<div class=&quot;error-state&quot;><h2>Product image not available.</h2></div>\'"></div>' +
+          '<div class="gallery-thumbs" id="gallery-thumbs" style="display:none;"></div>' +
         '</div>' +
         '<div class="buy-col">' +
           '<span class="purity-badge">Research Use Only</span>' +
@@ -497,7 +501,7 @@ function renderProduct(product, siblings) {
             '<button class="btn-buy" id="buy-now-btn">Buy Now</button>' +
           '</div>' +
           '<div class="trust-row"><span>COA Available</span><span>Third-Party Tested</span><span>Ships Discreetly</span></div>' +
-          '<a class="coa-link" href="#" id="coa-link">View Certificate of Analysis</a>' +
+          '<a class="coa-link" href="#" id="coa-link" target="_blank" rel="noopener" style="display:none;">View Certificate of Analysis</a>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -516,6 +520,49 @@ function renderProduct(product, siblings) {
     '</div>';
 
   wireProductInteractions(product);
+  wireCoaLink(product);
+}
+
+// Checks for a matching PDF at /coa/<id>.pdf via a HEAD request rather than
+// any manifest/database lookup -- there's no backend route for this in the
+// external API, and a HEAD request needs no coordination with it: whoever
+// drops a PDF into that folder just works, with nothing else to keep in
+// sync. Treats any non-200 or network error as "no PDF" so a missing file
+// (or a host that mishandles HEAD) just hides the link, never breaks it.
+async function checkCoaExists(productId) {
+  try {
+    var res = await fetch('/coa/' + encodeURIComponent(productId) + '.pdf', { method: 'HEAD' });
+    return res.ok;
+  } catch (err) {
+    return false;
+  }
+}
+
+function wireCoaLink(product) {
+  checkCoaExists(product.id).then(function(exists) {
+    if (!exists) return;
+    var coaUrl = '/coa/' + encodeURIComponent(product.id) + '.pdf';
+
+    // Reveal the gallery thumbnail strip only now -- with just the one
+    // vial photo and no COA, there's nothing worth a thumbnail row for.
+    var thumbs = document.getElementById('gallery-thumbs');
+    if (thumbs) {
+      var imgUrl = document.getElementById('gallery-main-img').src;
+      thumbs.innerHTML =
+        '<img src="' + imgUrl + '" alt="' + product.name + '" class="active" data-role="image-thumb">' +
+        '<a href="' + coaUrl + '" target="_blank" rel="noopener" class="gallery-thumb-doc" title="View Certificate of Analysis">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' +
+          '<span>COA</span>' +
+        '</a>';
+      thumbs.style.display = '';
+    }
+
+    var trustLink = document.getElementById('coa-link');
+    if (trustLink) {
+      trustLink.href = coaUrl;
+      trustLink.style.display = '';
+    }
+  });
 }
 
 function wireProductInteractions(product) {
@@ -551,6 +598,20 @@ function wireProductInteractions(product) {
         window.location.href = '/product.html?id=' + encodeURIComponent(newId);
       }
     });
+  });
+
+  // Delegated since gallery-thumbs starts empty and is only populated later
+  // (by wireCoaLink) once we know whether there's a COA to show alongside
+  // the vial photo. The doc thumbnail is a plain target="_blank" link and
+  // needs no handler of its own.
+  document.getElementById('gallery-thumbs').addEventListener('click', function(e) {
+    var thumb = e.target.closest('[data-role="image-thumb"]');
+    if (!thumb) return;
+    document.getElementById('gallery-main-img').src = thumb.src;
+    document.querySelectorAll('#gallery-thumbs [data-role="image-thumb"]').forEach(function(t) {
+      t.classList.remove('active');
+    });
+    thumb.classList.add('active');
   });
 }
 

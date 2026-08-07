@@ -144,6 +144,25 @@ actual product image, as opposed to just a product name/price) treats a path sta
 absolute, one starting with `/` as already site-rooted, and everything else gets a leading `/`
 prepended (paths come from the product DB as `images/foo.png`, relative to site root).
 
+### Certificate of Analysis (COA) PDFs
+
+`coa/` holds one PDF per product, named `<product.id>.pdf` — the same `id` already used in that
+product's own URL (`/product.html?id=<productId>`). There's no manifest or database entry to keep in
+sync: `product.html`'s `checkCoaExists()` does a `HEAD /coa/<id>.pdf` request on page load and treats
+any non-200 or network error as "no PDF," so a product with no file there just shows nothing — never a
+broken link. This was a deliberate choice over a manifest file specifically to avoid a second thing
+that could drift out of sync with what's actually in the folder; dropping in a correctly-named PDF is
+the whole workflow.
+
+When a PDF exists, `wireCoaLink()` does two things: it reveals `#gallery-thumbs` (CSS for this already
+existed, unused, before this feature) with two thumbnails — the vial photo (`data-role="image-thumb"`,
+clickable, swaps `#gallery-main-img`'s `src`; this generalizes if a product ever gets more than one
+photo) and a document-icon thumbnail that opens the PDF via a plain `target="_blank"` link, no JS
+needed for that part — and it also points the pre-existing (previously dead, `href="#"`) "View
+Certificate of Analysis" link near the Buy buttons at the same PDF. Both start hidden in the initial
+render and only appear once `checkCoaExists()` resolves true; with no COA, the gallery looks exactly
+like it did before this feature (single image, no thumbnail row).
+
 ### Backup files
 
 `shop.html.backup`, `shop.html.backup2`, `shop.html.backup-20260804` are snapshots left in the repo root —
