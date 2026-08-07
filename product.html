@@ -37,8 +37,9 @@ header{
 .nav-overlay-inner{ display:flex; flex-direction:column; }
 .nav-overlay-inner a{ color:var(--navy-dark); font-size:0.9rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; padding:11px 18px; }
 .nav-overlay-inner a:hover{ background:var(--panel); }
-.cart-icon{ font-size:0.8rem; color:var(--navy); font-weight:700; white-space:nowrap; cursor:pointer; padding:7px 11px; border:1px solid var(--navy); border-radius:6px; transition:background 0.15s, color 0.15s; }
-.cart-icon:hover{ background:var(--navy); color:#fff; }
+.cart-icon{ display:flex; align-items:center; position:relative; color:var(--navy); cursor:pointer; padding:4px; }
+.cart-icon:hover{ color:var(--green); }
+.cart-count{ position:absolute; top:-2px; right:-4px; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:var(--navy); color:#fff; font-size:0.6rem; font-weight:700; line-height:15px; text-align:center; display:none; font-family:'Quicksand',sans-serif; box-sizing:border-box; }
 .login-icon{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
 
@@ -54,7 +55,8 @@ header{
   .header-search-row input{ padding:10px 12px 10px 34px; font-size:0.8rem; }
   .header-search-row .search-icon-btn{ left:11px; width:14px; height:14px; }
   .menu-toggle{ gap:10px; }
-  .cart-icon{ font-size:0.68rem; padding:6px 8px; }
+  .cart-icon svg{ width:18px; height:18px; }
+  .cart-count{ font-size:0.55rem; min-width:13px; height:13px; line-height:13px; }
   .logo-word{ font-size:0.85rem; }
   .login-icon svg{ width:18px; height:18px; }
 }
@@ -411,8 +413,11 @@ function saveCart() {
 
 function updateCartIcon() {
   const count = cart.reduce((sum, item) => sum + item.qty, 0);
-  const icon = document.querySelector('.cart-icon');
-  if (icon) icon.textContent = 'CART (' + count + ')';
+  const badge = document.getElementById('cart-count');
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'block' : 'none';
+  }
 }
 
 function addToCart(productId) {
