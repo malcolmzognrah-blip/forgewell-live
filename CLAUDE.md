@@ -58,13 +58,16 @@ simpler header (or none) and no footer at all, so pointing them at `header.html`
 add UI they don't currently have, not just dedupe markup.
 
 The header's `.header-nav-links` (all seven links) and `.hamburger` are mutually exclusive via a single
-`@media (max-width: 1050px)` rule in each page's own `<style>` block — links inline in the row above
+`@media (max-width: 1150px)` rule in each page's own `<style>` block — links inline in the row above
 that width, hidden below it with the hamburger (and `#nav-overlay`, same seven links) taking over.
-1050px isn't arbitrary: fitting seven links plus logo/search/icons on one line needs real room, and
+1150px isn't arbitrary: fitting seven links plus logo/search/icons on one line needs real room, and
 this was tuned by measuring the actual rendered width rather than guessed — forcing the links to stay
 visible below that point was verified to squeeze `.header-search-row` down to an unusable size well
-before anything visibly overlaps. `.header-search-row` itself is intentionally small (`max-width:240px` by default, shrinking further
-at the 1050px and 420px tiers) to leave room for all seven links.
+before anything visibly overlaps. (It was 1050px before the nav links, search input text, and
+Sign In/Cart labels were all bumped to a uniform `0.95rem` for visual consistency — the larger text
+needed the wider breakpoint, re-measured the same empirical way.) `.header-search-row` itself is
+intentionally small (`max-width:240px` by default, shrinking further at the 1150px and 420px tiers)
+to leave room for all seven links.
 Below 420px, `.login-icon-label`/`.cart-icon-label` ("Sign In"/"Cart" text) drop to `display:none`
 (icon-only) — without that, those two labels alone are enough to squeeze the search box into visibly
 overlapping the login icon on narrow phones. The visible label reads "Products" but the link (in both
