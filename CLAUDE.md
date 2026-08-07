@@ -30,7 +30,7 @@ treat them as an external contract.
 `header.html` and `footer.html` are the one exception to the "no shared markup" rule: on
 `home.html`, `shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`,
 `shipping.html`, `ruo-agreement.html`, `contact.html`, `why-us.html`, `coa.html`, `faqs.html`,
-`about-us.html`, and `cart.html`, the header (logo, "Home"/"Shop" nav links,
+`about-us.html`, `cart.html`, and `checkout.html`, the header (logo, "Home"/"Shop" nav links,
 search, login-icon/cart-icon/hamburger — all in a single row), the hamburger's `#nav-overlay` dropdown
 menu, and the footer are all fetched at runtime from `/header.html` and `/footer.html` and injected into
 `<div id="header-placeholder">` / `<div id="footer-placeholder">`. Each of those pages calls this loader
@@ -43,10 +43,10 @@ Promise.all([
 ```
 **All header/footer DOM wiring (hamburger toggle, login-icon session check, header/footer search
 inputs, footer email-signup) lives inside `wireHeaderFooter()`**, duplicated verbatim in each of those
-15 pages, and is only invoked from that `.then()` — never at top-level script-parse time. The
+16 pages, and is only invoked from that `.then()` — never at top-level script-parse time. The
 `.cart-icon` is a plain `<a href="/cart.html">` now (see Checkout flow below) so it needs no click
 wiring of its own. If you add new header/footer interactivity, it must go inside
-`wireHeaderFooter()` (in every one of the 15 pages) rather than as a top-level statement, or it will
+`wireHeaderFooter()` (in every one of the 16 pages) rather than as a top-level statement, or it will
 silently no-op (or throw, for unguarded lookups) because the fragment hasn't loaded yet when the
 script runs. `updateCartIcon()` is also called at the end of `wireHeaderFooter()` for the same reason
 — the header's `.cart-icon` doesn't exist yet the first time the page tries to restore the cart count
@@ -56,15 +56,20 @@ from `localStorage`.
 simpler header (or none) and no footer at all, so pointing them at `header.html`/`footer.html` would
 add UI they don't currently have, not just dedupe markup.
 
-Cart state logic (`addToCart`/`saveCart`/`updateCartIcon`) and the checkout modal (`getCheckoutInfo`)
-are still duplicated inline per page with no shared `.js` file. **A fix or feature to that logic must
-be manually re-applied to every page that has a copy of it**, or the pages will silently drift out of
-sync. Grep for the function/variable name across `*.html` before assuming a single-file edit is
-sufficient. Rendering the cart's contents (`renderCartPage`, `updateCartQty`, `removeFromCart`,
-`calculateCartDiscount`) is `cart.html`'s job exclusively now — the other 14 pages only add to the
-cart and update the header badge; they no longer render cart contents themselves (there used to be a
-`renderCart()`/`buildCartPanel()` pair duplicated on every page for a slide-out panel — removed when
-`cart.html` was introduced, see Checkout flow below).
+Cart state logic (`addToCart`/`saveCart`/`updateCartIcon`) is still duplicated inline on all 16 pages
+with no shared `.js` file. **A fix or feature to that logic must be manually re-applied to every page
+that has a copy of it**, or the pages will silently drift out of sync. Grep for the function/variable
+name across `*.html` before assuming a single-file edit is sufficient. Rendering the cart's contents
+(`renderCartPage`, `updateCartQty`, `removeFromCart`, `calculateCartDiscount`) is `cart.html`'s job
+exclusively — the other 14 non-checkout pages only add to the cart and update the header badge; they
+no longer render cart contents themselves (there used to be a `renderCart()`/`buildCartPanel()` pair
+duplicated on every page for a slide-out panel — removed when `cart.html` was introduced). Collecting
+contact/shipping info and calling `/api/checkout` is `checkout.html`'s job exclusively — that used to
+be a duplicated `getCheckoutInfo()` + `#checkout-email-overlay` modal on every page (opened by both
+`cart.html`'s checkout button and a product card's "Buy Now"); both now just add to the cart (if
+needed) and navigate to `/checkout.html` instead. `calculateCartDiscount` is duplicated in both
+`cart.html` and `checkout.html` since each renders its own order-total preview independently — see
+Checkout flow below.
 
 ### Product pages are rendered dynamically
 
@@ -74,7 +79,7 @@ a fixed top-8 selection into `#most-popular-grid` (a horizontal-scroll list, no 
 Both pages render `.card` markup via the same `buildCardHtml()` function, duplicated in each file per
 the no-shared-JS rule above. Clicking a card navigates to `/product.html?id=<productId>`, which
 re-fetches `/api/products`, finds the matching product client-side, and renders it into
-`#product-root`. The header search box's "jump to product" feature on all 15 pages that embed the
+`#product-root`. The header search box's "jump to product" feature on all 16 pages that embed the
 shared header (see above) also routes to `/product.html?id=<productId>` against the same live
 catalog. The 20 legacy pre-rendered `forgewell-product-<slug>.html` pages and the `PRODUCT_PAGE_MAP`
 object that used to route search to them have been removed — `product.html` is now the only
@@ -84,10 +89,11 @@ per-product page.
 
 - `forgewell_cart` — JSON array of `{ productId, name, price, qty }` (no image field — `cart.html`
   looks up each item's image by matching `productId` against a live `GET /api/products` fetch instead).
-  Written by `addToCart`/`saveCart` on every page with the cart script block; read and rendered only by
-  `cart.html`'s `renderCartPage()`.
-- `forgewell_checkout_email`, `forgewell_shipping_address` — saved at checkout time and reused on
-  subsequent orders.
+  Written by `addToCart`/`saveCart` on every page with the cart script block; rendered only by
+  `cart.html`'s `renderCartPage()`; read (and cleared on a successful order) by `checkout.html`.
+- `forgewell_checkout_email`, `forgewell_shipping_address` — collected on `checkout.html`'s own page-level
+  form (not a modal — see Checkout flow), saved right before the `/api/checkout` POST, and reused to
+  autofill the form on a future visit.
 - `forgewell_last_order_id` — set right before redirecting to the payment provider's `paymentUrl`, read by
   `order-confirmation.html`.
 
@@ -97,23 +103,38 @@ fetch) — separate from the localStorage cart state. Customer auth (`/api/auth/
 
 ### Checkout flow
 
-The cart is a dedicated page, `cart.html` — not a slide-out panel. The header's `.cart-icon` is a plain
-`<a href="/cart.html">` (in `header.html`) with no click-handler JS of its own. There used to be a
-JS-built `<div id="cart-panel">` (via `buildCartPanel()`/`renderCart()`, duplicated on every page) that
-the cart-icon opened in place; that's gone. `cart.html` itself follows the same shared-header/footer
-pattern as the other 14 pages, but is the only one that renders cart *contents* — see the previous
-section. The hamburger dropdown's own links (`why-us.html`, `coa.html`, `faqs.html`, `about-us.html`,
-`contact.html`) still don't include a cart entry, since the header row's cart icon already covers it.
+Both the cart and checkout are dedicated pages — `cart.html` and `checkout.html` — not panels or
+modals. The header's `.cart-icon` is a plain `<a href="/cart.html">` (in `header.html`) with no
+click-handler JS of its own. There used to be a JS-built `<div id="cart-panel">`
+(`buildCartPanel()`/`renderCart()`) that the cart-icon opened, and a JS-built `#checkout-email-overlay`
+modal (`getCheckoutInfo()`) that both the cart and a card's "Buy Now" opened for contact/shipping
+info — both were duplicated on every page and are gone now. `cart.html` and `checkout.html` follow the
+same shared-header/footer pattern as the other 14 pages, but `cart.html` is the only one that renders
+cart *contents* (see previous section) and `checkout.html` is the only one with the contact/shipping
+form and shipping-method selector. The hamburger dropdown's own links (`why-us.html`, `coa.html`,
+`faqs.html`, `about-us.html`, `contact.html`) still don't include a cart or checkout entry, since the
+header row's cart icon already covers it.
 
-`cart.html`'s "Proceed to Checkout" button and a product card's "Buy Now" button both POST to
-`/api/checkout` with `{ items: [{ productId, qty }], customerEmail, shippingAddress }`. A successful
-response is expected to contain `payment.paymentUrl`, and the browser redirects there (an external
-hosted payment page — no payment provider SDK is loaded in this repo). Both flows call the same
-duplicated `getCheckoutInfo()` (opens `#checkout-email-overlay`, validates email + required shipping
-fields, autofills from `forgewell_checkout_email`/`forgewell_shipping_address`) before posting.
-`product.html`'s own "Buy Now" button (distinct from a card's) adds the selected quantity to the cart
-and redirects to `/cart.html` rather than checking out directly — it used to add-to-cart-then-open-the-panel;
-now it adds-to-cart-then-navigates, since there's no panel to open in place.
+Every "buy" entry point now converges on `checkout.html`: `cart.html`'s "Proceed to Checkout" button,
+a product card's "Buy Now" button (`home.html`/`shop.html`), and `product.html`'s own dedicated
+"Buy Now" button all just add to the cart if needed (skipped for `cart.html`, which already has
+items) and `window.location.href = '/checkout.html'` — no more per-entry-point modal or direct
+`/api/checkout` call. This is a real behavior change for card-level Buy Now: it used to check out only
+that one item, ignoring whatever else was in the cart; now it adds the item to the cart and checks out
+the whole cart.
+
+`checkout.html` redirects to `/cart.html` immediately if `forgewell_cart` is empty (nothing to check
+out). It shows the same contact/shipping fields the old modal had (email, full name, address line 1,
+line 2 optional, city, state, zip, country — defaults to `US`), autofilled from
+`forgewell_checkout_email`/`forgewell_shipping_address` with the same validation rules as before, plus
+a shipping-method radio group (`SHIPPING_METHODS` — USPS Flat Rate $11.99, UPS/FedEx Ground $14.99,
+UPS/FedEx 2nd Day Air $21.99) that recalculates the displayed order total live on change. **That total
+is a client-side preview only** — same caveat as the existing bulk/cart discount preview
+(`calculateCartDiscount`): the external backend "recalculates the real charge from scratch," and
+today's `/api/checkout` POST body is unchanged (`{ items: [{ productId, qty }], customerEmail,
+shippingAddress }` — no shipping method included), so there's no guarantee the shown total matches
+what's actually charged. On success (`payment.paymentUrl` present) the cart is cleared and the browser
+redirects to the external hosted payment page, same as before.
 
 ### Images
 

@@ -156,52 +156,6 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 
 .loading-state, .error-state{max-width:1200px; margin:60px auto; padding:0 24px; text-align:center; color:var(--gray);}
 
-/* Checkout email/shipping modal -- copied from shop.html, was missing here
-   entirely, which is why Checkout silently failed on product pages. */
-#checkout-email-overlay{
-  position:fixed; inset:0; z-index:9998;
-  background:rgba(18,48,86,0.55);
-  display:none; align-items:center; justify-content:center;
-  padding:20px;
-}
-#checkout-email-overlay.open{ display:flex; }
-#checkout-email-modal{
-  background:#fff; border-radius:12px; max-width:420px; width:100%;
-  padding:28px 24px; box-shadow:0 10px 40px rgba(0,0,0,0.25);
-  font-family:'Quicksand',sans-serif;
-  max-height:90vh; overflow-y:auto;
-}
-#checkout-email-modal .gate-logo{ display:flex; justify-content:center; margin-bottom:16px; }
-.checkout-section-label{ font-weight:700; font-size:0.85rem; color:var(--navy-dark); margin:18px 0 2px; border-top:1px solid var(--line); padding-top:14px; }
-.checkout-section-sub{ font-size:0.72rem; color:#6b6b6b; margin:0 0 10px; }
-#checkout-email-modal h2{
-  color:var(--navy-dark); font-size:1.3rem; font-weight:700;
-  text-align:center; margin:0 0 8px;
-}
-.gate-sub{ text-align:center; font-size:0.82rem; color:#6b6b6b; margin:0 0 8px; }
-.checkout-field-label{
-  display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark);
-  text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px;
-}
-#checkout-email-modal input[type="email"],
-#checkout-email-modal input[type="text"]{
-  width:100%; box-sizing:border-box; padding:11px 12px;
-  border:1.5px solid var(--line); border-radius:8px; font-size:0.88rem;
-  font-family:'Quicksand',sans-serif; color:#333;
-}
-#checkout-email-modal input:focus{ outline:none; border-color:var(--navy); }
-.checkout-field-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.checkout-field-error{
-  color:#c0392b; font-size:0.75rem; margin:6px 0 0; display:none;
-}
-.checkout-field-error.show{ display:block; }
-#checkout-email-modal .gate-buttons{ display:flex; gap:10px; margin-top:20px; }
-#checkout-email-modal button{
-  flex:1; padding:12px; border-radius:6px; font-weight:700; font-size:0.85rem;
-  cursor:pointer; border:1.5px solid var(--navy); font-family:'Quicksand',sans-serif;
-}
-#checkout-email-cancel-btn{ background:#fff; color:var(--navy); }
-#checkout-email-continue-btn{ background:var(--navy); color:#fff; }
 </style>
 <style>
 .login-wrap{ max-width:400px; margin:50px auto 80px; padding:0 24px; }
@@ -228,67 +182,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 
 <div id="header-placeholder"></div>
 
-<div id="checkout-email-overlay">
-  <div id="checkout-email-modal">
-    <div class="gate-logo">
-      <svg width="40" height="40" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <path d="M20 60 C20 45 35 35 55 35 L105 35 C125 35 138 45 138 58 L138 68 L20 68 Z" fill="#1B4B8C"/>
-        <path d="M132 42 L158 36 L158 52 L138 58 Z" fill="#1B4B8C"/>
-        <rect x="65" y="68" width="20" height="16" fill="#1B4B8C"/>
-        <rect x="45" y="84" width="60" height="8" rx="1.5" fill="#123056"/>
-        <path d="M75 -20 C90 -10 60 5 75 15 C90 25 60 35 75 45" stroke="#3FA34D" stroke-width="6" fill="none" stroke-linecap="round"/>
-        <path d="M75 -20 C60 -10 90 5 75 15 C60 25 90 35 75 45" stroke="#1B4B8C" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.55"/>
-      </svg>
-    </div>
-    <h2>Shipping &amp; Contact Info</h2>
-    <p class="gate-sub">We'll send your order confirmation and payment link here.</p>
 
-    <label class="checkout-field-label" for="checkout-email-input">Email</label>
-    <input type="email" id="checkout-email-input" placeholder="you@example.com" autocomplete="email">
-    <p id="checkout-email-error" class="checkout-field-error">Please enter a valid email address.</p>
-
-    <p class="checkout-section-label">Where should we ship your order?</p>
-    <p class="checkout-section-sub">Used only to ship this order — never shared or sold.</p>
-
-    <label class="checkout-field-label" for="checkout-ship-name">Full name</label>
-    <input type="text" id="checkout-ship-name" placeholder="Jane Smith" autocomplete="name">
-
-    <label class="checkout-field-label" for="checkout-ship-line1">Address</label>
-    <input type="text" id="checkout-ship-line1" placeholder="123 Main St" autocomplete="address-line1">
-
-    <label class="checkout-field-label" for="checkout-ship-line2">Apt / Suite (optional)</label>
-    <input type="text" id="checkout-ship-line2" placeholder="Apt 4B" autocomplete="address-line2">
-
-    <div class="checkout-field-row">
-      <div>
-        <label class="checkout-field-label" for="checkout-ship-city">City</label>
-        <input type="text" id="checkout-ship-city" placeholder="Wichita" autocomplete="address-level2">
-      </div>
-      <div>
-        <label class="checkout-field-label" for="checkout-ship-state">State</label>
-        <input type="text" id="checkout-ship-state" placeholder="KS" autocomplete="address-level1">
-      </div>
-    </div>
-
-    <div class="checkout-field-row">
-      <div>
-        <label class="checkout-field-label" for="checkout-ship-zip">ZIP code</label>
-        <input type="text" id="checkout-ship-zip" placeholder="67202" autocomplete="postal-code">
-      </div>
-      <div>
-        <label class="checkout-field-label" for="checkout-ship-country">Country</label>
-        <input type="text" id="checkout-ship-country" placeholder="US" autocomplete="country" value="US">
-      </div>
-    </div>
-
-    <p id="checkout-shipping-error" class="checkout-field-error">Please fill in all required shipping fields.</p>
-
-    <div class="gate-buttons">
-      <button id="checkout-email-cancel-btn">Cancel</button>
-      <button id="checkout-email-continue-btn">Continue to Payment</button>
-    </div>
-  </div>
-</div>
 
 
 
@@ -504,95 +398,7 @@ function addToCart(productId) {
   saveCart();
 }
 
-function getCheckoutInfo() {
-  return new Promise((resolve) => {
-    const overlay = document.getElementById('checkout-email-overlay');
-    const emailInput = document.getElementById('checkout-email-input');
-    const emailError = document.getElementById('checkout-email-error');
-    const shippingError = document.getElementById('checkout-shipping-error');
-    const cancelBtn = document.getElementById('checkout-email-cancel-btn');
-    const continueBtn = document.getElementById('checkout-email-continue-btn');
-
-    const shipFields = {
-      name: document.getElementById('checkout-ship-name'),
-      line1: document.getElementById('checkout-ship-line1'),
-      line2: document.getElementById('checkout-ship-line2'),
-      city: document.getElementById('checkout-ship-city'),
-      state: document.getElementById('checkout-ship-state'),
-      zip: document.getElementById('checkout-ship-zip'),
-      country: document.getElementById('checkout-ship-country'),
-    };
-
-    // Autofill from whatever was saved on a previous successful checkout
-    const savedEmail = localStorage.getItem('forgewell_checkout_email');
-    const savedShipping = JSON.parse(localStorage.getItem('forgewell_shipping_address') || 'null');
-    emailInput.value = savedEmail || '';
-    if (savedShipping) {
-      Object.keys(shipFields).forEach((key) => {
-        if (shipFields[key] && savedShipping[key]) shipFields[key].value = savedShipping[key];
-      });
-    }
-    if (!shipFields.country.value) shipFields.country.value = 'US';
-
-    emailError.classList.remove('show');
-    shippingError.classList.remove('show');
-    overlay.classList.add('open');
-    emailInput.focus();
-
-    function cleanup() {
-      overlay.classList.remove('open');
-      continueBtn.removeEventListener('click', onContinue);
-      cancelBtn.removeEventListener('click', onCancel);
-      overlay.removeEventListener('keydown', onKeydown);
-    }
-    function isValidEmail(value) {
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    }
-    function onContinue() {
-      const email = emailInput.value.trim();
-      if (!isValidEmail(email)) {
-        emailError.classList.add('show');
-        return;
-      }
-      emailError.classList.remove('show');
-
-      const shippingAddress = {
-        name: shipFields.name.value.trim(),
-        line1: shipFields.line1.value.trim(),
-        line2: shipFields.line2.value.trim(),
-        city: shipFields.city.value.trim(),
-        state: shipFields.state.value.trim(),
-        zip: shipFields.zip.value.trim(),
-        country: shipFields.country.value.trim(),
-      };
-      // line2 is optional — everything else required, matches checkout.js validation
-      const requiredOk = shippingAddress.name && shippingAddress.line1 && shippingAddress.city
-        && shippingAddress.state && shippingAddress.zip && shippingAddress.country;
-      if (!requiredOk) {
-        shippingError.classList.add('show');
-        return;
-      }
-      shippingError.classList.remove('show');
-
-      localStorage.setItem('forgewell_checkout_email', email);
-      localStorage.setItem('forgewell_shipping_address', JSON.stringify(shippingAddress));
-      cleanup();
-      resolve({ email, shippingAddress });
-    }
-    function onCancel() {
-      cleanup();
-      resolve(null);
-    }
-    function onKeydown(e) {
-      if (e.key === 'Escape') onCancel();
-    }
-    continueBtn.addEventListener('click', onContinue);
-    cancelBtn.addEventListener('click', onCancel);
-    overlay.addEventListener('keydown', onKeydown);
-  });
-}
-
-document.addEventListener('click', async (e) => {
+document.addEventListener('click', (e) => {
   if (e.target.classList.contains('add-btn')) {
     const card = e.target.closest('.card');
     const productId = card?.dataset.productId;
@@ -610,31 +416,8 @@ document.addEventListener('click', async (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
-    const checkoutInfo = await getCheckoutInfo();
-    if (!checkoutInfo) return;
-    const { email, shippingAddress } = checkoutInfo;
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [{ productId: productId, qty: 1 }],
-          customerEmail: email,
-          shippingAddress: shippingAddress
-        })
-      });
-      const data = await res.json();
-      if (data.payment && data.payment.paymentUrl) {
-        localStorage.setItem('forgewell_last_order_id', data.orderId);
-        window.location.href = data.payment.paymentUrl;
-        return;
-      }
-      alert('Checkout succeeded but no payment link was returned — check the console and contact support.');
-      console.error('Checkout response missing payment.paymentUrl:', data);
-    } catch (err) {
-      console.error('Checkout failed:', err);
-      alert('Checkout failed — check the console.');
-    }
+    addToCart(productId);
+    window.location.href = '/checkout.html';
     return;
   }
 
