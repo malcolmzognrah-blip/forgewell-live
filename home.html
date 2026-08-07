@@ -534,19 +534,29 @@ document.querySelectorAll('.faq-question').forEach(btn => {
 <div id="footer-placeholder"></div>
 
 <style>
-.footer-bottom{ max-width:1000px; margin:20px auto 0; padding-top:20px; border-top:1px solid rgba(255,255,255,0.15); }
-.footer-copyright-row{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.footer-info-row{ position:relative; display:flex; align-items:center; min-height:38px; max-width:1000px; margin:0 auto 20px; }
+.footer-info-brand{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:8px; white-space:nowrap; }
 .footer-logo-mark{ flex-shrink:0; }
 .footer-flag-icon{ flex-shrink:0; border-radius:2px; overflow:hidden; }
-.footer-copyright{ color:rgba(255,255,255,0.6); font-size:0.8rem; margin:0; }
-.footer-links-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; }
-.footer-legal-links{ display:flex; flex-wrap:wrap; gap:20px; }
-.footer-legal-links a{ color:rgba(255,255,255,0.75); font-size:0.85rem; text-decoration:none; }
-.footer-legal-links a:hover{ color:#fff; text-decoration:underline; }
+.footer-brand-name{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.85rem; white-space:nowrap; }
+.footer-brand-name .forge{ color:#fff; }
+.footer-brand-name .well{ color:var(--green); }
+.footer-country-label{ font-size:0.78rem; color:rgba(255,255,255,0.65); white-space:nowrap; }
+.footer-info-row .footer-catalog-search{ margin-left:auto; }
 .footer-catalog-search{ max-width:220px; width:100%; position:relative; }
 .footer-catalog-search .search-icon-btn{ left:10px; width:14px; height:14px; }
 .footer-catalog-search input{ width:100%; box-sizing:border-box; padding:9px 10px 9px 32px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.05) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' opacity='0.6'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 10px center/14px 14px; color:#fff; font-size:0.8rem; }
 .footer-catalog-search input::placeholder{ color:rgba(255,255,255,0.45); }
+.footer-bottom{ max-width:1000px; margin:20px auto 0; padding-top:20px; border-top:1px solid rgba(255,255,255,0.15); text-align:center; }
+.footer-copyright{ color:rgba(255,255,255,0.6); font-size:0.8rem; margin:0 0 14px; }
+.footer-legal-links{ display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
+.footer-legal-links a{ color:rgba(255,255,255,0.75); font-size:0.85rem; text-decoration:none; }
+.footer-legal-links a:hover{ color:#fff; text-decoration:underline; }
+@media (max-width: 600px) {
+  .footer-info-row{ flex-direction:column; align-items:center; gap:14px; min-height:0; }
+  .footer-info-brand{ position:static; transform:none; }
+  .footer-info-row .footer-catalog-search{ margin-left:0; }
+}
 </style>
 
 <script>
