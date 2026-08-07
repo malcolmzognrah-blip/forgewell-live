@@ -12,7 +12,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 
 /* ---- header (single-row, matches header.html) ---- */
 header{
-  display:flex; align-items:center; flex-wrap:nowrap; gap:16px;
+  display:flex; align-items:center; flex-wrap:nowrap; gap:14px;
   padding:12px 20px; max-width:1200px; margin:0 auto;
   position:sticky; top:0; z-index:10;
   background:#fff; border-bottom:1px solid var(--line);
@@ -20,16 +20,16 @@ header{
 .logo-mark{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .logo-word{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:1.1rem; color:var(--navy); white-space:nowrap; }
 .logo-word .well{ color:var(--green); }
-.header-nav-links{ display:flex; align-items:center; gap:24px; flex-shrink:0; margin-left:auto; }
-.header-nav-link{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; color:var(--navy); text-decoration:none; white-space:nowrap; }
+.header-nav-links{ display:flex; align-items:center; gap:16px; flex-shrink:0; }
+.header-nav-link{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.85rem; color:var(--navy); text-decoration:none; white-space:nowrap; }
 .header-nav-link:hover{ color:var(--green); }
-.header-search-row{ position:relative; flex:0 1 520px; min-width:0; max-width:520px; }
+.header-search-row{ position:relative; flex:0 1 240px; min-width:0; max-width:240px; margin-left:auto; }
 .header-search-row input{ width:100%; box-sizing:border-box; min-width:0; padding:11px 16px 11px 40px; border-radius:6px; border:1.5px solid var(--line); background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 14px center/16px 16px; color:#333; font-size:0.92rem; font-family:'Quicksand',sans-serif; }
 .header-search-row input:focus{ outline:none; border-color:var(--navy); }
 .search-icon-btn{ position:absolute; top:50%; transform:translateY(-50%); padding:0; margin:0; border:none; background:transparent; cursor:pointer; }
 .header-search-row .search-icon-btn{ left:14px; width:16px; height:16px; }
 .menu-toggle{ display:flex; align-items:center; gap:20px; flex-shrink:0; position:relative; }
-.hamburger{ display:flex; flex-direction:column; gap:4px; cursor:pointer; padding:4px; }
+.hamburger{ display:none; flex-direction:column; gap:4px; cursor:pointer; padding:4px; }
 .hamburger span{ display:block; width:22px; height:2.5px; background:var(--navy); border-radius:2px; }
 .nav-overlay{ display:none; position:absolute; top:calc(100% + 12px); right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(18,48,86,0.16); z-index:9999; min-width:170px; padding:6px 0; }
 .nav-overlay.open{ display:block; }
@@ -45,24 +45,25 @@ header{
 .login-icon:hover{ color:var(--green); }
 .login-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.8rem; white-space:nowrap; }
 
-@media (max-width: 680px){
+@media (max-width: 1050px){
   .header-nav-links{ display:none; }
+  .hamburger{ display:flex; }
   header{ gap:10px; padding:10px 14px; }
-  .header-search-row{ max-width:300px; }
+  .header-search-row{ max-width:200px; }
   .logo-word{ font-size:0.95rem; }
 }
 @media (max-width: 420px){
   header{ gap:6px; padding:8px 10px; }
-  .header-search-row{ max-width:190px; }
+  .header-search-row{ max-width:160px; }
   .header-search-row input{ padding:10px 12px 10px 34px; font-size:0.8rem; }
   .header-search-row .search-icon-btn{ left:11px; width:14px; height:14px; }
   .menu-toggle{ gap:10px; }
   .cart-icon svg{ width:18px; height:18px; }
   .cart-count{ font-size:0.55rem; min-width:13px; height:13px; line-height:13px; }
-  .cart-icon-label{ font-size:0.68rem; }
+  .cart-icon-label{ display:none; }
   .logo-word{ font-size:0.85rem; }
   .login-icon svg{ width:18px; height:18px; }
-  .login-icon-label{ font-size:0.68rem; }
+  .login-icon-label{ display:none; }
 }
 
 .section-heading{ padding:30px 24px 6px; font-weight:700; font-size:1.5rem; color:var(--navy-dark); max-width:1200px; margin:0 auto; }

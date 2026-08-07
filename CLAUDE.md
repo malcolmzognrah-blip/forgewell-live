@@ -30,9 +30,10 @@ treat them as an external contract.
 `header.html` and `footer.html` are the one exception to the "no shared markup" rule: on
 `home.html`, `shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`,
 `shipping.html`, `ruo-agreement.html`, `contact.html`, `why-us.html`, `coa.html`, `faqs.html`,
-`about-us.html`, `cart.html`, and `checkout.html`, the header (logo, "Home"/"Shop" nav links,
-search, login-icon/cart-icon/hamburger — all in a single row), the hamburger's `#nav-overlay` dropdown
-menu, and the footer are all fetched at runtime from `/header.html` and `/footer.html` and injected into
+`about-us.html`, `cart.html`, and `checkout.html`, the header (logo, seven `.header-nav-link`s —
+Home, Products, Why Us?, COA, FAQs, About Us, Contact Us — search, login-icon/cart-icon/hamburger,
+all in a single row), the hamburger's `#nav-overlay` dropdown menu, and the footer are all fetched
+at runtime from `/header.html` and `/footer.html` and injected into
 `<div id="header-placeholder">` / `<div id="footer-placeholder">`. Each of those pages calls this loader
 near the top of its trailing `<script>` block:
 ```js
@@ -55,6 +56,19 @@ from `localStorage`.
 `admin.html`/`order-confirmation.html` were deliberately left out of this — they have a different,
 simpler header (or none) and no footer at all, so pointing them at `header.html`/`footer.html` would
 add UI they don't currently have, not just dedupe markup.
+
+The header's `.header-nav-links` (all seven links) and `.hamburger` are mutually exclusive via a single
+`@media (max-width: 1050px)` rule in each page's own `<style>` block — links inline in the row above
+that width, hidden below it with the hamburger (and `#nav-overlay`, same seven links) taking over.
+1050px isn't arbitrary: fitting seven links plus logo/search/icons on one line needs real room, and
+this was tuned by measuring the actual rendered width rather than guessed — forcing the links to stay
+visible below that point was verified to squeeze `.header-search-row` down to an unusable size well
+before anything visibly overlaps. `.header-search-row` itself is intentionally small (`max-width:240px` by default, shrinking further
+at the 1050px and 420px tiers) to leave room for all seven links.
+Below 420px, `.login-icon-label`/`.cart-icon-label` ("Sign In"/"Cart" text) drop to `display:none`
+(icon-only) — without that, those two labels alone are enough to squeeze the search box into visibly
+overlapping the login icon on narrow phones. The visible label reads "Products" but the link (in both
+the row and the dropdown) still points at `/shop.html` — don't grep for "Shop" expecting to find it.
 
 Cart state logic (`addToCart`/`saveCart`/`updateCartIcon`) is still duplicated inline on all 16 pages
 with no shared `.js` file. **A fix or feature to that logic must be manually re-applied to every page
@@ -111,9 +125,9 @@ modal (`getCheckoutInfo()`) that both the cart and a card's "Buy Now" opened for
 info — both were duplicated on every page and are gone now. `cart.html` and `checkout.html` follow the
 same shared-header/footer pattern as the other 14 pages, but `cart.html` is the only one that renders
 cart *contents* (see previous section) and `checkout.html` is the only one with the contact/shipping
-form and shipping-method selector. The hamburger dropdown's own links (`why-us.html`, `coa.html`,
-`faqs.html`, `about-us.html`, `contact.html`) still don't include a cart or checkout entry, since the
-header row's cart icon already covers it.
+form and shipping-method selector. The hamburger dropdown's links (same seven as `.header-nav-links` —
+see the header section above) still don't include a cart or checkout entry, since the header row's
+cart icon already covers it.
 
 Every "buy" entry point now converges on `checkout.html`: `cart.html`'s "Proceed to Checkout" button,
 a product card's "Buy Now" button (`home.html`/`shop.html`), and `product.html`'s own dedicated
