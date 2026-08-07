@@ -672,14 +672,6 @@ function wireHeaderFooter() {
       document.getElementById('cart-panel').style.right = '0';
     });
   }
-  var navCartLink = document.getElementById('nav-cart-link');
-  if (navCartLink) {
-    navCartLink.addEventListener('click', function(e) {
-      e.preventDefault();
-      renderCart();
-      document.getElementById('cart-panel').style.right = '0';
-    });
-  }
 
   var signupBtn = document.getElementById('footer-signup-btn');
   if (signupBtn) {

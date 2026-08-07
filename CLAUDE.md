@@ -29,7 +29,8 @@ treat them as an external contract.
 
 `header.html` and `footer.html` are the one exception to the "no shared markup" rule: on
 `home.html`, `shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`,
-`shipping.html`, `ruo-agreement.html`, and `contact.html`, the header (logo, "Home"/"Shop" nav links,
+`shipping.html`, `ruo-agreement.html`, `contact.html`, `why-us.html`, `coa.html`, `faqs.html`, and
+`about-us.html`, the header (logo, "Home"/"Shop" nav links,
 search, login-icon/cart-icon/hamburger — all in a single row), the hamburger's `#nav-overlay` dropdown
 menu, and the footer are all fetched at runtime from `/header.html` and `/footer.html` and injected into
 `<div id="header-placeholder">` / `<div id="footer-placeholder">`. Each of those pages calls this loader
@@ -42,9 +43,9 @@ Promise.all([
 ```
 **All header/footer DOM wiring (hamburger toggle, login-icon session check, header/footer search
 inputs, footer email-signup, the cart-icon's click-to-open-panel) lives inside `wireHeaderFooter()`**,
-duplicated verbatim in each of those 10 pages, and is only invoked from that `.then()` — never at
+duplicated verbatim in each of those 14 pages, and is only invoked from that `.then()` — never at
 top-level script-parse time. If you add new header/footer interactivity, it must go inside
-`wireHeaderFooter()` (in every one of the 10 pages) rather than as a top-level statement, or it will
+`wireHeaderFooter()` (in every one of the 14 pages) rather than as a top-level statement, or it will
 silently no-op (or throw, for unguarded lookups) because the fragment hasn't loaded yet when the
 script runs. `updateCartIcon()` is also called at the end of `wireHeaderFooter()` for the same reason
 — the header's `.cart-icon` doesn't exist yet the first time the page tries to restore the cart count
@@ -67,7 +68,7 @@ a fixed top-8 selection into `#most-popular-grid` (a horizontal-scroll list, no 
 Both pages render `.card` markup via the same `buildCardHtml()` function, duplicated in each file per
 the no-shared-JS rule above. Clicking a card navigates to `/product.html?id=<productId>`, which
 re-fetches `/api/products`, finds the matching product client-side, and renders it into
-`#product-root`. The header search box's "jump to product" feature on all 10 pages that embed the
+`#product-root`. The header search box's "jump to product" feature on all 14 pages that embed the
 shared header (see above) also routes to `/product.html?id=<productId>` against the same live
 catalog. The 20 legacy pre-rendered `forgewell-product-<slug>.html` pages and the `PRODUCT_PAGE_MAP`
 object that used to route search to them have been removed — `product.html` is now the only
@@ -93,8 +94,10 @@ Both the cart panel's "Checkout" button and a card's "Buy Now" button POST to `/
 contain `payment.paymentUrl`, and the browser redirects there (an external hosted payment page — no
 payment provider SDK is loaded in this repo). There is no dedicated `cart.html` page and no nav element
 should ever link to it as a route — the cart itself is a slide-out `<div id="cart-panel">` injected by
-`buildCartPanel()`. Both the header's `.cart-icon` and the hamburger dropdown's `#nav-cart-link` open
-that panel via JS (`renderCart()` + setting `style.right = '0'`) instead of navigating.
+`buildCartPanel()`. The header's `.cart-icon` opens that panel via JS (`renderCart()` + setting
+`style.right = '0'`) instead of navigating. The hamburger dropdown no longer has its own cart link —
+it now links to `why-us.html`, `coa.html`, `faqs.html`, `about-us.html`, and `contact.html` — since
+Home/Shop/Cart are already reachable from the main header row.
 
 ### Images
 

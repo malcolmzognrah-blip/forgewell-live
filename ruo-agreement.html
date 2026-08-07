@@ -426,14 +426,6 @@ function wireHeaderFooter() {
       document.getElementById('cart-panel').style.right = '0';
     });
   }
-  var navCartLink = document.getElementById('nav-cart-link');
-  if (navCartLink) {
-    navCartLink.addEventListener('click', function(e) {
-      e.preventDefault();
-      renderCart();
-      document.getElementById('cart-panel').style.right = '0';
-    });
-  }
 
   // Restores the header's cart count from localStorage now that the header
   // actually exists in the DOM (it didn't yet when updateCartIcon() first
