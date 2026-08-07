@@ -29,8 +29,8 @@ treat them as an external contract.
 
 `header.html` and `footer.html` are the one exception to the "no shared markup" rule: on
 `home.html`, `shop.html`, `product.html`, `login.html`, `orders.html`, `privacy.html`, `terms.html`,
-`shipping.html`, `ruo-agreement.html`, `contact.html`, `why-us.html`, `coa.html`, `faqs.html`, and
-`about-us.html`, the header (logo, "Home"/"Shop" nav links,
+`shipping.html`, `ruo-agreement.html`, `contact.html`, `why-us.html`, `coa.html`, `faqs.html`,
+`about-us.html`, and `cart.html`, the header (logo, "Home"/"Shop" nav links,
 search, login-icon/cart-icon/hamburger — all in a single row), the hamburger's `#nav-overlay` dropdown
 menu, and the footer are all fetched at runtime from `/header.html` and `/footer.html` and injected into
 `<div id="header-placeholder">` / `<div id="footer-placeholder">`. Each of those pages calls this loader
@@ -42,10 +42,11 @@ Promise.all([
 ]).then(wireHeaderFooter);
 ```
 **All header/footer DOM wiring (hamburger toggle, login-icon session check, header/footer search
-inputs, footer email-signup, the cart-icon's click-to-open-panel) lives inside `wireHeaderFooter()`**,
-duplicated verbatim in each of those 14 pages, and is only invoked from that `.then()` — never at
-top-level script-parse time. If you add new header/footer interactivity, it must go inside
-`wireHeaderFooter()` (in every one of the 14 pages) rather than as a top-level statement, or it will
+inputs, footer email-signup) lives inside `wireHeaderFooter()`**, duplicated verbatim in each of those
+15 pages, and is only invoked from that `.then()` — never at top-level script-parse time. The
+`.cart-icon` is a plain `<a href="/cart.html">` now (see Checkout flow below) so it needs no click
+wiring of its own. If you add new header/footer interactivity, it must go inside
+`wireHeaderFooter()` (in every one of the 15 pages) rather than as a top-level statement, or it will
 silently no-op (or throw, for unguarded lookups) because the fragment hasn't loaded yet when the
 script runs. `updateCartIcon()` is also called at the end of `wireHeaderFooter()` for the same reason
 — the header's `.cart-icon` doesn't exist yet the first time the page tries to restore the cart count
@@ -55,10 +56,15 @@ from `localStorage`.
 simpler header (or none) and no footer at all, so pointing them at `header.html`/`footer.html` would
 add UI they don't currently have, not just dedupe markup.
 
-Cart state logic (`addToCart`/`saveCart`/`renderCart`/`buildCartPanel`) and checkout logic are still
-duplicated inline per page with no shared `.js` file. **A fix or feature to that logic must be manually
-re-applied to every page that has a copy of it**, or the pages will silently drift out of sync. Grep for
-the function/variable name across `*.html` before assuming a single-file edit is sufficient.
+Cart state logic (`addToCart`/`saveCart`/`updateCartIcon`) and the checkout modal (`getCheckoutInfo`)
+are still duplicated inline per page with no shared `.js` file. **A fix or feature to that logic must
+be manually re-applied to every page that has a copy of it**, or the pages will silently drift out of
+sync. Grep for the function/variable name across `*.html` before assuming a single-file edit is
+sufficient. Rendering the cart's contents (`renderCartPage`, `updateCartQty`, `removeFromCart`,
+`calculateCartDiscount`) is `cart.html`'s job exclusively now — the other 14 pages only add to the
+cart and update the header badge; they no longer render cart contents themselves (there used to be a
+`renderCart()`/`buildCartPanel()` pair duplicated on every page for a slide-out panel — removed when
+`cart.html` was introduced, see Checkout flow below).
 
 ### Product pages are rendered dynamically
 
@@ -68,7 +74,7 @@ a fixed top-8 selection into `#most-popular-grid` (a horizontal-scroll list, no 
 Both pages render `.card` markup via the same `buildCardHtml()` function, duplicated in each file per
 the no-shared-JS rule above. Clicking a card navigates to `/product.html?id=<productId>`, which
 re-fetches `/api/products`, finds the matching product client-side, and renders it into
-`#product-root`. The header search box's "jump to product" feature on all 14 pages that embed the
+`#product-root`. The header search box's "jump to product" feature on all 15 pages that embed the
 shared header (see above) also routes to `/product.html?id=<productId>` against the same live
 catalog. The 20 legacy pre-rendered `forgewell-product-<slug>.html` pages and the `PRODUCT_PAGE_MAP`
 object that used to route search to them have been removed — `product.html` is now the only
@@ -76,8 +82,10 @@ per-product page.
 
 ### Client-side state is localStorage, not cookies
 
-- `forgewell_cart` — JSON array of `{ productId, name, price, qty }`, read/written by `addToCart`/
-  `saveCart`/`renderCart` on every page that has the cart script block.
+- `forgewell_cart` — JSON array of `{ productId, name, price, qty }` (no image field — `cart.html`
+  looks up each item's image by matching `productId` against a live `GET /api/products` fetch instead).
+  Written by `addToCart`/`saveCart` on every page with the cart script block; read and rendered only by
+  `cart.html`'s `renderCartPage()`.
 - `forgewell_checkout_email`, `forgewell_shipping_address` — saved at checkout time and reused on
   subsequent orders.
 - `forgewell_last_order_id` — set right before redirecting to the payment provider's `paymentUrl`, read by
@@ -89,22 +97,31 @@ fetch) — separate from the localStorage cart state. Customer auth (`/api/auth/
 
 ### Checkout flow
 
-Both the cart panel's "Checkout" button and a card's "Buy Now" button POST to `/api/checkout` with
-`{ items: [{ productId, qty }], customerEmail, shippingAddress }`. A successful response is expected to
-contain `payment.paymentUrl`, and the browser redirects there (an external hosted payment page — no
-payment provider SDK is loaded in this repo). There is no dedicated `cart.html` page and no nav element
-should ever link to it as a route — the cart itself is a slide-out `<div id="cart-panel">` injected by
-`buildCartPanel()`. The header's `.cart-icon` opens that panel via JS (`renderCart()` + setting
-`style.right = '0'`) instead of navigating. The hamburger dropdown no longer has its own cart link —
-it now links to `why-us.html`, `coa.html`, `faqs.html`, `about-us.html`, and `contact.html` — since
-Home/Shop/Cart are already reachable from the main header row.
+The cart is a dedicated page, `cart.html` — not a slide-out panel. The header's `.cart-icon` is a plain
+`<a href="/cart.html">` (in `header.html`) with no click-handler JS of its own. There used to be a
+JS-built `<div id="cart-panel">` (via `buildCartPanel()`/`renderCart()`, duplicated on every page) that
+the cart-icon opened in place; that's gone. `cart.html` itself follows the same shared-header/footer
+pattern as the other 14 pages, but is the only one that renders cart *contents* — see the previous
+section. The hamburger dropdown's own links (`why-us.html`, `coa.html`, `faqs.html`, `about-us.html`,
+`contact.html`) still don't include a cart entry, since the header row's cart icon already covers it.
+
+`cart.html`'s "Proceed to Checkout" button and a product card's "Buy Now" button both POST to
+`/api/checkout` with `{ items: [{ productId, qty }], customerEmail, shippingAddress }`. A successful
+response is expected to contain `payment.paymentUrl`, and the browser redirects there (an external
+hosted payment page — no payment provider SDK is loaded in this repo). Both flows call the same
+duplicated `getCheckoutInfo()` (opens `#checkout-email-overlay`, validates email + required shipping
+fields, autofills from `forgewell_checkout_email`/`forgewell_shipping_address`) before posting.
+`product.html`'s own "Buy Now" button (distinct from a card's) adds the selected quantity to the cart
+and redirects to `/cart.html` rather than checking out directly — it used to add-to-cart-then-open-the-panel;
+now it adds-to-cart-then-navigates, since there's no panel to open in place.
 
 ### Images
 
-Product images live in `images/` and are referenced as `images/<name>.png`. `resolveImagePath()` in
-`product.html` treats a path starting with `http` as absolute, one starting with `/` as already
-site-rooted, and everything else gets a leading `/` prepended (paths come from the product DB as
-`images/foo.png`, relative to site root).
+Product images live in `images/` and are referenced as `images/<name>.png`. `resolveImagePath()`
+(duplicated in `product.html`, `shop.html`, `home.html`, and `cart.html` — the pages that render an
+actual product image, as opposed to just a product name/price) treats a path starting with `http` as
+absolute, one starting with `/` as already site-rooted, and everything else gets a leading `/`
+prepended (paths come from the product DB as `images/foo.png`, relative to site root).
 
 ### Backup files
 

@@ -37,7 +37,7 @@ header{
 .nav-overlay-inner{ display:flex; flex-direction:column; }
 .nav-overlay-inner a{ color:var(--navy-dark); font-size:0.9rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; padding:11px 18px; }
 .nav-overlay-inner a:hover{ background:var(--panel); }
-.cart-icon{ display:flex; align-items:center; gap:6px; color:var(--navy); cursor:pointer; padding:4px; }
+.cart-icon{ display:flex; align-items:center; gap:6px; color:var(--navy); cursor:pointer; padding:4px; text-decoration:none; }
 .cart-icon:hover{ color:var(--green); }
 .cart-icon-inner{ display:flex; align-items:center; position:relative; }
 .cart-count{ position:absolute; top:-2px; right:-4px; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:var(--navy); color:#fff; font-size:0.6rem; font-weight:700; line-height:15px; text-align:center; display:none; font-family:'Quicksand',sans-serif; box-sizing:border-box; }
@@ -439,14 +439,6 @@ function wireHeaderFooter() {
       .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
   }
 
-  var cartIcon = document.querySelector('.cart-icon');
-  if (cartIcon) {
-    cartIcon.addEventListener('click', function() {
-      renderCart();
-      document.getElementById('cart-panel').style.right = '0';
-    });
-  }
-
   // Restores the header's cart count from localStorage now that the header
   // actually exists in the DOM (it didn't yet when updateCartIcon() first
   // ran further down this script).
@@ -510,86 +502,6 @@ function addToCart(productId) {
     cart.push({ productId: product.id, name: product.name, price: product.price, qty: 1 });
   }
   saveCart();
-}
-
-function removeFromCart(productId) {
-  cart = cart.filter(i => i.productId !== productId);
-  saveCart();
-  renderCart();
-}
-
-// Mirrors the exact same rule as the backend (routes/checkout.js):
-// flat 10% off, either buy 3+ of one item OR spend $150+ total —
-// whichever gives the bigger discount, never both stacked. This is
-// just a live preview for the customer; the backend recalculates the
-// real charge from scratch at checkout time, so this can't be gamed.
-const BULK_QTY_THRESHOLD = 3;
-const BULK_QTY_DISCOUNT = 0.10;
-const CART_TOTAL_THRESHOLD = 150;
-const CART_TOTAL_DISCOUNT = 0.10;
-
-function calculateCartDiscount(cartItems) {
-  let rawTotal = 0;
-  let perItemTotal = 0;
-  cartItems.forEach(item => {
-    const lineTotal = item.price * item.qty;
-    rawTotal += lineTotal;
-    perItemTotal += item.qty >= BULK_QTY_THRESHOLD
-      ? lineTotal * (1 - BULK_QTY_DISCOUNT)
-      : lineTotal;
-  });
-  const cartWideTotal = rawTotal >= CART_TOTAL_THRESHOLD
-    ? rawTotal * (1 - CART_TOTAL_DISCOUNT)
-    : rawTotal;
-  const finalTotal = Math.min(perItemTotal, cartWideTotal, rawTotal);
-  return {
-    subtotal: rawTotal,
-    total: finalTotal,
-    discountApplied: finalTotal < rawTotal,
-    savings: rawTotal - finalTotal,
-  };
-}
-
-function renderCart() {
-  const list = document.getElementById('cart-items');
-  const totalEl = document.getElementById('cart-total');
-  const summaryEl = document.getElementById('cart-summary');
-  if (!list) return;
-  list.innerHTML = '';
-  cart.forEach(item => {
-    const lineTotal = item.price * item.qty;
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #E4E4E0; font-size:0.8rem;';
-    row.innerHTML = '<span>' + item.name + ' x' + item.qty + '</span>' +
-      '<span>$' + lineTotal.toFixed(2) + ' <span data-remove="' + item.productId + '" style="color:#C0447A; cursor:pointer; margin-left:8px;">✕</span></span>';
-    list.appendChild(row);
-  });
-
-  const { subtotal, total, discountApplied, savings } = calculateCartDiscount(cart);
-
-  // Shipping preview: free at $150+ subtotal, $9.95 flat below that.
-  // NOTE: mirrors the rate documented in project notes -- I don't have
-  // direct read access to routes/checkout.js from here to confirm this
-  // still matches the live backend calculation. If the real checkout
-  // charges a different amount, this preview will be wrong and needs
-  // updating to match.
-  const shippingCost = subtotal >= 150 ? 0 : 9.95;
-  const grandTotal = total + shippingCost;
-
-  if (summaryEl) {
-    let html = '';
-    if (discountApplied) {
-      html += '<div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#666;"><span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span></div>' +
-        '<div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#3FA34D; font-weight:600;"><span>Bulk discount (10%)</span><span>-$' + savings.toFixed(2) + '</span></div>';
-    }
-    html += '<div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#666;"><span>Shipping</span><span>' +
-      (shippingCost === 0 ? 'Free' : '$' + shippingCost.toFixed(2)) + '</span></div>';
-    summaryEl.innerHTML = html;
-  }
-  if (totalEl) totalEl.textContent = '$' + grandTotal.toFixed(2);
-  list.querySelectorAll('[data-remove]').forEach(el => {
-    el.addEventListener('click', () => removeFromCart(el.dataset.remove));
-  });
 }
 
 function getCheckoutInfo() {
@@ -680,62 +592,6 @@ function getCheckoutInfo() {
   });
 }
 
-function buildCartPanel() {
-  const panel = document.createElement('div');
-  panel.id = 'cart-panel';
-  panel.style.cssText = 'position:fixed; top:0; right:-340px; width:320px; height:100%; background:#fff; border-left:1px solid #E4E4E0; box-shadow:-4px 0 20px rgba(0,0,0,0.1); z-index:100; transition:right 0.25s; padding:20px; overflow-y:auto;';
-  panel.innerHTML =
-    '<h3 style="font-weight:700; margin-bottom:16px;">Your Cart</h3>' +
-    '<div id="cart-items"></div>' +
-    '<div id="cart-summary" style="margin-top:8px;"></div>' +
-    '<div style="display:flex; justify-content:space-between; font-weight:700; margin:16px 0; font-size:0.9rem;"><span>Total</span><span id="cart-total">$0.00</span></div>' +
-    '<button id="cart-checkout-btn" style="width:100%; background:#1B4B8C; color:#fff; border:none; padding:12px; border-radius:6px; font-weight:700; cursor:pointer;">Checkout</button>' +
-    '<button id="cart-close-btn" style="width:100%; background:none; border:1px solid #E4E4E0; padding:10px; border-radius:6px; margin-top:8px; cursor:pointer;">Close</button>';
-  document.body.appendChild(panel);
-
-  document.getElementById('cart-close-btn').addEventListener('click', () => {
-    panel.style.right = '-340px';
-  });
-
-  document.getElementById('cart-checkout-btn').addEventListener('click', async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty.');
-      return;
-    }
-    const checkoutInfo = await getCheckoutInfo();
-    if (!checkoutInfo) return;
-    const { email, shippingAddress } = checkoutInfo;
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
-          customerEmail: email,
-          shippingAddress: shippingAddress
-        })
-      });
-      const data = await res.json();
-      if (data.payment && data.payment.paymentUrl) {
-        localStorage.setItem('forgewell_last_order_id', data.orderId);
-        cart = [];
-        saveCart();
-        window.location.href = data.payment.paymentUrl;
-        return;
-      }
-      alert('Checkout succeeded but no payment link was returned — check the console and contact support.');
-      console.error('Checkout response missing payment.paymentUrl:', data);
-      cart = [];
-      saveCart();
-      renderCart();
-      panel.style.right = '-340px';
-    } catch (err) {
-      console.error('Checkout failed:', err);
-      alert('Checkout failed — check the console.');
-    }
-  });
-}
-
 document.addEventListener('click', async (e) => {
   if (e.target.classList.contains('add-btn')) {
     const card = e.target.closest('.card');
@@ -810,7 +666,6 @@ function populateMostPopular() {
     }
   });
 }
-buildCartPanel();
 updateCartIcon();
 
 
