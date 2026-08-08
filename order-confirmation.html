@@ -130,7 +130,7 @@ function renderNotFound() {
 
 function statusDisplay(status) {
   if (status === 'paid') return { icon: 'check', title: 'Payment confirmed!', sub: 'Your order is being processed.' };
-  if (status === 'pending_payment') return { icon: 'clock', title: 'Awaiting payment confirmation', sub: 'This page will update automatically once your payment is confirmed on-chain.' };
+  if (status === 'pending_payment') return { icon: 'clock', title: 'Awaiting payment confirmation', sub: 'This page will update automatically once your payment is confirmed.' };
   if (status === 'cancelled') return { icon: 'x', title: 'Order cancelled', sub: 'This order was cancelled or the payment did not complete.' };
   return { icon: 'clock', title: 'Order status: ' + escapeHtml(status), sub: '' };
 }
@@ -212,8 +212,8 @@ async function pollOrder(orderId) {
     renderOrder(order);
 
     // Keep polling while payment is still pending, so the page updates
-    // itself once the webhook confirms the on-chain payment — up to
-    // roughly 5 minutes, then stop so we don't poll forever.
+    // itself once the webhook confirms the payment — up to roughly
+    // 5 minutes, then stop so we don't poll forever.
     pollCount++;
     if (order.status === 'pending_payment' && pollCount < 60) {
       pollTimer = setTimeout(() => pollOrder(orderId), 5000);
