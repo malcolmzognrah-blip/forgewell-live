@@ -350,6 +350,9 @@ function resolveImagePath(path) {
   if (!path) return null;
   if (path.indexOf('http') === 0) return path;
   // DB stores paths like "images/glutathione.png" -- relative to site root.
+  // Actual files are served as WebP (much smaller); the DB only ever knows
+  // about the .png name, so the swap happens here rather than at the source.
+  path = path.replace(/\.png$/i, '.webp');
   if (path.indexOf('/') === 0) return path;
   return '/' + path;
 }
