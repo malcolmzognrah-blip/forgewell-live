@@ -78,10 +78,19 @@ catalog's lettering) throughout.
 |---|---|---|---|
 | "FORGEWELL" wordmark | 673 | 90 | `RGB(255,255,255)` |
 | Product name (1 line) | 885 | 120 | `RGB(10,22,64)` |
-| Dosage number | 1028 | 125 | `RGB(10,22,64)` |
-| "LOT: ####" | 1120 | 34 | `RGB(15,15,15)` |
+| Dosage number | 1057 | 85 | `RGB(10,22,64)` |
 | Disclaimer line 1 | 1238 | 38 | `RGB(15,15,15)` |
 | Disclaimer line 2 | 1278 | 38 | `RGB(15,15,15)` |
+
+**Y-center isn't the rendered visual center**: `dominant-baseline="central"` in the
+sharp/resvg SVG renderer used by `generate-dosage-images.js` centers on the font's
+ascent/descent box, not the actual glyph ink — for text without descenders that
+renders visibly *above* the given Y-center, by an offset that scales with font size
+(empirically ~0.26 × font-size px for this font/renderer). The Dosage number row
+above was recalibrated by rendering test composites and measuring the actual pixel
+bounding box against `bpc-157 5mg.webp`, not by computing this offset analytically —
+do the same (render + measure, don't just eyeball the SVG) if any row here is
+revisited.
 
 **Variable-length product names**: the current catalog's name block auto-adjusts for
 longer names (wraps to 2 lines, shrinks font, and pushes the dosage block down

@@ -1,0 +1,8 @@
+{
+  "name": "forgewell-image-scripts",
+  "private": true,
+  "description": "Standalone content-generation tools, not part of the site build (the site has none).",
+  "dependencies": {
+    "sharp": "^0.33.0"
+  }
+}
