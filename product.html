@@ -297,28 +297,6 @@ Promise.all([
   console.error('Failed to load shared header/footer', err);
 });
 
-async function loadProducts() {
-  try {
-    const res = await fetch('/api/products');
-    const products = await res.json();
-    allProducts = products;
-    document.querySelectorAll('.card').forEach(card => {
-      const nameEl = card.querySelector('h3');
-      if (!nameEl) return;
-      const name = nameEl.textContent.trim();
-      const product = products.find(p => p.name === name);
-      if (!product) return;
-      const lotEl = card.querySelector('.lot');
-      const priceEl = card.querySelector('.price');
-      if (lotEl) lotEl.textContent = product.dosage + ' · LOT #' + product.lot;
-      if (priceEl) priceEl.textContent = product.price > 0 ? '$' + product.price.toFixed(2) : '$XX';
-      card.dataset.productId = product.id;
-    });
-  } catch (err) {
-    console.error('Failed to load products from backend:', err);
-  }
-}
-
 function saveCart() {
   localStorage.setItem('forgewell_cart', JSON.stringify(cart));
   updateCartIcon();
@@ -345,57 +323,6 @@ function addToCart(productId) {
   saveCart();
 }
 
-document.addEventListener('click', (e) => {
-  if (e.target.classList.contains('add-btn')) {
-    const card = e.target.closest('.card');
-    const productId = card?.dataset.productId;
-    if (!productId) {
-      alert('Product not loaded yet — try refreshing the page.');
-      return;
-    }
-    addToCart(productId);
-    return;
-  }
-  if (e.target.classList.contains('buy-btn')) {
-    const card = e.target.closest('.card');
-    const productId = card?.dataset.productId;
-    if (!productId) {
-      alert('Product not loaded yet — try refreshing the page.');
-      return;
-    }
-    addToCart(productId);
-    window.location.href = '/checkout.html';
-    return;
-  }
-
-  // Clicking anywhere else on a card (image, name, lot, price) goes to
-  // that product's detail page — the buttons above are handled first
-  // and return early, so they're excluded from this navigation.
-  const card = e.target.closest('.card');
-  if (card) {
-    const productId = card.dataset.productId;
-    if (productId) {
-      window.location.href = '/product.html?id=' + encodeURIComponent(productId);
-    }
-  }
-});
-
-let productsReady = loadProducts().then(populateMostPopular);
-
-function populateMostPopular() {
-  const featured = ['Semaglutide', 'Tesamorelin', 'BPC-157', 'GHK-Cu'];
-  const grid = document.getElementById('most-popular-grid');
-  if (!grid) return;
-  featured.forEach(name => {
-    const card = Array.from(document.querySelectorAll('.card')).find(c => {
-      const h3 = c.querySelector('h3');
-      return h3 && h3.textContent.trim() === name;
-    });
-    if (card) {
-      grid.appendChild(card.cloneNode(true));
-    }
-  });
-}
 updateCartIcon();
 
 </script>
@@ -667,7 +594,7 @@ async function initProductPage() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', initProductPage);
+let productsReady = initProductPage();
 
 </script>
 
