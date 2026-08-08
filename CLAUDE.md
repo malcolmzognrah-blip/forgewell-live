@@ -161,6 +161,26 @@ actual product image, as opposed to just a product name/price) treats a path sta
 absolute, one starting with `/` as already site-rooted, and everything else gets a leading `/`
 prepended (paths come from the product DB as `images/foo.png`, relative to site root).
 
+### Favicon
+
+`favicon.svg` (primary) and `favicon.png` (256×256 fallback for browsers without SVG favicon support)
+live in the repo root and are the same anvil-and-spark mark used inline in `header.html`'s
+`.logo-mark` SVG, but re-centered: the header copy's `viewBox="0 0 200 200"` doesn't actually bound
+its own artwork (paths run from x:20–158, y:-20–92), which is fine inline where the header's flexbox
+clips/positions it, but would crop the flame's tip and sit off-center as a standalone icon. `favicon.svg`
+uses the same `<path>`/`<rect>` data with `viewBox="4 -49 170 170"` instead — recomputed to center that
+exact bounding box with even padding on all sides — and nothing else. `favicon.png` was rendered from
+that SVG via headless Chromium (no image-conversion tool is installed in this environment) rather than
+hand-drawn, so the two stay pixel-faithful to each other. Every one of the 18 real pages (the 16 with
+`header.html`/`footer.html` plus `admin.html` and `order-confirmation.html`, which don't use those
+fragments but still need a tab icon) links both directly in its own `<head>`:
+```html
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" href="/favicon.png">
+```
+This is a `<head>`-only asset with no shared-fragment mechanism backing it (unlike header/footer), so a
+future logo change means re-deriving both files and touching all 18 pages' `<head>`, not just one file.
+
 ### Certificate of Analysis (COA) PDFs
 
 `coa/` holds one PDF per product, named `<product.id>.pdf` — the same `id` already used in that
