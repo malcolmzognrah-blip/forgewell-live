@@ -113,10 +113,32 @@ per-product page.
   autofill the form on a future visit.
 - `forgewell_last_order_id` — set right before redirecting to the payment provider's `paymentUrl`, read by
   `order-confirmation.html`.
+- `forgewell_age_verified` — set to `'yes'` by the age-gate overlay (see below) once a visitor accepts;
+  read on every load of `home.html`/`shop.html` to decide whether to show the gate again.
 
 Session/auth state (`/api/auth/me`, `/api/admin/me`) is **cookie-based** (`credentials: 'include'` on every
 fetch) — separate from the localStorage cart state. Customer auth (`/api/auth/*`) and admin auth
 (`/api/admin/*`) are independent sessions; `admin.html` never touches `/api/auth/*`.
+
+### Age-gate overlay (home.html, shop.html)
+
+`home.html` and `shop.html` each open with a full-page `#age-gate-overlay` / `#age-gate-modal` — a
+fixed, `z-index:9999` modal ("Research use only") with three checkboxes (age 21+ confirmation,
+research-use agreement, and a "Remember my choice" box checked by default) and two buttons. **Accept**
+stays visually disabled (`opacity:0.5; pointer-events:none`) until both the age and research-use
+checkboxes are checked, at which point a `.enabled` class makes it clickable; clicking it writes
+`forgewell_age_verified = 'yes'` to localStorage only if "Remember my choice" is still checked, then
+removes the overlay. **Exit** ignores checkbox state entirely and immediately hard-navigates to
+`https://www.google.com` — it's a way off the site, not a "no" answer the page does anything else with.
+On every load, an inline script (right after the modal's own markup, before the
+`header.html`/`footer.html` fetch) checks `forgewell_age_verified` first and removes the overlay
+immediately if it's already `'yes'`, so returning visitors never see it flash.
+
+This is implemented independently on each of the two pages (same markup, CSS, and script, copy-pasted
+per the no-shared-JS rule — see above), and deliberately **not** present on any of the other 16 pages
+that share `header.html`/`footer.html`, nor on `admin.html`/`order-confirmation.html`. Landing directly
+on `product.html` or `cart.html` (e.g. from a search engine or a shared link) skips it entirely — only
+the two full catalog-browsing entry points gate on it.
 
 ### Checkout flow
 
