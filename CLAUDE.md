@@ -153,6 +153,20 @@ shippingAddress }` — no shipping method included), so there's no guarantee the
 what's actually charged. On success (`payment.paymentUrl` present) the cart is cleared and the browser
 redirects to the external hosted payment page, same as before.
 
+### Trust badges (product.html)
+
+Below the Add to Cart/Buy Now buttons, `renderProduct()` renders a `.trust-badges` grid (2 columns)
+of five icon+label items — Third-Party Tested, Free Shipping Over $250, 14-Day Returns, Batch & Lot
+Tracking, Secure Ordering — preceded by a `.trust-note` line ("For laboratory research use only.").
+This replaced an earlier plain-text `.trust-row` (`COA Available` / `Third-Party Tested` /
+`Ships Discreetly`, no icons) — don't expect to find `.trust-row` in the codebase anymore. Each
+badge's SVG is inlined directly in the JS template string using the same convention as the header's
+icons (`viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+stroke-linejoin="round"`, 16px here vs. the header's 20px) so they read as part of the same icon
+family. This block exists only on `product.html` — it's not part of the shared `header.html`/
+`footer.html` fragments and isn't duplicated anywhere else, so a wording or icon change is a
+single-file edit.
+
 ### Images
 
 Product images live in `images/` and are referenced as `images/<name>.png`. `resolveImagePath()`
