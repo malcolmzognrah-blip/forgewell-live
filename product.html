@@ -346,6 +346,15 @@ function baseLabel(name) {
   return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)\)?\s*$/i, '').trim();
 }
 
+// Siblings are already grouped by baseLabel(), so they always share one unit
+// (mg/mcg/iu/ml) -- comparing the leading number alone is enough to order
+// them correctly. Unparsable values sort last instead of throwing.
+function parseDosageValue(product) {
+  var text = product.dosage || product.name || '';
+  var m = text.match(/(\d+(\.\d+)?)/);
+  return m ? parseFloat(m[1]) : Infinity;
+}
+
 function resolveImagePath(path) {
   if (!path) return null;
   if (path.indexOf('http') === 0) return path;
@@ -384,8 +393,14 @@ function renderProduct(product, siblings) {
 
   var sizeOptionsHtml = '';
   if (siblings.length > 1) {
+    // Siblings come back from /api/products in whatever order the backend
+    // returns them (not necessarily dosage order), so sort smallest-to-largest
+    // by the leading number in dosage (falling back to name) before rendering.
+    var sortedSiblings = siblings.slice().sort(function(a, b) {
+      return parseDosageValue(a) - parseDosageValue(b);
+    });
     sizeOptionsHtml = '<div class="size-selector"><label>Size</label><div class="size-options" id="size-options">' +
-      siblings.map(function(s) {
+      sortedSiblings.map(function(s) {
         var activeClass = s.id === product.id ? ' active' : '';
         return '<div class="size-option' + activeClass + '" data-id="' + s.id + '">' + (s.dosage || s.name) + '</div>';
       }).join('') + '</div></div>';
