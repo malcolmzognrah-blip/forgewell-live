@@ -119,6 +119,18 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .product-main{display:grid; grid-template-columns:1fr 1fr; gap:40px;}
 @media (max-width:800px){ .product-main{grid-template-columns:1fr;} }
 
+/* gallery-col sized to its own content (the aspect-ratio photo box), not
+   stretched to match buy-col -- buy-col's max-height is set to that natural
+   height by syncColumnHeights() in the script below, with overflow-y:auto
+   here so longer content (now including Description) scrolls internally
+   instead of growing the page past the photo. Both are unset/no-op below
+   the 800px breakpoint where .product-main above stacks the columns. */
+.gallery-col{ align-self:start; }
+.buy-col{ overflow-y:auto; }
+
+.buy-col-description{ margin-top:20px; }
+.buy-col-description h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
+
 .gallery-main{width:100%; aspect-ratio:1/1; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center;}
 .gallery-main img{width:100%; height:100%; object-fit:contain;}
 .gallery-thumbs{display:flex; gap:10px; margin-top:10px;}
@@ -552,6 +564,20 @@ function renderProduct(product, siblings) {
   var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
   var backLinkHtml = buildBackLinkHtml(product, allProducts);
 
+  // Lives inside buy-col now (below the buy buttons/trust badges/COA link),
+  // not as its own full-width section under product-main -- .product-section's
+  // max-width:1200px/auto-margin centering is meant for full-bleed sections
+  // below the two-column layout, so this reuses its heading look via
+  // .buy-col-description instead of nesting a .product-section inside the
+  // already-narrower grid column.
+  var descriptionHtml =
+    '<div class="buy-col-description">' +
+      '<h2>Description</h2>' +
+      bullets +
+      '<div class="research-text">' + (product.research_use || '') + '</div>' +
+      verificationNote +
+    '</div>';
+
   root.innerHTML =
     '<div class="product-wrap">' +
       backLinkHtml +
@@ -587,18 +613,12 @@ function renderProduct(product, siblings) {
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secure Ordering</span></div>' +
           '</div>' +
           '<a class="coa-link" href="#" id="coa-link" target="_blank" rel="noopener" style="display:none;">View Certificate of Analysis</a>' +
+          descriptionHtml +
         '</div>' +
       '</div>' +
     '</div>' +
 
     suggestedEssentialsHtml +
-
-    '<div class="product-section">' +
-      '<h2>Description</h2>' +
-      bullets +
-      '<div class="research-text">' + (product.research_use || '') + '</div>' +
-      verificationNote +
-    '</div>' +
 
     (techRows ? '<div class="product-section"><h2>Technical Data</h2><table class="tech-table">' + techRows + '</table></div>' : '') +
 
@@ -608,6 +628,31 @@ function renderProduct(product, siblings) {
 
   wireProductInteractions(product);
   wireCoaLink(product);
+  syncColumnHeights();
+  window.addEventListener('resize', syncColumnHeights);
+}
+
+// Keeps buy-col from growing taller than gallery-col (now that Description
+// lives inside it too) -- CSS grid's default stretch would otherwise let
+// buy-col's content height determine the row height, leaving gallery-col
+// stretched with empty space below the photo instead of the two columns
+// actually matching. gallery-col has align-self:start (see its CSS) so it
+// always sizes to its own natural content regardless of row height; this
+// just measures that and caps buy-col to match, with .buy-col's
+// overflow-y:auto (also in CSS) scrolling anything that doesn't fit.
+// Recomputed on resize since the photo's height is width-driven
+// (aspect-ratio), and skipped below 800px to match .product-main's own
+// media query, which stacks the columns into one at that width -- no
+// side-by-side height to match once they're no longer side by side.
+function syncColumnHeights() {
+  var galleryCol = document.querySelector('.gallery-col');
+  var buyCol = document.querySelector('.buy-col');
+  if (!galleryCol || !buyCol) return;
+  if (window.innerWidth <= 800) {
+    buyCol.style.maxHeight = '';
+    return;
+  }
+  buyCol.style.maxHeight = galleryCol.offsetHeight + 'px';
 }
 
 // Checks for a matching PDF at /coa/<id>.pdf via a HEAD request rather than
@@ -649,6 +694,11 @@ function wireCoaLink(product) {
       trustLink.href = coaUrl;
       trustLink.style.display = '';
     }
+
+    // Revealing the thumbnail strip just grew gallery-col -- resync so
+    // buy-col's max-height (set once already in renderProduct) matches
+    // the photo column's new, taller height instead of the pre-thumbnail one.
+    syncColumnHeights();
   });
 }
 
