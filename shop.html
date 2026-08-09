@@ -650,11 +650,25 @@ async function renderProductsPage() {
     : productGroupList.filter(g => g.category === currentCategoryFilter);
 
   const itemsPerPage = computeGridColumns() * 4;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  let totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+
+  // totalPages is computed from the unverified count (see renderShopGrid()),
+  // so it doesn't account for broken images -- it's just how many items
+  // exist, which won't always divide evenly by itemsPerPage. A trailing page
+  // left with less than half a page's worth (e.g. a single lonely card) reads
+  // as broken rather than a normal partial last row, so fold it into the
+  // previous page instead of giving it its own page.
+  if (totalPages > 1) {
+    const lastPageSize = filtered.length - (totalPages - 1) * itemsPerPage;
+    if (lastPageSize <= itemsPerPage / 2) totalPages -= 1;
+  }
   currentPage = Math.min(Math.max(1, currentPage), totalPages);
 
   const start = (currentPage - 1) * itemsPerPage;
-  const pageItems = filtered.slice(start, start + itemsPerPage);
+  // The (possibly merged) last page absorbs whatever remains rather than a
+  // fixed-size slice, so it can run a bit larger than itemsPerPage.
+  const end = currentPage === totalPages ? filtered.length : start + itemsPerPage;
+  const pageItems = filtered.slice(start, end);
 
   // Only HEAD-check this page's ~12-24 items, not the whole catalog (see the
   // comment in renderShopGrid()). verifiedImageCache means flipping back to
