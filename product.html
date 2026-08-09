@@ -126,7 +126,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
    instead of growing the page past the photo. Both are unset/no-op below
    the 800px breakpoint where .product-main above stacks the columns. */
 .gallery-col{ align-self:start; }
-.buy-col{ overflow-y:auto; }
+.buy-col{ overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; }
+.buy-col::-webkit-scrollbar{ display:none; }
 
 .buy-col-description{ margin-top:20px; }
 .buy-col-description h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
