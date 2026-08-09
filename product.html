@@ -170,7 +170,8 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 .essential-card .vial{ width:100%; aspect-ratio:1/1; border-radius:4px; background:#fff; margin-bottom:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid var(--line); }
 .essential-card .vial img{ width:100%; height:100%; object-fit:contain; }
 .essential-card h3{ font-weight:700; font-size:0.85rem; margin:0 0 4px; color:#141414; text-align:center; }
-.essential-card .price{ font-weight:700; font-size:0.82rem; color:var(--navy-dark); text-align:center; margin-bottom:8px; }
+.essential-card .price-row{ display:flex; flex-direction:column; gap:8px; margin-top:auto; padding-top:8px; }
+.essential-card .price{ font-weight:700; font-size:0.82rem; color:var(--navy-dark); text-align:center; }
 .essential-card .add-btn{ display:block; width:100%; text-align:center; font-size:0.7rem; font-weight:700; padding:8px; border-radius:6px; border:1.5px solid #6B4FA0; color:#6B4FA0; background:#fff; cursor:pointer; font-family:'Quicksand',sans-serif; }
 
 .loading-state, .error-state{max-width:1200px; margin:60px auto; padding:0 24px; text-align:center; color:var(--gray);}
@@ -422,8 +423,10 @@ function buildEssentialCardHtml(p) {
   return '<div class="essential-card" data-product-id="' + p.id + '">' +
     '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
     '<h3>' + p.name + '</h3>' +
-    '<div class="price">' + priceLabel + '</div>' +
-    '<button type="button" class="add-btn" data-add-essential-id="' + p.id + '">Add to Cart</button>' +
+    '<div class="price-row">' +
+      '<div class="price">' + priceLabel + '</div>' +
+      '<button type="button" class="add-btn" data-add-essential-id="' + p.id + '">Add to Cart</button>' +
+    '</div>' +
   '</div>';
 }
 
