@@ -163,6 +163,16 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 
 .ruo-note{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; font-size:0.75rem; color:var(--gray); line-height:1.5; margin-top:20px;}
 
+/* ---- Suggested Essentials (styled to match home/shop's Most Popular cards) ---- */
+#suggested-essentials-grid{ display:flex; overflow-x:auto; gap:16px; padding:4px 4px 8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+#suggested-essentials-grid::-webkit-scrollbar{ display:none; }
+.essential-card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 12px 12px; flex:0 0 150px; min-width:150px; scroll-snap-align:start; cursor:pointer; display:flex; flex-direction:column; }
+.essential-card .vial{ width:100%; aspect-ratio:1/1; border-radius:4px; background:#fff; margin-bottom:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid var(--line); }
+.essential-card .vial img{ width:100%; height:100%; object-fit:contain; }
+.essential-card h3{ font-weight:700; font-size:0.85rem; margin:0 0 4px; color:#141414; text-align:center; }
+.essential-card .price{ font-weight:700; font-size:0.82rem; color:var(--navy-dark); text-align:center; margin-bottom:8px; }
+.essential-card .add-btn{ display:block; width:100%; text-align:center; font-size:0.7rem; font-weight:700; padding:8px; border-radius:6px; border:1.5px solid #6B4FA0; color:#6B4FA0; background:#fff; cursor:pointer; font-family:'Quicksand',sans-serif; }
+
 .loading-state, .error-state{max-width:1200px; margin:60px auto; padding:0 24px; text-align:center; color:var(--gray);}
 
 </style>
@@ -366,6 +376,66 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
+// ---- Suggested Essentials ----
+// Only shown under peptide/amino/kit products -- essentials themselves (and
+// anything uncategorized) don't get an essentials upsell.
+var ESSENTIAL_TRIGGER_CATEGORIES = ['peptide', 'amino', 'kit'];
+var SUGGESTED_ESSENTIAL_NAMES = ['Acetic Acid Water', 'Bacteriostatic Water', 'Insulin Needles', 'Peptide Carrier'];
+
+// baseLabel() above only strips *numeric* dosage/size tokens (mg/mcg/iu/ml) --
+// confirmed it leaves non-numeric variant suffixes like "(Large Pack)" /
+// "(Small Pack)" untouched. Essentials like Insulin Needles use pack-size
+// suffixes, not mg/mL, so matching them needs a broader strip: any trailing
+// "(...)" annotation, numeric or not. Kept separate from baseLabel() rather
+// than broadening it, since baseLabel() is also used for strict dosage-sibling
+// grouping elsewhere and that shouldn't start swallowing arbitrary parens.
+function stripTrailingAnnotation(name) {
+  if (!name) return '';
+  return name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+// Both Insulin Needles pack sizes (and any other multi-variant essential
+// here) are shown, not just one -- so this returns every matching product,
+// not a single pick. Multiple variants of the same essential are sorted
+// cheapest-first since pack-size suffixes have no numeric token to sort by
+// (unlike parseDosageValue()'s mg/mcg/iu/ml sizes).
+function findSuggestedEssentials(product, products) {
+  if (ESSENTIAL_TRIGGER_CATEGORIES.indexOf(product.category) === -1) return [];
+  var namesLower = SUGGESTED_ESSENTIAL_NAMES.map(function(n) { return n.toLowerCase(); });
+  var matches = products.filter(function(p) {
+    if (p.id === product.id) return false;
+    if (!resolveImagePath(p.image_path)) return false; // no image, no listing
+    return namesLower.indexOf(stripTrailingAnnotation(p.name).toLowerCase()) !== -1;
+  });
+  matches.sort(function(a, b) {
+    var groupA = namesLower.indexOf(stripTrailingAnnotation(a.name).toLowerCase());
+    var groupB = namesLower.indexOf(stripTrailingAnnotation(b.name).toLowerCase());
+    if (groupA !== groupB) return groupA - groupB;
+    return (a.price || 0) - (b.price || 0); // cheapest/smallest pack first within the same essential
+  });
+  return matches;
+}
+
+function buildEssentialCardHtml(p) {
+  var imgUrl = resolveImagePath(p.image_path);
+  var priceLabel = p.price > 0 ? '$' + Number(p.price).toFixed(2) : '$XX';
+  return '<div class="essential-card" data-product-id="' + p.id + '">' +
+    '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
+    '<h3>' + p.name + '</h3>' +
+    '<div class="price">' + priceLabel + '</div>' +
+    '<button type="button" class="add-btn" data-add-essential-id="' + p.id + '">Add to Cart</button>' +
+  '</div>';
+}
+
+function buildSuggestedEssentialsSection(product, products) {
+  var matches = findSuggestedEssentials(product, products);
+  if (matches.length === 0) return '';
+  return '<div class="product-section">' +
+    '<h2>Suggested Essentials</h2>' +
+    '<div id="suggested-essentials-grid">' + matches.map(buildEssentialCardHtml).join('') + '</div>' +
+  '</div>';
+}
+
 function renderError(message) {
   document.getElementById('product-root').innerHTML =
     '<div class="error-state"><h2>' + message + '</h2>' +
@@ -425,6 +495,7 @@ function renderProduct(product, siblings) {
   }
 
   var priceHtml = product.price > 0 ? '$' + Number(product.price).toFixed(2) : 'Price coming soon';
+  var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
 
   root.innerHTML =
     '<div class="product-wrap">' +
@@ -463,6 +534,8 @@ function renderProduct(product, siblings) {
         '</div>' +
       '</div>' +
     '</div>' +
+
+    suggestedEssentialsHtml +
 
     '<div class="product-section">' +
       '<h2>Description</h2>' +
@@ -571,6 +644,26 @@ function wireProductInteractions(product) {
     });
     thumb.classList.add('active');
   });
+
+  // Delegated for the same reason as gallery-thumbs above: this grid only
+  // exists in the DOM when buildSuggestedEssentialsSection() produced one.
+  // Clicking Add to Cart adds that essential (qty 1) without navigating;
+  // clicking anywhere else on a card goes to that essential's own product
+  // page, matching how every other product card on the site behaves.
+  var essentialsGrid = document.getElementById('suggested-essentials-grid');
+  if (essentialsGrid) {
+    essentialsGrid.addEventListener('click', function(e) {
+      var addBtn = e.target.closest('[data-add-essential-id]');
+      if (addBtn) {
+        addToCart(addBtn.getAttribute('data-add-essential-id'));
+        return;
+      }
+      var card = e.target.closest('.essential-card');
+      if (card) {
+        window.location.href = '/product.html?id=' + encodeURIComponent(card.getAttribute('data-product-id'));
+      }
+    });
+  }
 }
 
 // Base reference records for blend/kit products -- intentionally $0, never
