@@ -315,6 +315,12 @@ let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
 let productGroupList = [];
 let currentCategoryFilter = 'all';
 let currentPage = 1;
+// Caches HEAD-check results per image URL so revisiting a page (or flipping
+// between category tabs) doesn't re-verify images already confirmed this
+// session. Paired with renderGeneration below so a slow in-flight check from
+// a page the user has already navigated away from can't clobber the grid.
+let verifiedImageCache = new Map();
+let renderGeneration = 0;
 
 // Ids that are base component records for blend/kit products -- intentionally
 // $0, never meant to be sold standalone. Excluded from the shop grid and
@@ -564,24 +570,16 @@ async function renderShopGrid() {
     }
   });
 
-  const unverifiedGroupList = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
-
   // The "no image, no listing" rule above only checks that image_path is a
-  // non-empty string -- it doesn't catch a path that 404s. A 404 used to only
-  // surface later, via buildCardHtml's onerror stripping that card from an
-  // already-paginated grid, which shorted whichever row it landed in without
-  // itemsPerPage ever knowing a slot had gone empty. Verifying the image loads
-  // before it enters productGroupList keeps the pagination math in sync with
-  // what will actually render.
-  const groupList = (await Promise.all(unverifiedGroupList.map(async (g) => {
-    try {
-      const res = await fetch(g.imgUrl, { method: 'HEAD' });
-      return res.ok ? g : null;
-    } catch (err) {
-      return null;
-    }
-  }))).filter(Boolean);
-  productGroupList = groupList;
+  // non-empty string -- it doesn't catch a path that 404s. That's now handled
+  // by renderProductsPage(), which HEAD-checks only the current page's items
+  // (12-24) instead of the whole catalog here -- checking all ~120 groups
+  // up front, before any pagination happened, cost ~6s of pure network
+  // latency on every load for the sake of catching a small handful of dead
+  // links. A dead image on a page still means that page renders a bit short
+  // rather than a perfectly full grid, but that's a rare, one-page-at-a-time
+  // cosmetic trade-off against blocking the entire grid on every visit.
+  productGroupList = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
 
   // Categories present in the live data, ordered to match the confirmed
   // DB values (peptide/amino/kit/essential), any unexpected value sorts last.
@@ -641,9 +639,11 @@ function computeGridColumns() {
   return cols || 1;
 }
 
-function renderProductsPage() {
+async function renderProductsPage() {
   const gridEl = document.getElementById('grid');
   if (!gridEl) return;
+
+  const myGeneration = ++renderGeneration;
 
   const filtered = currentCategoryFilter === 'all'
     ? productGroupList
@@ -655,8 +655,31 @@ function renderProductsPage() {
 
   const start = (currentPage - 1) * itemsPerPage;
   const pageItems = filtered.slice(start, start + itemsPerPage);
-  gridEl.innerHTML = pageItems.length
-    ? pageItems.map(g => buildCardHtml(g)).join('')
+
+  // Only HEAD-check this page's ~12-24 items, not the whole catalog (see the
+  // comment in renderShopGrid()). verifiedImageCache means flipping back to
+  // a page or category tab already seen this session re-checks nothing.
+  const verifiedPageItems = (await Promise.all(pageItems.map(async (g) => {
+    if (verifiedImageCache.has(g.imgUrl)) {
+      return verifiedImageCache.get(g.imgUrl) ? g : null;
+    }
+    let ok;
+    try {
+      const res = await fetch(g.imgUrl, { method: 'HEAD' });
+      ok = res.ok;
+    } catch (err) {
+      ok = false;
+    }
+    verifiedImageCache.set(g.imgUrl, ok);
+    return ok ? g : null;
+  }))).filter(Boolean);
+
+  // A page/tab/resize change that started after this one began should win --
+  // discard this result rather than overwrite the grid with stale content.
+  if (myGeneration !== renderGeneration) return;
+
+  gridEl.innerHTML = verifiedPageItems.length
+    ? verifiedPageItems.map(g => buildCardHtml(g)).join('')
     : '<p style="padding:20px;color:#6b6b6b;">No products in this category.</p>';
 
   renderPaginationControls(totalPages, currentPage);
