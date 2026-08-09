@@ -113,6 +113,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .product-wrap{max-width:1200px; margin:24px auto 0; padding:0 24px;}
 .breadcrumb{font-size:0.78rem; color:var(--gray); margin-bottom:18px;}
 .breadcrumb a{color:var(--navy); text-decoration:none;}
+.back-link{font-size:0.78rem; margin-bottom:6px;}
+.back-link a{color:var(--navy); text-decoration:none;}
+.back-link a:hover{text-decoration:underline;}
 .product-main{display:grid; grid-template-columns:1fr 1fr; gap:40px;}
 @media (max-width:800px){ .product-main{grid-template-columns:1fr;} }
 
@@ -377,6 +380,54 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
+// ---- Back link ----
+// Separate from the "Shop" breadcrumb link below: this tracks wherever the
+// customer actually came from (a search jump, another product's Suggested
+// Essentials row, a Most Popular card, a sibling size, etc.) using
+// document.referrer rather than sessionStorage, since every navigation into
+// this page already happens via a real `window.location.href` assignment
+// (search jump, card clicks, Buy Now, size selector) -- the browser sets
+// document.referrer on those exactly like a clicked link, so there's no need
+// to have every other page manually record "last page visited" itself.
+// Returns null (render nothing extra) when there's no usable referrer: empty
+// (fresh tab/bookmark/refresh), cross-origin (don't link off-site), pointing
+// at this exact page (avoids a self-link on refresh), or pointing at
+// /shop.html specifically (the "Shop" breadcrumb link already covers that,
+// showing both would be redundant).
+function getBackLink(product, products) {
+  var ref = document.referrer;
+  if (!ref) return null;
+
+  var refUrl;
+  try {
+    refUrl = new URL(ref);
+  } catch (e) {
+    return null;
+  }
+  if (refUrl.origin !== window.location.origin) return null;
+
+  var refPath = refUrl.pathname + refUrl.search;
+  var currentPath = window.location.pathname + window.location.search;
+  if (refPath === currentPath) return null;
+  if (refUrl.pathname === '/shop.html') return null;
+
+  var label = 'Back';
+  if (refUrl.pathname === '/home.html' || refUrl.pathname === '/') {
+    label = 'Back to Home';
+  } else if (refUrl.pathname === '/product.html') {
+    var refId = refUrl.searchParams.get('id');
+    var refProduct = products.find(function(p) { return p.id === refId; });
+    if (refProduct) label = 'Back to ' + refProduct.name;
+  }
+  return { href: refPath, label: label };
+}
+
+function buildBackLinkHtml(product, products) {
+  var backLink = getBackLink(product, products);
+  if (!backLink) return '';
+  return '<div class="back-link"><a href="' + backLink.href + '">&lsaquo; ' + backLink.label + '</a></div>';
+}
+
 // ---- Suggested Essentials ----
 // Only shown under peptide/amino/kit products -- essentials themselves (and
 // anything uncategorized) don't get an essentials upsell.
@@ -499,9 +550,11 @@ function renderProduct(product, siblings) {
 
   var priceHtml = product.price > 0 ? '$' + Number(product.price).toFixed(2) : 'Price coming soon';
   var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
+  var backLinkHtml = buildBackLinkHtml(product, allProducts);
 
   root.innerHTML =
     '<div class="product-wrap">' +
+      backLinkHtml +
       '<div class="breadcrumb"><a href="/shop.html">Shop</a> / ' + product.name + '</div>' +
       '<div class="product-main">' +
         '<div class="gallery-col">' +
