@@ -584,7 +584,7 @@ async function renderShopGrid() {
   // Categories present in the live data, ordered to match the confirmed
   // DB values (peptide/amino/kit/essential), any unexpected value sorts last.
   const knownOrder = ['peptide', 'amino', 'kit', 'essential'];
-  const categories = [...new Set(groupList.map(g => g.category))]
+  const categories = [...new Set(productGroupList.map(g => g.category))]
     .sort((a, b) => {
       const ai = knownOrder.indexOf(a), bi = knownOrder.indexOf(b);
       if (ai === -1 && bi === -1) return a.localeCompare(b);
