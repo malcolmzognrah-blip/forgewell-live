@@ -699,14 +699,18 @@ function syncColumnHeights() {
 // "no COAs" and the section just stays hidden, same fail-quiet convention
 // the old HEAD-check approach used.
 function formatCoaDate(dateStr) {
-  // batch_date is a plain YYYY-MM-DD calendar date with no time-of-day or
-  // timezone meaning. new Date(dateStr) parses that as UTC midnight, and
-  // toLocaleDateString() then renders it in the viewer's LOCAL timezone --
-  // in any zone behind UTC, that silently displays the day before. Building
-  // the Date from the local-time constructor instead sidesteps any UTC
-  // conversion entirely, so the calendar date shown always matches what's
-  // in the data, regardless of the viewer's timezone.
-  var parts = String(dateStr).split('-');
+  // batch_date is a plain calendar date with no time-of-day or timezone
+  // meaning, but Postgres's `date` type serializes through pg/Express as a
+  // full ISO timestamp ("2026-07-01T00:00:00.000Z"), not a bare "2026-07-01"
+  // -- split off everything from 'T' onward first so both shapes work.
+  // new Date(dateStr) parses that as UTC midnight, and toLocaleDateString()
+  // then renders it in the viewer's LOCAL timezone -- in any zone behind
+  // UTC, that silently displays the day before. Building the Date from the
+  // local-time constructor instead sidesteps any UTC conversion entirely,
+  // so the calendar date shown always matches what's in the data,
+  // regardless of the viewer's timezone.
+  var datePart = String(dateStr).split('T')[0];
+  var parts = datePart.split('-');
   if (parts.length !== 3) return dateStr;
   var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (isNaN(d.getTime())) return dateStr;
