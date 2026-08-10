@@ -548,8 +548,10 @@ if (cart.length === 0) {
       const data = await res.json();
       if (data.payment && data.payment.paymentUrl) {
         localStorage.setItem('forgewell_last_order_id', data.orderId);
-        cart = [];
-        saveCart();
+        // Cart is intentionally left alone here -- this order is still
+        // pending_payment, not paid. It's cleared on order-confirmation.html
+        // once polling actually observes status === 'paid', so backing out
+        // of PayRam (or the payment failing) leaves the cart intact.
         window.location.href = data.payment.paymentUrl;
         return;
       }

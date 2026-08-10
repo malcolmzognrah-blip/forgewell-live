@@ -147,6 +147,12 @@ function iconSvg(kind) {
 
 function renderOrder(order) {
   const s = statusDisplay(order.status);
+  // The cart survives checkout.html's redirect to PayRam unpaid (see
+  // checkout.html) specifically so backing out leaves it intact -- this is
+  // the one place it actually gets cleared, once payment is confirmed.
+  if (order.status === 'paid') {
+    localStorage.setItem('forgewell_cart', JSON.stringify([]));
+  }
   const items = (order.line_items || []).map(li => `
     <div class="line-item">
       <div>
