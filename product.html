@@ -555,9 +555,18 @@ function renderProduct(product, siblings) {
   } else if (typeof product.bullets === 'string' && product.bullets.trim()) {
     shortDescriptionLines = product.bullets.split('\n');
   }
+  shortDescriptionLines = shortDescriptionLines.map(function(line) { return line.trim(); }).filter(Boolean);
+  // "Research use only" is dropped here -- it's redundant with the
+  // highlighted disclaimer box above, which already covers it -- and
+  // "Not for human use" always closes the list instead, whenever there
+  // was other short-description content to begin with.
+  if (shortDescriptionLines.length) {
+    shortDescriptionLines = shortDescriptionLines.filter(function(line) {
+      return line.toLowerCase() !== 'research use only';
+    });
+    shortDescriptionLines.push('Not for human use');
+  }
   var shortDescriptionHtml = shortDescriptionLines
-    .map(function(line) { return line.trim(); })
-    .filter(Boolean)
     .map(function(line) { return '<p class="short-description-line">' + line + '</p>'; })
     .join('');
   if (shortDescriptionHtml) {
