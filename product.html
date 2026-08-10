@@ -145,13 +145,15 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .gallery-thumb-doc span{font-size:0.55rem; font-weight:700;}
 
 .purity-badge{display:inline-block; background:var(--green); color:#fff; font-size:0.7rem; font-weight:700; padding:4px 10px; border-radius:20px; margin-bottom:10px;}
-.product-title{font-size:1.7rem; color:var(--navy-dark); margin:0 0 4px; font-weight:700;}
-.product-lot{color:var(--gray); font-size:0.8rem; margin-bottom:14px;}
+.product-title{font-size:1.7rem; color:var(--navy-dark); margin:0 0 10px; font-weight:700;}
+.short-description{margin-bottom:16px;}
+.short-description-line{font-size:0.88rem; line-height:1.5; color:#333; margin:0 0 6px;}
+.short-description-line:last-child{margin-bottom:0;}
 .product-price{font-size:1.9rem; color:var(--navy); font-weight:700; margin-bottom:16px;}
 .product-price .was{font-size:1rem; color:var(--gray); text-decoration:line-through; font-weight:500; margin-left:8px;}
 
 .size-selector{margin-bottom:18px;}
-.size-selector label{display:block; font-size:0.8rem; font-weight:700; color:var(--navy-dark); margin-bottom:8px;}
+.size-selector label{display:block; font-size:0.7rem; font-weight:500; color:var(--gray); margin-bottom:8px;}
 .size-options{display:flex; flex-wrap:wrap; gap:8px;}
 .size-option{padding:9px 16px; border:1.5px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:'Quicksand',sans-serif; background:#fff;}
 .size-option.active{border-color:var(--navy); background:var(--navy); color:#fff;}
@@ -169,12 +171,21 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .trust-badges{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; margin-bottom:6px;}
 .trust-badge{display:flex; align-items:center; gap:8px; font-size:0.75rem; color:var(--gray);}
 .trust-badge svg{flex-shrink:0; width:16px; height:16px; color:var(--navy);}
-.coa-link{color:var(--navy); text-decoration:underline; font-size:0.8rem;}
+
+.coa-list{margin-top:20px; padding-top:16px; border-top:1px solid var(--line);}
+.coa-list h3{font-size:0.85rem; color:var(--navy-dark); margin:0 0 10px; font-weight:700;}
+.coa-list-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px;}
+.coa-list-item:last-child{margin-bottom:0;}
+.coa-list-item-info{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.coa-list-item-lot{font-weight:700; color:var(--navy-dark); font-size:0.82rem;}
+.coa-list-item-date{color:var(--gray); font-size:0.75rem;}
+.coa-list-item-link{display:flex; align-items:center; gap:6px; color:var(--navy); text-decoration:none; font-weight:700; font-size:0.78rem; white-space:nowrap; flex-shrink:0;}
+.coa-list-item-link svg{flex-shrink:0; width:15px; height:15px;}
+.coa-list-item-link:hover{text-decoration:underline;}
 
 .product-section{max-width:1200px; margin:36px auto 0; padding:0 24px;}
 @media (max-width:600px){ .product-section{ padding-left:16px; padding-right:16px; } }
 .product-section h2{font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;}
-.bullets{padding-left:18px; margin:0 0 14px; font-size:0.9rem; line-height:1.6;}
 .research-text{font-size:0.88rem; line-height:1.7; color:#333;}
 
 table.tech-table{width:100%; border-collapse:collapse; font-size:0.85rem;}
@@ -397,6 +408,16 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
+// Same site-root-relative convention as resolveImagePath(), minus the
+// image-specific .png->.webp swap -- product_coas.coa_path is a PDF path,
+// not an image.
+function resolveCoaPath(path) {
+  if (!path) return null;
+  if (path.indexOf('http') === 0) return path;
+  if (path.indexOf('/') === 0) return path;
+  return '/' + path;
+}
+
 // ---- Back link ----
 // Separate from the "Shop" breadcrumb link below: this tracks wherever the
 // customer actually came from (a search jump, another product's Suggested
@@ -523,13 +544,24 @@ function renderProduct(product, siblings) {
     return;
   }
 
-  var bullets = '';
+  // Short description, shown between the title and price -- plain paragraph
+  // text now, not a bulleted list. product.bullets is normally a single
+  // \n-separated string of short discrete facts (e.g. "Research use only\n
+  // Packaged in a 3mL vial"), not one flowing sentence, so each line still
+  // gets its own <p> rather than joining them into one run-on paragraph.
+  var shortDescriptionLines = [];
   if (Array.isArray(product.bullets)) {
-    bullets = '<ul class="bullets">' + product.bullets.map(function(b) {
-      return '<li>' + b + '</li>';
-    }).join('') + '</ul>';
+    shortDescriptionLines = product.bullets;
   } else if (typeof product.bullets === 'string' && product.bullets.trim()) {
-    bullets = '<ul class="bullets"><li>' + product.bullets + '</li></ul>';
+    shortDescriptionLines = product.bullets.split('\n');
+  }
+  var shortDescriptionHtml = shortDescriptionLines
+    .map(function(line) { return line.trim(); })
+    .filter(Boolean)
+    .map(function(line) { return '<p class="short-description-line">' + line + '</p>'; })
+    .join('');
+  if (shortDescriptionHtml) {
+    shortDescriptionHtml = '<div class="short-description">' + shortDescriptionHtml + '</div>';
   }
 
   var sizeOptionsHtml = '';
@@ -540,7 +572,7 @@ function renderProduct(product, siblings) {
     var sortedSiblings = siblings.slice().sort(function(a, b) {
       return parseDosageValue(a) - parseDosageValue(b);
     });
-    sizeOptionsHtml = '<div class="size-selector"><label>Size</label><div class="size-options" id="size-options">' +
+    sizeOptionsHtml = '<div class="size-selector"><label>SELECT MG</label><div class="size-options" id="size-options">' +
       sortedSiblings.map(function(s) {
         var activeClass = s.id === product.id ? ' active' : '';
         return '<div class="size-option' + activeClass + '" data-id="' + s.id + '">' + (s.dosage || s.name) + '</div>';
@@ -578,7 +610,6 @@ function renderProduct(product, siblings) {
   var descriptionHtml =
     '<div class="buy-col-description">' +
       '<h2>Description</h2>' +
-      bullets +
       '<div class="research-text">' + (product.research_use || '') + '</div>' +
       verificationNote +
     '</div>';
@@ -595,7 +626,7 @@ function renderProduct(product, siblings) {
         '<div class="buy-col">' +
           '<span class="purity-badge">Research Use Only</span>' +
           '<h1 class="product-title">' + product.name + '</h1>' +
-          '<div class="product-lot">' + (product.dosage || '') + (product.lot ? ' · LOT #' + product.lot : '') + '</div>' +
+          shortDescriptionHtml +
           '<div class="product-price">' + priceHtml + '</div>' +
           sizeOptionsHtml +
           '<div class="qty-row">' +
@@ -610,6 +641,7 @@ function renderProduct(product, siblings) {
             '<button class="btn-buy" id="buy-now-btn">Buy Now</button>' +
           '</div>' +
           descriptionHtml +
+          '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<p class="trust-note">For laboratory research use only.</p>' +
           '<div class="trust-badges">' +
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg><span>Third-Party Tested</span></div>' +
@@ -618,7 +650,6 @@ function renderProduct(product, siblings) {
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Batch &amp; Lot Tracking</span></div>' +
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secure Ordering</span></div>' +
           '</div>' +
-          '<a class="coa-link" href="#" id="coa-link" target="_blank" rel="noopener" style="display:none;">View Certificate of Analysis</a>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -632,7 +663,7 @@ function renderProduct(product, siblings) {
     '</div>';
 
   wireProductInteractions(product);
-  wireCoaLink(product);
+  loadProductCoas(product);
   syncColumnHeights();
   window.addEventListener('resize', syncColumnHeights);
 }
@@ -660,51 +691,61 @@ function syncColumnHeights() {
   buyCol.style.maxHeight = galleryCol.offsetHeight + 'px';
 }
 
-// Checks for a matching PDF at /coa/<id>.pdf via a HEAD request rather than
-// any manifest/database lookup -- there's no backend route for this in the
-// external API, and a HEAD request needs no coordination with it: whoever
-// drops a PDF into that folder just works, with nothing else to keep in
-// sync. Treats any non-200 or network error as "no PDF" so a missing file
-// (or a host that mishandles HEAD) just hides the link, never breaks it.
-async function checkCoaExists(productId) {
-  try {
-    var res = await fetch('/coa/' + encodeURIComponent(productId) + '.pdf', { method: 'HEAD' });
-    return res.ok;
-  } catch (err) {
-    return false;
-  }
+// A product can now have multiple batch-specific COAs (product_coas table,
+// one row per batch/lot), so there's no single "the COA" to link to a
+// gallery thumbnail the way the old one-PDF-per-product version did --
+// that thumbnail slot is left unused for now. Any fetch failure (including
+// this endpoint not existing yet on a given deploy) is treated the same as
+// "no COAs" and the section just stays hidden, same fail-quiet convention
+// the old HEAD-check approach used.
+function formatCoaDate(dateStr) {
+  // batch_date is a plain YYYY-MM-DD calendar date with no time-of-day or
+  // timezone meaning. new Date(dateStr) parses that as UTC midnight, and
+  // toLocaleDateString() then renders it in the viewer's LOCAL timezone --
+  // in any zone behind UTC, that silently displays the day before. Building
+  // the Date from the local-time constructor instead sidesteps any UTC
+  // conversion entirely, so the calendar date shown always matches what's
+  // in the data, regardless of the viewer's timezone.
+  var parts = String(dateStr).split('-');
+  if (parts.length !== 3) return dateStr;
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function wireCoaLink(product) {
-  checkCoaExists(product.id).then(function(exists) {
-    if (!exists) return;
-    var coaUrl = '/coa/' + encodeURIComponent(product.id) + '.pdf';
+async function loadProductCoas(product) {
+  var container = document.getElementById('coa-list');
+  if (!container) return;
+  var coas;
+  try {
+    var res = await fetch('/api/products/' + encodeURIComponent(product.id) + '/coas');
+    if (!res.ok) return;
+    coas = await res.json();
+  } catch (err) {
+    return;
+  }
+  if (!Array.isArray(coas) || coas.length === 0) return;
 
-    // Reveal the gallery thumbnail strip only now -- with just the one
-    // vial photo and no COA, there's nothing worth a thumbnail row for.
-    var thumbs = document.getElementById('gallery-thumbs');
-    if (thumbs) {
-      var imgUrl = document.getElementById('gallery-main-img').src;
-      thumbs.innerHTML =
-        '<img src="' + imgUrl + '" alt="' + product.name + '" class="active" data-role="image-thumb">' +
-        '<a href="' + coaUrl + '" target="_blank" rel="noopener" class="gallery-thumb-doc" title="View Certificate of Analysis">' +
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' +
-          '<span>COA</span>' +
-        '</a>';
-      thumbs.style.display = '';
-    }
+  var docIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
 
-    var trustLink = document.getElementById('coa-link');
-    if (trustLink) {
-      trustLink.href = coaUrl;
-      trustLink.style.display = '';
-    }
+  container.innerHTML =
+    '<h3>Certificates of Analysis</h3>' +
+    coas.map(function(coa) {
+      var pdfUrl = resolveCoaPath(coa.coa_path);
+      if (!pdfUrl) return '';
+      return '<div class="coa-list-item">' +
+        '<div class="coa-list-item-info">' +
+          '<span class="coa-list-item-lot">LOT #' + coa.batch_lot + '</span>' +
+          '<span class="coa-list-item-date">' + formatCoaDate(coa.batch_date) + '</span>' +
+        '</div>' +
+        '<a class="coa-list-item-link" href="' + pdfUrl + '" target="_blank" rel="noopener">' + docIcon + '<span>View PDF</span></a>' +
+      '</div>';
+    }).join('');
+  container.style.display = '';
 
-    // Revealing the thumbnail strip just grew gallery-col -- resync so
-    // buy-col's max-height (set once already in renderProduct) matches
-    // the photo column's new, taller height instead of the pre-thumbnail one.
-    syncColumnHeights();
-  });
+  // Growing this section can grow buy-col -- resync so buy-col's max-height
+  // (set once already in renderProduct) matches gallery-col's height again.
+  syncColumnHeights();
 }
 
 function wireProductInteractions(product) {
@@ -768,10 +809,10 @@ function wireProductInteractions(product) {
     });
   });
 
-  // Delegated since gallery-thumbs starts empty and is only populated later
-  // (by wireCoaLink) once we know whether there's a COA to show alongside
-  // the vial photo. The doc thumbnail is a plain target="_blank" link and
-  // needs no handler of its own.
+  // Delegated since gallery-thumbs starts empty. Nothing currently populates
+  // it (the old single-COA doc thumbnail was removed along with wireCoaLink()
+  // in favor of the multi-batch COA list -- see loadProductCoas()); this stays
+  // dormant, ready for whenever a product actually gets more than one photo.
   document.getElementById('gallery-thumbs').addEventListener('click', function(e) {
     var thumb = e.target.closest('[data-role="image-thumb"]');
     if (!thumb) return;
