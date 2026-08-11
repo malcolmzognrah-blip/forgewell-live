@@ -14,10 +14,12 @@
 // into ~/.local/share/fonts and run `fc-cache -f`).
 //
 // Usage:
-//   node generate-dosage-images.js "BPC-157:10mg:99" "CJC-1295/Ipamorelin:High:97.5"
-//   node generate-dosage-images.js "Cagrilintide:5mg"   (purity omitted -> '00',
+//   node generate-dosage-images.js "BPC-157|10mg|99" "CJC-1295/Ipamorelin|High|97.5"
+//   node generate-dosage-images.js "Cagrilintide|5mg"   (purity omitted -> '00',
 //                                                         matching the products
 //                                                         table's own default)
+// '|' rather than ':' -- at least one real product name contains a literal
+// colon ("BCAA 2:1:1"), which would misparse as name/dosage/purity fields.
 // Writes images/<slug>.webp per product given, and prints a
 // productId -> image_path handoff table (the DB itself is outside this repo).
 // No network/DB access here by design -- name/dosage/purity are supplied on
@@ -209,22 +211,29 @@ async function layoutName(name) {
   };
 }
 
-function slugify(name, dosage) {
-  const base = name
+function slugPart(s) {
+  return s
     .toLowerCase()
     .replace(/\//g, '-')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  const dosagePart = (dosage || '').toLowerCase().replace(/\s+/g, '');
+}
+
+function slugify(name, dosage) {
+  const base = slugPart(name);
+  // Same sanitization as the name part -- previously only whitespace was
+  // stripped from dosage, which let a value like "High (exact size TBD)"
+  // survive into the filename as "high(exactsizetbd)", parens and all.
+  const dosagePart = dosage ? slugPart(dosage) : '';
   return dosagePart ? `${base}-${dosagePart}` : base;
 }
 
 function parseArg(arg) {
-  const [name, dosage, purity] = arg.split(':');
+  const [name, dosage, purity] = arg.split('|');
   return { name, dosage: dosage || '', purity: purity || '00' };
 }
 
-async function generate({ name, dosage, purity }) {
+async function generate({ name, dosage, purity, slugSuffix = '' }) {
   const base = await sharp(TEMPLATE)
     .resize(CANVAS, CANVAS, { kernel: 'lanczos3' })
     .toBuffer();
@@ -235,34 +244,50 @@ async function generate({ name, dosage, purity }) {
     Buffer.from(textSvg({ text: line.text, yCenter: line.yCenter, fontSize: line.fontSize, color: TEXT_COLOR }))
   );
 
-  const dosageText = dosage.toUpperCase();
-  const dosageMetrics = await measureTextMetrics(dosageText, layout.dosage.fontSize);
-  const dosageBuf = Buffer.from(boxedTextSvg({
-    text: dosageText, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
-    color: TEXT_COLOR, textWidth: dosageMetrics.width, textHeight: dosageMetrics.height,
-    boxCenterYOffset: dosageMetrics.centerYOffset,
-  }));
+  // Empty dosage (caller's choice -- e.g. a generic, non-informative value
+  // like "vial"/"pack" resolved to '' upstream) omits the box entirely
+  // rather than drawing an empty or meaningless one.
+  const dosageBufs = [];
+  if (dosage) {
+    const dosageText = dosage.toUpperCase();
+    const dosageMetrics = await measureTextMetrics(dosageText, layout.dosage.fontSize);
+    dosageBufs.push(Buffer.from(boxedTextSvg({
+      text: dosageText, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
+      color: TEXT_COLOR, textWidth: dosageMetrics.width, textHeight: dosageMetrics.height,
+      boxCenterYOffset: dosageMetrics.centerYOffset,
+    })));
+  }
 
   const purityBuf = Buffer.from(textSvg({
     text: `${purity}% Purity`, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
     color: TEXT_COLOR, weight: PURITY.weight,
   }));
 
-  const slug = slugify(name, dosage);
+  // slugSuffix defaults to '' for the CLI/single-product path (unchanged,
+  // clean names like "bpc-157-10mg"). Batch runs pass a real suffix so a
+  // generated file can never collide with a product's current, already-live
+  // image_path -- every product then needs an explicit DB update to go
+  // live, never a silent one from a filename that happened to match.
+  const slug = slugify(name, dosage) + slugSuffix;
   const outPath = path.join(OUT_DIR, slug + '.webp');
   await sharp(base)
-    .composite([...nameBufs.map((buf) => ({ input: buf })), { input: dosageBuf }, { input: purityBuf }])
+    .composite([
+      ...nameBufs.map((buf) => ({ input: buf })),
+      ...dosageBufs.map((buf) => ({ input: buf })),
+      { input: purityBuf },
+    ])
     .webp({ quality: 92 })
     .toFile(outPath);
 
-  return { name, dosage, purity, mode: layout.mode, outPath, imagePathForDb: 'images/' + slug + '.png' };
+  const mode = dosage ? layout.mode : `${layout.mode}+no-dosage-box`;
+  return { name, dosage, purity, mode, outPath, imagePathForDb: 'images/' + slug + '.png' };
 }
 
 async function main() {
   const args = process.argv.slice(2).map(parseArg);
 
   if (args.length === 0) {
-    console.error('Usage: node generate-dosage-images.js "<name>:<dosage>[:<purity>]" [...]');
+    console.error('Usage: node generate-dosage-images.js "<name>|<dosage>[|<purity>]" [...]');
     process.exit(1);
   }
 
@@ -277,4 +302,10 @@ async function main() {
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+// Guarded so this file can also be require()'d as a module (see
+// batch-generate-catalog.js) without triggering CLI arg parsing.
+if (require.main === module) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}
+
+module.exports = { generate, slugify };
