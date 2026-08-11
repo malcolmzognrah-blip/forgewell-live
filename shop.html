@@ -804,6 +804,37 @@ function addToCart(productId) {
   saveCart();
 }
 
+// Visual confirmation that an Add to Cart click landed, shown directly on
+// the clicked element itself rather than a toast -- works the same way
+// regardless of where/how big the button is. Styles via direct inline JS
+// (not a CSS class) since this card's .add-btn already carries its own
+// inline style (category-colored outline) that a stylesheet class couldn't
+// override without !important -- capturing/restoring the original style
+// attribute string works whether or not one was already present. Returns
+// false (caller should skip the actual addToCart call) while a previous
+// flash on the same element is still cooling down, so a rapid double-click
+// can't silently add twice.
+function flashAddedFeedback(el) {
+  if (el.dataset.adding === 'true') return false;
+  el.dataset.adding = 'true';
+  var originalText = el.textContent;
+  var originalStyle = el.getAttribute('style');
+  el.textContent = '✓ Added!';
+  el.style.background = 'var(--green)';
+  el.style.borderColor = 'var(--green)';
+  el.style.color = '#fff';
+  setTimeout(function() {
+    el.textContent = originalText;
+    if (originalStyle) {
+      el.setAttribute('style', originalStyle);
+    } else {
+      el.removeAttribute('style');
+    }
+    el.dataset.adding = 'false';
+  }, 1200);
+  return true;
+}
+
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('add-btn')) {
     const card = e.target.closest('.card');
@@ -812,7 +843,7 @@ document.addEventListener('click', (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
-    addToCart(productId);
+    if (flashAddedFeedback(e.target)) addToCart(productId);
     return;
   }
   if (e.target.classList.contains('buy-btn')) {

@@ -118,9 +118,6 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 @media (max-width:600px){ .product-wrap{ padding-left:16px; padding-right:16px; } }
 .breadcrumb{font-size:0.78rem; color:var(--gray); margin-bottom:18px;}
 .breadcrumb a{color:var(--navy); text-decoration:none;}
-.back-link{font-size:0.78rem; margin-bottom:6px;}
-.back-link a{color:var(--navy); text-decoration:none;}
-.back-link a:hover{text-decoration:underline;}
 .product-main{display:grid; grid-template-columns:1fr 1fr; gap:40px;}
 @media (max-width:800px){ .product-main{grid-template-columns:1fr;} }
 
@@ -406,6 +403,39 @@ function addToCart(productId) {
   saveCart();
 }
 
+// Visual confirmation that an Add to Cart click landed, shown directly on
+// the clicked element itself rather than a toast -- entry points range from
+// tiny in-grid buttons to the large dedicated product-page button, and an
+// in-place swap works the same way regardless of where/how big the button
+// is. Styles via direct inline JS (not a CSS class) because some of these
+// buttons already carry their own inline style (category-colored outline on
+// shop/home cards) that a stylesheet class couldn't override without
+// !important -- capturing/restoring the original style attribute string
+// works uniformly whether or not one was already present. Returns false
+// (caller should skip the actual addToCart call) while a previous flash on
+// the same element is still cooling down, so a rapid double-click can't
+// silently add twice.
+function flashAddedFeedback(el) {
+  if (el.dataset.adding === 'true') return false;
+  el.dataset.adding = 'true';
+  var originalText = el.textContent;
+  var originalStyle = el.getAttribute('style');
+  el.textContent = '✓ Added!';
+  el.style.background = 'var(--green)';
+  el.style.borderColor = 'var(--green)';
+  el.style.color = '#fff';
+  setTimeout(function() {
+    el.textContent = originalText;
+    if (originalStyle) {
+      el.setAttribute('style', originalStyle);
+    } else {
+      el.removeAttribute('style');
+    }
+    el.dataset.adding = 'false';
+  }, 1200);
+  return true;
+}
+
 updateCartIcon();
 
 </script>
@@ -462,13 +492,12 @@ function resolveCoaPath(path) {
 // ---- Breadcrumb trail ----
 // Tracked via a `trail` query param (comma-separated product ids of every
 // product hopped through via Suggested Essentials/Kits Available to reach
-// this one) rather than sessionStorage -- matches getBackLink() below using
-// document.referrer instead of storage for "where did the customer come
-// from": the URL already fully determines page state everywhere else on
-// this page (?id=...), so back/forward and reload work for free without a
-// popstate listener, and separate tabs can't cross-contaminate each other's
-// trail the way a shared sessionStorage key could. Ids are always plain
-// slugs (no commas), so no extra encoding is needed.
+// this one) rather than sessionStorage -- the URL already fully determines
+// page state everywhere else on this page (?id=...), so back/forward and
+// reload work for free without a popstate listener, and separate tabs
+// can't cross-contaminate each other's trail the way a shared
+// sessionStorage key could. Ids are always plain slugs (no commas), so no
+// extra encoding is needed.
 var TRAIL_MAX_LENGTH = 6;
 
 function getTrailIds() {
@@ -521,54 +550,6 @@ function buildBreadcrumbHtml(product, trailIds, products) {
   // making a 2-level trail read as a 3-level one. No catalog name uses
   // this glyph, so it can't collide the same way.
   return '<div class="breadcrumb">' + crumbs.join(' › ') + '</div>';
-}
-
-// ---- Back link ----
-// Separate from the "Shop" breadcrumb link below: this tracks wherever the
-// customer actually came from (a search jump, another product's Suggested
-// Essentials row, a Most Popular card, a sibling size, etc.) using
-// document.referrer rather than sessionStorage, since every navigation into
-// this page already happens via a real `window.location.href` assignment
-// (search jump, card clicks, Buy Now, size selector) -- the browser sets
-// document.referrer on those exactly like a clicked link, so there's no need
-// to have every other page manually record "last page visited" itself.
-// Returns null (render nothing extra) when there's no usable referrer: empty
-// (fresh tab/bookmark/refresh), cross-origin (don't link off-site), pointing
-// at this exact page (avoids a self-link on refresh), or pointing at
-// /shop.html specifically (the "Shop" breadcrumb link already covers that,
-// showing both would be redundant).
-function getBackLink(product, products) {
-  var ref = document.referrer;
-  if (!ref) return null;
-
-  var refUrl;
-  try {
-    refUrl = new URL(ref);
-  } catch (e) {
-    return null;
-  }
-  if (refUrl.origin !== window.location.origin) return null;
-
-  var refPath = refUrl.pathname + refUrl.search;
-  var currentPath = window.location.pathname + window.location.search;
-  if (refPath === currentPath) return null;
-  if (refUrl.pathname === '/shop.html') return null;
-
-  var label = 'Back';
-  if (refUrl.pathname === '/home.html' || refUrl.pathname === '/') {
-    label = 'Back to Home';
-  } else if (refUrl.pathname === '/product.html') {
-    var refId = refUrl.searchParams.get('id');
-    var refProduct = products.find(function(p) { return p.id === refId; });
-    if (refProduct) label = 'Back to ' + refProduct.name;
-  }
-  return { href: refPath, label: label };
-}
-
-function buildBackLinkHtml(product, products) {
-  var backLink = getBackLink(product, products);
-  if (!backLink) return '';
-  return '<div class="back-link"><a href="' + backLink.href + '" id="back-link-anchor">&lsaquo; ' + backLink.label + '</a></div>';
 }
 
 // ---- Suggested Essentials ----
@@ -765,7 +746,6 @@ function renderProduct(product, siblings) {
   var priceHtml = product.price > 0 ? '$' + Number(product.price).toFixed(2) : 'Price coming soon';
   var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
   var kitsAvailableHtml = buildKitsAvailableSection(product, allProducts);
-  var backLinkHtml = buildBackLinkHtml(product, allProducts);
 
   // Full-width section below product-main, placed after Suggested Essentials
   // (not inside buy-col) -- uses .product-section like Suggested Essentials
@@ -779,7 +759,6 @@ function renderProduct(product, siblings) {
 
   root.innerHTML =
     '<div class="product-wrap">' +
-      backLinkHtml +
       buildBreadcrumbHtml(product, trailIds, allProducts) +
       '<div class="product-main">' +
         '<div class="gallery-col">' +
@@ -951,32 +930,6 @@ async function loadProductCoas(product) {
 }
 
 function wireProductInteractions(product, trailIds) {
-  // Uses history.back() instead of letting this be a normal link navigation.
-  // A plain <a href> click sets document.referrer on the destination to this
-  // page, same as any other link -- so returning to product A would make A's
-  // own getBackLink() see this page as A's referrer and show a "Back to
-  // <this page>" link, ping-ponging the two pages back and forth forever.
-  // history.back() doesn't have that problem: it either restores the prior
-  // page from bfcache with its *original* referrer untouched, or triggers a
-  // reload that browsers don't attribute a Referer header to (history
-  // traversal isn't treated as "leaving via a link" the way a normal
-  // navigation is). The href stays in the markup so middle-click/ctrl-click/
-  // right-click-open-in-new-tab still work normally -- those open a new tab
-  // with its own independent history, so there's no loop risk to guard
-  // there, hence only a plain unmodified left-click is intercepted.
-  var backLinkAnchor = document.getElementById('back-link-anchor');
-  if (backLinkAnchor) {
-    backLinkAnchor.addEventListener('click', function(e) {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      e.preventDefault();
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        window.location.href = backLinkAnchor.getAttribute('href');
-      }
-    });
-  }
-
   var qtyInput = document.getElementById('qty-input');
   var minusBtn = document.getElementById('qty-minus');
   var plusBtn = document.getElementById('qty-plus');
@@ -991,6 +944,7 @@ function wireProductInteractions(product, trailIds) {
   });
 
   document.getElementById('add-to-cart-btn').addEventListener('click', function() {
+    if (!flashAddedFeedback(this)) return;
     var qty = parseInt(qtyInput.value, 10) || 1;
     for (var i = 0; i < qty; i++) addToCart(product.id);
   });
@@ -1037,7 +991,7 @@ function wireProductInteractions(product, trailIds) {
     essentialsGrid.addEventListener('click', function(e) {
       var addBtn = e.target.closest('[data-add-essential-id]');
       if (addBtn) {
-        addToCart(addBtn.getAttribute('data-add-essential-id'));
+        if (flashAddedFeedback(addBtn)) addToCart(addBtn.getAttribute('data-add-essential-id'));
         return;
       }
       var card = e.target.closest('.essential-card');
@@ -1056,7 +1010,7 @@ function wireProductInteractions(product, trailIds) {
     kitsGrid.addEventListener('click', function(e) {
       var addBtn = e.target.closest('[data-add-kit-id]');
       if (addBtn) {
-        addToCart(addBtn.getAttribute('data-add-kit-id'));
+        if (flashAddedFeedback(addBtn)) addToCart(addBtn.getAttribute('data-add-kit-id'));
         return;
       }
       var card = e.target.closest('.essential-card');
