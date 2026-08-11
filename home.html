@@ -46,6 +46,8 @@ header{
 .login-icon{ display:flex; align-items:center; gap:8px; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
 .login-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; white-space:nowrap; }
+.logout-icon-btn{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
+.logout-icon-btn:hover{ color:var(--green); }
 
 @media (max-width: 1150px){
   .header-nav-links{ display:none; }
@@ -251,6 +253,13 @@ body.gate-active{ overflow:hidden; }
 #most-popular-grid::-webkit-scrollbar{ display:none; }
 #most-popular-grid .card{ flex:0 0 168px; min-width:168px; scroll-snap-align:start; }
 
+/* ---- horizontal-scroll indicator (also used on product.html's Suggested
+   Essentials / Kits Available rows) ---- */
+.scroll-indicator{ display:none; max-width:1200px; margin:0 auto 16px; padding:0 24px; }
+.scroll-indicator.visible{ display:block; }
+.scroll-indicator-bar{ height:4px; background:var(--line); border-radius:2px; position:relative; overflow:hidden; }
+.scroll-indicator-thumb{ position:absolute; top:0; left:0; height:100%; background:var(--navy); border-radius:2px; }
+
 @media (max-width: 600px) {
   .hero h1{font-size:1.5rem;}
   .hero p{font-size:0.85rem;}
@@ -297,6 +306,9 @@ body.gate-active{ overflow:hidden; }
 
 <div class="most-popular-heading">Most Popular</div>
 <div class="cat-grid" id="most-popular-grid"></div>
+<div class="scroll-indicator" id="most-popular-scroll-indicator">
+  <div class="scroll-indicator-bar"><div class="scroll-indicator-thumb" id="most-popular-scroll-thumb"></div></div>
+</div>
 
 <style>
 .faq-section{padding:40px 24px;max-width:800px;margin:0 auto;}
@@ -557,9 +569,10 @@ function wireHeaderFooter() {
   }
 
   // Checks whether the person is logged in and updates the header's account
-  // icon accordingly -- links to order history if logged in, to the
-  // login/signup page otherwise. Runs on every page that shares this header.
-  var loginIcon = document.querySelector('.login-icon');
+  // icon accordingly -- shows "Hi, [name]" linking to order history if
+  // logged in, "Sign In" linking to the login/signup page otherwise. Runs
+  // on every page that shares this header.
+  var loginIcon = document.getElementById('account-icon');
   if (loginIcon) {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(function(res) { return res.ok ? res.json() : null; })
@@ -567,6 +580,33 @@ function wireHeaderFooter() {
         if (customer) {
           loginIcon.href = '/orders.html';
           loginIcon.title = 'My Account (' + customer.email + ')';
+          // Name wasn't always required at signup -- older accounts can
+          // still have a null name, so fall back to the email's local-part
+          // rather than showing a blank/broken greeting.
+          var displayName = customer.name || customer.email.split('@')[0];
+          var labelEl = loginIcon.querySelector('.login-icon-label');
+          if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
+
+          function doLogout() {
+            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+              .then(function() { window.location.href = '/shop.html'; });
+          }
+
+          // Icon-only sign-out control next to the account icon -- only
+          // created/shown once logged in, so it adds no width to the
+          // header's tightly-tuned breakpoint math for the (far more
+          // common) logged-out state. Gives desktop-width visitors a
+          // direct sign-out path: today the hamburger dropdown below
+          // (the only other place "Log Out" lives) is hidden above 1150px.
+          var logoutIconBtn = document.getElementById('logout-icon-btn');
+          if (logoutIconBtn) {
+            logoutIconBtn.style.display = 'flex';
+            logoutIconBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              doLogout();
+            });
+          }
+
           var navInner = document.querySelector('.nav-overlay-inner');
           if (navInner && !document.getElementById('nav-logout-link')) {
             var logoutLink = document.createElement('a');
@@ -575,8 +615,7 @@ function wireHeaderFooter() {
             logoutLink.textContent = 'Log Out';
             logoutLink.addEventListener('click', function(e) {
               e.preventDefault();
-              fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-                .then(function() { window.location.href = '/shop.html'; });
+              doLogout();
             });
             navInner.appendChild(logoutLink);
           }
@@ -709,6 +748,34 @@ async function renderHomeMostPopular() {
     }))
     .filter(g => g.imgUrl); // still respect the image-matching display rule
   popularEl.innerHTML = picks.map(g => buildCardHtml(g)).join('');
+  wireScrollIndicator('most-popular-grid', 'most-popular-scroll-indicator', 'most-popular-scroll-thumb');
+}
+
+// Drives the thin "faux scrollbar" under a horizontally-scrolling row so
+// customers can tell it scrolls side-to-side (the real scrollbar is hidden
+// via ::-webkit-scrollbar{display:none} above). Hides itself entirely when
+// the row's content already fits without overflow, rather than showing a
+// full-width dead bar. Must run after the row's content is populated (not
+// at top-level script-parse time) since scrollWidth/clientWidth need real
+// rendered content to measure.
+function wireScrollIndicator(gridId, indicatorId, thumbId) {
+  var grid = document.getElementById(gridId);
+  var indicator = document.getElementById(indicatorId);
+  var thumb = document.getElementById(thumbId);
+  if (!grid || !indicator || !thumb) return;
+  function update() {
+    var scrollable = grid.scrollWidth > grid.clientWidth + 1;
+    indicator.classList.toggle('visible', scrollable);
+    if (!scrollable) return;
+    var thumbWidthPct = Math.max((grid.clientWidth / grid.scrollWidth) * 100, 8);
+    thumb.style.width = thumbWidthPct + '%';
+    var maxScroll = grid.scrollWidth - grid.clientWidth;
+    var scrollPct = maxScroll > 0 ? grid.scrollLeft / maxScroll : 0;
+    thumb.style.left = (scrollPct * (100 - thumbWidthPct)) + '%';
+  }
+  grid.addEventListener('scroll', update);
+  window.addEventListener('resize', update);
+  update();
 }
 
 function saveCart() {

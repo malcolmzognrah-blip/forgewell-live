@@ -47,6 +47,8 @@ header{
 .login-icon{ display:flex; align-items:center; gap:8px; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
 .login-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; white-space:nowrap; }
+.logout-icon-btn{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
+.logout-icon-btn:hover{ color:var(--green); }
 
 @media (max-width: 1150px){
   .header-nav-links{ display:none; }
@@ -136,6 +138,14 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .buy-col-kits h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
 #kits-available-grid{ display:flex; overflow-x:auto; gap:16px; padding:4px 4px 8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
 #kits-available-grid::-webkit-scrollbar{ display:none; }
+
+/* ---- horizontal-scroll indicator (same "faux scrollbar" pattern used on
+   home.html's Most Popular row -- shared visual, no max-width/padding here
+   since both grids already sit inside a constrained parent) ---- */
+.scroll-indicator{ display:none; margin-top:8px; }
+.scroll-indicator.visible{ display:block; }
+.scroll-indicator-bar{ height:4px; background:var(--line); border-radius:2px; position:relative; overflow:hidden; }
+.scroll-indicator-thumb{ position:absolute; top:0; left:0; height:100%; background:var(--navy); border-radius:2px; }
 
 .gallery-main{width:100%; aspect-ratio:1/1; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center;}
 .gallery-main img{width:100%; height:100%; object-fit:contain;}
@@ -298,9 +308,10 @@ function wireHeaderFooter() {
   }
 
   // Checks whether the person is logged in and updates the header's account
-  // icon accordingly -- links to order history if logged in, to the
-  // login/signup page otherwise. Runs on every page that shares this header.
-  var loginIcon = document.querySelector('.login-icon');
+  // icon accordingly -- shows "Hi, [name]" linking to order history if
+  // logged in, "Sign In" linking to the login/signup page otherwise. Runs
+  // on every page that shares this header.
+  var loginIcon = document.getElementById('account-icon');
   if (loginIcon) {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(function(res) { return res.ok ? res.json() : null; })
@@ -308,6 +319,33 @@ function wireHeaderFooter() {
         if (customer) {
           loginIcon.href = '/orders.html';
           loginIcon.title = 'My Account (' + customer.email + ')';
+          // Name wasn't always required at signup -- older accounts can
+          // still have a null name, so fall back to the email's local-part
+          // rather than showing a blank/broken greeting.
+          var displayName = customer.name || customer.email.split('@')[0];
+          var labelEl = loginIcon.querySelector('.login-icon-label');
+          if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
+
+          function doLogout() {
+            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+              .then(function() { window.location.href = '/shop.html'; });
+          }
+
+          // Icon-only sign-out control next to the account icon -- only
+          // created/shown once logged in, so it adds no width to the
+          // header's tightly-tuned breakpoint math for the (far more
+          // common) logged-out state. Gives desktop-width visitors a
+          // direct sign-out path: today the hamburger dropdown below
+          // (the only other place "Log Out" lives) is hidden above 1150px.
+          var logoutIconBtn = document.getElementById('logout-icon-btn');
+          if (logoutIconBtn) {
+            logoutIconBtn.style.display = 'flex';
+            logoutIconBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              doLogout();
+            });
+          }
+
           var navInner = document.querySelector('.nav-overlay-inner');
           if (navInner && !document.getElementById('nav-logout-link')) {
             var logoutLink = document.createElement('a');
@@ -316,8 +354,7 @@ function wireHeaderFooter() {
             logoutLink.textContent = 'Log Out';
             logoutLink.addEventListener('click', function(e) {
               e.preventDefault();
-              fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-                .then(function() { window.location.href = '/shop.html'; });
+              doLogout();
             });
             navInner.appendChild(logoutLink);
           }
@@ -589,6 +626,9 @@ function buildSuggestedEssentialsSection(product, products) {
   return '<div class="product-section">' +
     '<h2>Suggested Essentials</h2>' +
     '<div id="suggested-essentials-grid">' + matches.map(buildEssentialCardHtml).join('') + '</div>' +
+    '<div class="scroll-indicator" id="suggested-essentials-scroll-indicator">' +
+      '<div class="scroll-indicator-bar"><div class="scroll-indicator-thumb" id="suggested-essentials-scroll-thumb"></div></div>' +
+    '</div>' +
   '</div>';
 }
 
@@ -604,6 +644,7 @@ function buildSuggestedEssentialsSection(product, products) {
 // suffix style in use (mg/mcg, high/low, bare) without needing to know
 // which one a given base uses.
 function findRelatedKits(product, products) {
+  if (product.category === 'kit') return []; // kits don't suggest other kits for themselves
   return products.filter(function(p) {
     if (p.category !== 'kit') return false;
     if (!resolveImagePath(p.image_path)) return false; // no image, no listing
@@ -632,6 +673,9 @@ function buildKitsAvailableSection(product, products) {
   return '<div class="buy-col-kits">' +
     '<h2>Kits Available</h2>' +
     '<div id="kits-available-grid">' + matches.map(buildKitCardHtml).join('') + '</div>' +
+    '<div class="scroll-indicator" id="kits-available-scroll-indicator">' +
+      '<div class="scroll-indicator-bar"><div class="scroll-indicator-thumb" id="kits-available-scroll-thumb"></div></div>' +
+    '</div>' +
   '</div>';
 }
 
@@ -787,6 +831,35 @@ function renderProduct(product, siblings) {
   loadProductCoas(product);
   syncColumnHeights();
   window.addEventListener('resize', syncColumnHeights);
+  wireScrollIndicator('suggested-essentials-grid', 'suggested-essentials-scroll-indicator', 'suggested-essentials-scroll-thumb');
+  wireScrollIndicator('kits-available-grid', 'kits-available-scroll-indicator', 'kits-available-scroll-thumb');
+}
+
+// Drives the thin "faux scrollbar" under a horizontally-scrolling row so
+// customers can tell it scrolls side-to-side (the real scrollbar is hidden
+// via ::-webkit-scrollbar{display:none} above). Hides itself entirely when
+// the row's content already fits without overflow, rather than showing a
+// full-width dead bar. No-ops if the grid/indicator don't exist in the DOM
+// (e.g. buildKitsAvailableSection() returned '' because there were no
+// matching kits), so it's safe to call unconditionally.
+function wireScrollIndicator(gridId, indicatorId, thumbId) {
+  var grid = document.getElementById(gridId);
+  var indicator = document.getElementById(indicatorId);
+  var thumb = document.getElementById(thumbId);
+  if (!grid || !indicator || !thumb) return;
+  function update() {
+    var scrollable = grid.scrollWidth > grid.clientWidth + 1;
+    indicator.classList.toggle('visible', scrollable);
+    if (!scrollable) return;
+    var thumbWidthPct = Math.max((grid.clientWidth / grid.scrollWidth) * 100, 8);
+    thumb.style.width = thumbWidthPct + '%';
+    var maxScroll = grid.scrollWidth - grid.clientWidth;
+    var scrollPct = maxScroll > 0 ? grid.scrollLeft / maxScroll : 0;
+    thumb.style.left = (scrollPct * (100 - thumbWidthPct)) + '%';
+  }
+  grid.addEventListener('scroll', update);
+  window.addEventListener('resize', update);
+  update();
 }
 
 // Keeps buy-col from growing taller than gallery-col -- CSS grid's default

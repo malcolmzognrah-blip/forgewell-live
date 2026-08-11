@@ -47,6 +47,8 @@ header{
 .login-icon{ display:flex; align-items:center; gap:8px; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
 .login-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; white-space:nowrap; }
+.logout-icon-btn{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
+.logout-icon-btn:hover{ color:var(--green); }
 
 @media (max-width: 1150px){
   .header-nav-links{ display:none; }
@@ -276,9 +278,10 @@ function wireHeaderFooter() {
   }
 
   // Checks whether the person is logged in and updates the header's account
-  // icon accordingly -- links to order history if logged in, to the
-  // login/signup page otherwise. Runs on every page that shares this header.
-  var loginIcon = document.querySelector('.login-icon');
+  // icon accordingly -- shows "Hi, [name]" linking to order history if
+  // logged in, "Sign In" linking to the login/signup page otherwise. Runs
+  // on every page that shares this header.
+  var loginIcon = document.getElementById('account-icon');
   if (loginIcon) {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(function(res) { return res.ok ? res.json() : null; })
@@ -286,6 +289,33 @@ function wireHeaderFooter() {
         if (customer) {
           loginIcon.href = '/orders.html';
           loginIcon.title = 'My Account (' + customer.email + ')';
+          // Name wasn't always required at signup -- older accounts can
+          // still have a null name, so fall back to the email's local-part
+          // rather than showing a blank/broken greeting.
+          var displayName = customer.name || customer.email.split('@')[0];
+          var labelEl = loginIcon.querySelector('.login-icon-label');
+          if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
+
+          function doLogout() {
+            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+              .then(function() { window.location.href = '/shop.html'; });
+          }
+
+          // Icon-only sign-out control next to the account icon -- only
+          // created/shown once logged in, so it adds no width to the
+          // header's tightly-tuned breakpoint math for the (far more
+          // common) logged-out state. Gives desktop-width visitors a
+          // direct sign-out path: today the hamburger dropdown below
+          // (the only other place "Log Out" lives) is hidden above 1150px.
+          var logoutIconBtn = document.getElementById('logout-icon-btn');
+          if (logoutIconBtn) {
+            logoutIconBtn.style.display = 'flex';
+            logoutIconBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              doLogout();
+            });
+          }
+
           var navInner = document.querySelector('.nav-overlay-inner');
           if (navInner && !document.getElementById('nav-logout-link')) {
             var logoutLink = document.createElement('a');
@@ -294,8 +324,7 @@ function wireHeaderFooter() {
             logoutLink.textContent = 'Log Out';
             logoutLink.addEventListener('click', function(e) {
               e.preventDefault();
-              fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-                .then(function() { window.location.href = '/shop.html'; });
+              doLogout();
             });
             navInner.appendChild(logoutLink);
           }
