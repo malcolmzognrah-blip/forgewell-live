@@ -55,15 +55,22 @@ const ZONE_BOTTOM = 1226; // measured: disclaimer line 1 (fixed) starts
 
 const NAME_SINGLE = { yCenter: 885, fontSize: 120 };
 const NAME_TWO_LINE = { line1YCenter: 850, line2YCenter: 955, fontSize: 88 };
-const DOSAGE_SINGLE = { yCenter: 1057, fontSize: 85 };
-const DOSAGE_WRAPPED = { yCenter: 1075, fontSize: 75 };
+const DOSAGE_SINGLE = { yCenter: 1057, fontSize: 65 };
+const DOSAGE_WRAPPED = { yCenter: 1075, fontSize: 58 };
 // Anchored to the fixed disclaimer position (ZONE_BOTTOM=1226) rather than
-// relative to dosage -- deliberately tight (~2px clearance) per explicit
-// request to sit "just above/overlapping" the disclaimer, not the old
-// accidental-overlap bug from a prior pass. Same position regardless of
-// whether the name wrapped, since it's the disclaimer (fixed either way)
-// it's anchored against, not the name.
-const PURITY = { yCenter: 1210, fontSize: 34, weight: 400 };
+// relative to dosage -- deliberately tight per explicit request to sit
+// "just above/overlapping" the disclaimer, not the old accidental-overlap
+// bug from a prior pass. Same position regardless of whether the name
+// wrapped, since it's the disclaimer (fixed either way) it's anchored
+// against, not the name. fontSize increased from 34->40 (measured: the
+// disclaimer's own baked-in cap-height is ~28-29px; 34px purity already
+// measured taller than that at 32px, but read as smaller/harder to read at
+// weight 400 than the (bold) disclaimer, hence a further bump here) --
+// yCenter was re-measured to preserve a small positive gap at the new size
+// rather than reusing the old 1210 (see the render+measure note on
+// measureTextMetrics below; a naive font-size bump at the same yCenter
+// would have pushed the taller glyph past ZONE_BOTTOM into the disclaimer).
+const PURITY = { yCenter: 1204, fontSize: 40, weight: 400 };
 const DOSAGE_BOX_PAD_X = 26;
 const DOSAGE_BOX_PAD_Y = 16;
 const MIN_FONT_SIZE = 40;
@@ -78,14 +85,22 @@ function textSvg({ text, yCenter, fontSize, color, weight = 700 }) {
     </svg>`;
 }
 
-// Same as textSvg, plus a centered rounded-rect border sized to the text's
-// own measured width (not a fixed box) so it hugs "10MG" as snugly as
-// "5000IU" or "HIGH" without needing a per-value box size.
-function boxedTextSvg({ text, yCenter, fontSize, color, weight = 700, textWidth }) {
+// Same as textSvg, plus a rounded-rect border sized to the text's own
+// measured bounding box (not the nominal yCenter/fontSize) so it actually
+// hugs the glyph. dominant-baseline="central" centers on the font's
+// ascent/descent box, not the visual glyph ink -- for caps/digits with no
+// descenders that renders visibly ABOVE the given yCenter (confirmed by
+// measurement: ~30px high at fontSize 85, ~9px at fontSize 34, scaling with
+// size), so a box built from the nominal yCenter alone ends up with extra
+// slack below the text and the text reading as "not centered" in its box.
+// boxCenterYOffset is that measured discrepancy, applied here so the box
+// wraps where the glyph actually is.
+function boxedTextSvg({ text, yCenter, fontSize, color, weight = 700, textWidth, textHeight, boxCenterYOffset }) {
   const boxW = textWidth + DOSAGE_BOX_PAD_X * 2;
-  const boxH = fontSize + DOSAGE_BOX_PAD_Y * 2;
+  const boxH = textHeight + DOSAGE_BOX_PAD_Y * 2;
+  const boxCenterY = yCenter + boxCenterYOffset;
   const boxX = 800 - boxW / 2;
-  const boxY = yCenter - boxH / 2;
+  const boxY = boxCenterY - boxH / 2;
   return `
     <svg width="${CANVAS}" height="${CANVAS}">
       <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="12" ry="12"
@@ -96,14 +111,24 @@ function boxedTextSvg({ text, yCenter, fontSize, color, weight = 700, textWidth 
     </svg>`;
 }
 
-// Renders text off-canvas-position and measures its actual trimmed pixel
-// width -- real measurement, not a character-count estimate (a character
-// count is what let an 11-character single word render wider than the
-// label in an earlier pass).
-async function measureTextWidth(text, fontSize) {
-  const buf = Buffer.from(textSvg({ text, yCenter: 800, fontSize, color: TEXT_COLOR }));
+// Renders text at a fixed reference position (800,800) and measures its
+// actual trimmed pixel bounding box -- real measurement, not a
+// character-count estimate (a character count is what let an
+// 11-character single word render wider than the label in an earlier
+// pass) or an assumption that the glyph sits where dominant-baseline
+// nominally puts it (it doesn't -- see boxedTextSvg above). Returns the
+// glyph's width/height and how far its true center sits from wherever the
+// text was actually asked to render, so callers can compensate.
+async function measureTextMetrics(text, fontSize, weight = 700) {
+  const buf = Buffer.from(textSvg({ text, yCenter: 800, fontSize, color: TEXT_COLOR, weight }));
   const { info } = await sharp(buf).trim().toBuffer({ resolveWithObject: true });
-  return info.width;
+  const centerX = -info.trimOffsetLeft + info.width / 2;
+  const centerY = -info.trimOffsetTop + info.height / 2;
+  return { width: info.width, height: info.height, centerYOffset: centerY - 800, centerXOffset: centerX - 800 };
+}
+
+async function measureTextWidth(text, fontSize) {
+  return (await measureTextMetrics(text, fontSize)).width;
 }
 
 async function shrinkToFit(text, startSize, maxWidth) {
@@ -211,10 +236,11 @@ async function generate({ name, dosage, purity }) {
   );
 
   const dosageText = dosage.toUpperCase();
-  const dosageWidth = await measureTextWidth(dosageText, layout.dosage.fontSize);
+  const dosageMetrics = await measureTextMetrics(dosageText, layout.dosage.fontSize);
   const dosageBuf = Buffer.from(boxedTextSvg({
     text: dosageText, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
-    color: TEXT_COLOR, textWidth: dosageWidth,
+    color: TEXT_COLOR, textWidth: dosageMetrics.width, textHeight: dosageMetrics.height,
+    boxCenterYOffset: dosageMetrics.centerYOffset,
   }));
 
   const purityBuf = Buffer.from(textSvg({
