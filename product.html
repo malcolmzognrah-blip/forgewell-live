@@ -516,7 +516,11 @@ function buildBreadcrumbHtml(product, trailIds, products) {
     precedingIds.push(id);
   });
   crumbs.push(product.name);
-  return '<div class="breadcrumb">' + crumbs.join(' / ') + '</div>';
+  // "/" (not "›") would collide with product names that legitimately
+  // contain a slash of their own (e.g. "CJC-1295/Ipamorelin (High)"),
+  // making a 2-level trail read as a 3-level one. No catalog name uses
+  // this glyph, so it can't collide the same way.
+  return '<div class="breadcrumb">' + crumbs.join(' › ') + '</div>';
 }
 
 // ---- Back link ----
@@ -827,7 +831,7 @@ function renderProduct(product, siblings) {
 
     (techRows ? '<div class="product-section"><h2>Technical Data</h2><table class="tech-table">' + techRows + '</table></div>' : '');
 
-  wireProductInteractions(product);
+  wireProductInteractions(product, trailIds);
   loadProductCoas(product);
   syncColumnHeights();
   window.addEventListener('resize', syncColumnHeights);
@@ -946,7 +950,7 @@ async function loadProductCoas(product) {
   syncColumnHeights();
 }
 
-function wireProductInteractions(product) {
+function wireProductInteractions(product, trailIds) {
   // Uses history.back() instead of letting this be a normal link navigation.
   // A plain <a href> click sets document.referrer on the destination to this
   // page, same as any other link -- so returning to product A would make A's
