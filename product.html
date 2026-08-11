@@ -135,6 +135,11 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .buy-col-description{ margin-top:20px; }
 .buy-col-description h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
 
+.buy-col-kits{ margin-top:20px; }
+.buy-col-kits h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
+#kits-available-grid{ display:flex; overflow-x:auto; gap:16px; padding:4px 4px 8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+#kits-available-grid::-webkit-scrollbar{ display:none; }
+
 .gallery-main{width:100%; aspect-ratio:1/1; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center;}
 .gallery-main img{width:100%; height:100%; object-fit:contain;}
 .gallery-thumbs{display:flex; gap:10px; margin-top:10px;}
@@ -528,6 +533,49 @@ function buildSuggestedEssentialsSection(product, products) {
   '</div>';
 }
 
+// ---- Kits Available ----
+// Kit products carry a base_product_id pointing at the non-kit product they
+// bundle (e.g. "bpc-157-kit-10-pack" -> base_product_id "bpc-157"). That
+// base isn't always a real product id on its own -- dosage/tier-variant
+// products suffix it ("bpc-157-5mg", "cjc-1295-ipamorelin-high"), so a kit
+// applies to every sibling sharing that base, not just an exact id match.
+// Confirmed against the live catalog: base_product_id is always either an
+// exact product id (single-variant products like "cagrilintide") or that
+// same string plus a "-<suffix>" a sibling's id starts with -- covers every
+// suffix style in use (mg/mcg, high/low, bare) without needing to know
+// which one a given base uses.
+function findRelatedKits(product, products) {
+  return products.filter(function(p) {
+    if (p.category !== 'kit') return false;
+    if (!resolveImagePath(p.image_path)) return false; // no image, no listing
+    var base = p.base_product_id;
+    if (!base) return false;
+    return product.id === base || product.id.indexOf(base + '-') === 0;
+  }).sort(function(a, b) { return (a.price || 0) - (b.price || 0); });
+}
+
+function buildKitCardHtml(p) {
+  var imgUrl = resolveImagePath(p.image_path);
+  var priceLabel = p.price > 0 ? '$' + Number(p.price).toFixed(2) : '$XX';
+  return '<div class="essential-card" data-product-id="' + p.id + '">' +
+    '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
+    '<h3>' + p.name + '</h3>' +
+    '<div class="price-row">' +
+      '<div class="price">' + priceLabel + '</div>' +
+      '<button type="button" class="add-btn" data-add-kit-id="' + p.id + '">Add to Cart</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function buildKitsAvailableSection(product, products) {
+  var matches = findRelatedKits(product, products);
+  if (matches.length === 0) return '';
+  return '<div class="buy-col-kits">' +
+    '<h2>Kits Available</h2>' +
+    '<div id="kits-available-grid">' + matches.map(buildKitCardHtml).join('') + '</div>' +
+  '</div>';
+}
+
 function renderError(message) {
   document.getElementById('product-root').innerHTML =
     '<div class="error-state"><h2>' + message + '</h2>' +
@@ -608,6 +656,7 @@ function renderProduct(product, siblings) {
 
   var priceHtml = product.price > 0 ? '$' + Number(product.price).toFixed(2) : 'Price coming soon';
   var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
+  var kitsAvailableHtml = buildKitsAvailableSection(product, allProducts);
   var backLinkHtml = buildBackLinkHtml(product, allProducts);
 
   // Lives inside buy-col now (below the buy buttons/trust badges/COA link),
@@ -649,6 +698,7 @@ function renderProduct(product, siblings) {
             '<button class="btn-add" id="add-to-cart-btn">Add to Cart</button>' +
             '<button class="btn-buy" id="buy-now-btn">Buy Now</button>' +
           '</div>' +
+          kitsAvailableHtml +
           descriptionHtml +
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<p class="trust-note">For laboratory research use only.</p>' +
@@ -847,6 +897,24 @@ function wireProductInteractions(product) {
       var addBtn = e.target.closest('[data-add-essential-id]');
       if (addBtn) {
         addToCart(addBtn.getAttribute('data-add-essential-id'));
+        return;
+      }
+      var card = e.target.closest('.essential-card');
+      if (card) {
+        window.location.href = '/product.html?id=' + encodeURIComponent(card.getAttribute('data-product-id'));
+      }
+    });
+  }
+
+  // Same delegation pattern as suggested-essentials-grid above, for the
+  // same reason: only exists in the DOM when buildKitsAvailableSection()
+  // produced one.
+  var kitsGrid = document.getElementById('kits-available-grid');
+  if (kitsGrid) {
+    kitsGrid.addEventListener('click', function(e) {
+      var addBtn = e.target.closest('[data-add-kit-id]');
+      if (addBtn) {
+        addToCart(addBtn.getAttribute('data-add-kit-id'));
         return;
       }
       var card = e.target.closest('.essential-card');
