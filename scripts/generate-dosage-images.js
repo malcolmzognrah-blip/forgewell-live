@@ -56,17 +56,42 @@ const ZONE_BOTTOM = 1226; // measured: disclaimer line 1 (fixed) starts
 const NAME_SINGLE = { yCenter: 885, fontSize: 120 };
 const NAME_TWO_LINE = { line1YCenter: 850, line2YCenter: 955, fontSize: 88 };
 const DOSAGE_SINGLE = { yCenter: 1057, fontSize: 85 };
-const PURITY_SINGLE = { yCenter: 1150, fontSize: 55 };
 const DOSAGE_WRAPPED = { yCenter: 1075, fontSize: 75 };
-const PURITY_WRAPPED = { yCenter: 1160, fontSize: 48 };
+// Anchored to the fixed disclaimer position (ZONE_BOTTOM=1226) rather than
+// relative to dosage -- deliberately tight (~2px clearance) per explicit
+// request to sit "just above/overlapping" the disclaimer, not the old
+// accidental-overlap bug from a prior pass. Same position regardless of
+// whether the name wrapped, since it's the disclaimer (fixed either way)
+// it's anchored against, not the name.
+const PURITY = { yCenter: 1210, fontSize: 34, weight: 400 };
+const DOSAGE_BOX_PAD_X = 26;
+const DOSAGE_BOX_PAD_Y = 16;
 const MIN_FONT_SIZE = 40;
 const FONT_STEP = 4;
 
-function textSvg({ text, yCenter, fontSize, color }) {
+function textSvg({ text, yCenter, fontSize, color, weight = 700 }) {
   return `
     <svg width="${CANVAS}" height="${CANVAS}">
       <text x="800" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
-            font-family="Quicksand" font-weight="700" font-size="${fontSize}"
+            font-family="Quicksand" font-weight="${weight}" font-size="${fontSize}"
+            fill="${color}">${text}</text>
+    </svg>`;
+}
+
+// Same as textSvg, plus a centered rounded-rect border sized to the text's
+// own measured width (not a fixed box) so it hugs "10MG" as snugly as
+// "5000IU" or "HIGH" without needing a per-value box size.
+function boxedTextSvg({ text, yCenter, fontSize, color, weight = 700, textWidth }) {
+  const boxW = textWidth + DOSAGE_BOX_PAD_X * 2;
+  const boxH = fontSize + DOSAGE_BOX_PAD_Y * 2;
+  const boxX = 800 - boxW / 2;
+  const boxY = yCenter - boxH / 2;
+  return `
+    <svg width="${CANVAS}" height="${CANVAS}">
+      <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="12" ry="12"
+            fill="none" stroke="${color}" stroke-width="3"/>
+      <text x="800" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
+            font-family="Quicksand" font-weight="${weight}" font-size="${fontSize}"
             fill="${color}">${text}</text>
     </svg>`;
 }
@@ -123,7 +148,6 @@ async function layoutName(name) {
     return {
       nameLines: [{ text: name, yCenter: NAME_SINGLE.yCenter, fontSize: NAME_SINGLE.fontSize }],
       dosage: DOSAGE_SINGLE,
-      purity: PURITY_SINGLE,
       mode: '1-line',
     };
   }
@@ -136,7 +160,6 @@ async function layoutName(name) {
     return {
       nameLines: [{ text: name, yCenter: NAME_SINGLE.yCenter, fontSize: fitSize }],
       dosage: DOSAGE_SINGLE,
-      purity: PURITY_SINGLE,
       mode: `1-line-shrunk(${fitSize}px)`,
     };
   }
@@ -157,7 +180,6 @@ async function layoutName(name) {
       { text: brokenLines[1], yCenter: NAME_TWO_LINE.line2YCenter, fontSize },
     ],
     dosage: DOSAGE_WRAPPED,
-    purity: PURITY_WRAPPED,
     mode: `2-line(${fontSize}px)`,
   };
 }
@@ -187,8 +209,18 @@ async function generate({ name, dosage, purity }) {
   const nameBufs = layout.nameLines.map((line) =>
     Buffer.from(textSvg({ text: line.text, yCenter: line.yCenter, fontSize: line.fontSize, color: TEXT_COLOR }))
   );
-  const dosageBuf = Buffer.from(textSvg({ text: dosage, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize, color: TEXT_COLOR }));
-  const purityBuf = Buffer.from(textSvg({ text: `Purity: ${purity}%`, yCenter: layout.purity.yCenter, fontSize: layout.purity.fontSize, color: TEXT_COLOR }));
+
+  const dosageText = dosage.toUpperCase();
+  const dosageWidth = await measureTextWidth(dosageText, layout.dosage.fontSize);
+  const dosageBuf = Buffer.from(boxedTextSvg({
+    text: dosageText, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
+    color: TEXT_COLOR, textWidth: dosageWidth,
+  }));
+
+  const purityBuf = Buffer.from(textSvg({
+    text: `${purity}% Purity`, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
+    color: TEXT_COLOR, weight: PURITY.weight,
+  }));
 
   const slug = slugify(name, dosage);
   const outPath = path.join(OUT_DIR, slug + '.webp');
