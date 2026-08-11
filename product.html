@@ -125,15 +125,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 /* gallery-col sized to its own content (the aspect-ratio photo box), not
    stretched to match buy-col -- buy-col's max-height is set to that natural
    height by syncColumnHeights() in the script below, with overflow-y:auto
-   here so longer content (now including Description) scrolls internally
-   instead of growing the page past the photo. Both are unset/no-op below
-   the 800px breakpoint where .product-main above stacks the columns. */
+   here so longer content scrolls internally instead of growing the page
+   past the photo. Both are unset/no-op below the 800px breakpoint where
+   .product-main above stacks the columns. */
 .gallery-col{ align-self:start; }
 .buy-col{ overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; }
 .buy-col::-webkit-scrollbar{ display:none; }
-
-.buy-col-description{ margin-top:20px; }
-.buy-col-description h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
 
 .buy-col-kits{ margin-top:20px; }
 .buy-col-kits h2{ font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
@@ -659,14 +656,11 @@ function renderProduct(product, siblings) {
   var kitsAvailableHtml = buildKitsAvailableSection(product, allProducts);
   var backLinkHtml = buildBackLinkHtml(product, allProducts);
 
-  // Lives inside buy-col now (below the buy buttons/trust badges/COA link),
-  // not as its own full-width section under product-main -- .product-section's
-  // max-width:1200px/auto-margin centering is meant for full-bleed sections
-  // below the two-column layout, so this reuses its heading look via
-  // .buy-col-description instead of nesting a .product-section inside the
-  // already-narrower grid column.
+  // Full-width section below product-main, placed after Suggested Essentials
+  // (not inside buy-col) -- uses .product-section like Suggested Essentials
+  // and Technical Data below it.
   var descriptionHtml =
-    '<div class="buy-col-description">' +
+    '<div class="product-section">' +
       '<h2>Description</h2>' +
       '<div class="research-text">' + (product.research_use || '') + '</div>' +
       verificationNote +
@@ -699,7 +693,6 @@ function renderProduct(product, siblings) {
             '<button class="btn-buy" id="buy-now-btn">Buy Now</button>' +
           '</div>' +
           kitsAvailableHtml +
-          descriptionHtml +
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<p class="trust-note">For laboratory research use only.</p>' +
           '<div class="trust-badges">' +
@@ -715,6 +708,8 @@ function renderProduct(product, siblings) {
 
     suggestedEssentialsHtml +
 
+    descriptionHtml +
+
     (techRows ? '<div class="product-section"><h2>Technical Data</h2><table class="tech-table">' + techRows + '</table></div>' : '') +
 
     '<div class="product-section">' +
@@ -727,14 +722,14 @@ function renderProduct(product, siblings) {
   window.addEventListener('resize', syncColumnHeights);
 }
 
-// Keeps buy-col from growing taller than gallery-col (now that Description
-// lives inside it too) -- CSS grid's default stretch would otherwise let
-// buy-col's content height determine the row height, leaving gallery-col
-// stretched with empty space below the photo instead of the two columns
-// actually matching. gallery-col has align-self:start (see its CSS) so it
-// always sizes to its own natural content regardless of row height; this
-// just measures that and caps buy-col to match, with .buy-col's
-// overflow-y:auto (also in CSS) scrolling anything that doesn't fit.
+// Keeps buy-col from growing taller than gallery-col -- CSS grid's default
+// stretch would otherwise let buy-col's content height (Kits Available,
+// trust badges, COA list can all add up) determine the row height, leaving
+// gallery-col stretched with empty space below the photo instead of the
+// two columns actually matching. gallery-col has align-self:start (see its
+// CSS) so it always sizes to its own natural content regardless of row
+// height; this just measures that and caps buy-col to match, with
+// .buy-col's overflow-y:auto (also in CSS) scrolling anything that doesn't fit.
 // Recomputed on resize since the photo's height is width-driven
 // (aspect-ratio), and skipped below 800px to match .product-main's own
 // media query, which stacks the columns into one at that width -- no
