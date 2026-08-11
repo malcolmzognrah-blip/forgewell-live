@@ -422,6 +422,66 @@ function resolveCoaPath(path) {
   return '/' + path;
 }
 
+// ---- Breadcrumb trail ----
+// Tracked via a `trail` query param (comma-separated product ids of every
+// product hopped through via Suggested Essentials/Kits Available to reach
+// this one) rather than sessionStorage -- matches getBackLink() below using
+// document.referrer instead of storage for "where did the customer come
+// from": the URL already fully determines page state everywhere else on
+// this page (?id=...), so back/forward and reload work for free without a
+// popstate listener, and separate tabs can't cross-contaminate each other's
+// trail the way a shared sessionStorage key could. Ids are always plain
+// slugs (no commas), so no extra encoding is needed.
+var TRAIL_MAX_LENGTH = 6;
+
+function getTrailIds() {
+  var params = new URLSearchParams(window.location.search);
+  var raw = params.get('trail');
+  if (!raw) return [];
+  return raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+}
+
+function buildProductUrl(id, trailIds) {
+  var url = '/product.html?id=' + encodeURIComponent(id);
+  if (trailIds && trailIds.length) {
+    url += '&trail=' + trailIds.map(encodeURIComponent).join(',');
+  }
+  return url;
+}
+
+// Appends the current product to its own trail to produce the trail for a
+// product being navigated *to*. If that target id is already somewhere in
+// the trail (or is the current product), truncates back to before that
+// point instead of appending -- so bouncing back and forth between two
+// products' suggestion sections can't grow the trail (or the URL) without
+// bound. Also hard-capped at TRAIL_MAX_LENGTH as a defensive backstop.
+function nextTrailFor(targetId, currentTrail, currentProductId) {
+  var extended = currentTrail.concat([currentProductId]);
+  var loopIndex = extended.indexOf(targetId);
+  if (loopIndex !== -1) return extended.slice(0, loopIndex);
+  if (extended.length > TRAIL_MAX_LENGTH) {
+    extended = extended.slice(extended.length - TRAIL_MAX_LENGTH);
+  }
+  return extended;
+}
+
+// Resolves each trail id to its product, skipping any that no longer exist
+// (deleted/renamed since the link was generated) rather than breaking the
+// whole breadcrumb.
+function buildBreadcrumbHtml(product, trailIds, products) {
+  var crumbs = ['<a href="/shop.html">Shop</a>'];
+  var precedingIds = [];
+  trailIds.forEach(function(id) {
+    var p = products.find(function(x) { return x.id === id; });
+    if (p) {
+      crumbs.push('<a href="' + buildProductUrl(id, precedingIds) + '">' + p.name + '</a>');
+    }
+    precedingIds.push(id);
+  });
+  crumbs.push(product.name);
+  return '<div class="breadcrumb">' + crumbs.join(' / ') + '</div>';
+}
+
 // ---- Back link ----
 // Separate from the "Shop" breadcrumb link below: this tracks wherever the
 // customer actually came from (a search jump, another product's Suggested
@@ -584,6 +644,7 @@ function renderError(message) {
 function renderProduct(product, siblings) {
   var root = document.getElementById('product-root');
   var imgUrl = resolveImagePath(product.image_path);
+  var trailIds = getTrailIds();
 
   if (!imgUrl) {
     // Per the site's image-matching rule: no image file, no listing.
@@ -671,7 +732,7 @@ function renderProduct(product, siblings) {
   root.innerHTML =
     '<div class="product-wrap">' +
       backLinkHtml +
-      '<div class="breadcrumb"><a href="/shop.html">Shop</a> / ' + product.name + '</div>' +
+      buildBreadcrumbHtml(product, trailIds, allProducts) +
       '<div class="product-main">' +
         '<div class="gallery-col">' +
           '<div class="gallery-main"><img id="gallery-main-img" src="' + imgUrl + '" alt="' + product.name + '" onerror="this.closest(\'.product-wrap\').innerHTML=\'<div class=&quot;error-state&quot;><h2>Product image not available.</h2></div>\'"></div>' +
@@ -868,7 +929,9 @@ function wireProductInteractions(product) {
     opt.addEventListener('click', function() {
       var newId = opt.getAttribute('data-id');
       if (newId !== product.id) {
-        window.location.href = '/product.html?id=' + encodeURIComponent(newId);
+        // Switching dosage/size variant is the same product conceptually,
+        // not a new hop -- trail carries through unchanged.
+        window.location.href = buildProductUrl(newId, trailIds);
       }
     });
   });
@@ -902,7 +965,8 @@ function wireProductInteractions(product) {
       }
       var card = e.target.closest('.essential-card');
       if (card) {
-        window.location.href = '/product.html?id=' + encodeURIComponent(card.getAttribute('data-product-id'));
+        var targetId = card.getAttribute('data-product-id');
+        window.location.href = buildProductUrl(targetId, nextTrailFor(targetId, trailIds, product.id));
       }
     });
   }
@@ -920,7 +984,8 @@ function wireProductInteractions(product) {
       }
       var card = e.target.closest('.essential-card');
       if (card) {
-        window.location.href = '/product.html?id=' + encodeURIComponent(card.getAttribute('data-product-id'));
+        var targetId = card.getAttribute('data-product-id');
+        window.location.href = buildProductUrl(targetId, nextTrailFor(targetId, trailIds, product.id));
       }
     });
   }
