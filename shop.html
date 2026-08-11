@@ -324,6 +324,21 @@ let currentPage = 1;
 let verifiedImageCache = new Map();
 let renderGeneration = 0;
 
+// So clicking "Shop" in product.html's breadcrumb returns to this exact
+// category/page/scroll position instead of a blank default -- sessionStorage
+// (not a URL param) so product.html's Shop link and the multi-hop breadcrumb
+// trail param don't need to know anything about shop.html's state at all,
+// and so two tabs browsing the shop independently can't clobber each other.
+const SHOP_STATE_KEY = 'forgewell_shop_state';
+
+function saveShopState() {
+  sessionStorage.setItem(SHOP_STATE_KEY, JSON.stringify({
+    category: currentCategoryFilter,
+    page: currentPage,
+    scrollY: window.scrollY,
+  }));
+}
+
 // Ids that are base component records for blend/kit products -- intentionally
 // $0, never meant to be sold standalone. Excluded from the shop grid and
 // from the size-selector on product pages. Confirmed intentional, not a
@@ -380,6 +395,7 @@ async function catalogSearchJump(query) {
     return base === query || base.indexOf(query) !== -1;
   });
   if (match) {
+    saveShopState();
     window.location.href = '/product.html?id=' + encodeURIComponent(match.id);
   } else {
     window.location.href = '/shop.html#tabs';
@@ -622,16 +638,36 @@ async function renderShopGrid() {
       return ai - bi;
     });
 
-  currentCategoryFilter = 'all';
-  currentPage = 1;
-  renderProductsPage();
+  // Restore whatever category/page/scroll the customer had before clicking
+  // into a product (see saveShopState()), so the "Shop" breadcrumb link on
+  // product.html returns them to where they actually were instead of a
+  // blank default. Falls back to the normal defaults if there's no saved
+  // state, or if the saved category no longer exists in the live catalog.
+  let savedShopState = null;
+  try {
+    const raw = sessionStorage.getItem(SHOP_STATE_KEY);
+    if (raw) savedShopState = JSON.parse(raw);
+  } catch (e) { savedShopState = null; }
+  const savedCategoryValid = savedShopState && (savedShopState.category === 'all' || categories.includes(savedShopState.category));
+
+  currentCategoryFilter = savedCategoryValid ? savedShopState.category : 'all';
+  currentPage = (savedShopState && savedShopState.page) || 1;
+  renderProductsPage().then(() => {
+    if (savedShopState && typeof savedShopState.scrollY === 'number') {
+      window.scrollTo(0, savedShopState.scrollY);
+    }
+  });
 
   // Rebuild tabs from real categories.
   if (tabsEl) {
-    let tabsHtml = '<div class="cat-tab active" data-filter="all" style="background:#141414; color:#fff; border-color:#141414;">All</div>';
+    const allActive = currentCategoryFilter === 'all';
+    let tabsHtml = '<div class="cat-tab' + (allActive ? ' active' : '') + '" data-filter="all"' +
+      (allActive ? ' style="background:#141414; color:#fff; border-color:#141414;"' : '') + '>All</div>';
     categories.forEach(cat => {
       const meta = categoryMeta(cat);
-      tabsHtml += '<div class="cat-tab" data-filter="' + cat + '" data-color="' + meta.color + '">' + meta.label + '</div>';
+      const isActive = currentCategoryFilter === cat;
+      tabsHtml += '<div class="cat-tab' + (isActive ? ' active' : '') + '" data-filter="' + cat + '" data-color="' + meta.color + '"' +
+        (isActive ? ' style="background:' + meta.color + '; color:#fff; border-color:' + meta.color + ';"' : '') + '>' + meta.label + '</div>';
     });
     tabsEl.innerHTML = tabsHtml;
     document.querySelectorAll('.cat-tab').forEach(tab => {
@@ -865,6 +901,7 @@ document.addEventListener('click', (e) => {
   if (card) {
     const productId = card.dataset.productId;
     if (productId) {
+      saveShopState();
       window.location.href = '/product.html?id=' + encodeURIComponent(productId);
     }
   }
