@@ -708,13 +708,13 @@ function renderProduct(product, siblings) {
 
     suggestedEssentialsHtml +
 
-    descriptionHtml +
-
     (techRows ? '<div class="product-section"><h2>Technical Data</h2><table class="tech-table">' + techRows + '</table></div>' : '') +
 
     '<div class="product-section">' +
       '<div class="ruo-note">For laboratory and research use only. Not for human or veterinary use. Not for diagnostic or therapeutic use. Not approved by the FDA for consumption, treatment, cure, or prevention of any disease.</div>' +
-    '</div>';
+    '</div>' +
+
+    descriptionHtml;
 
   wireProductInteractions(product);
   loadProductCoas(product);
