@@ -333,6 +333,36 @@ function wireHeaderFooter() {
       .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
   }
 
+  var signupBtn = document.getElementById('footer-signup-btn');
+  if (signupBtn) {
+    signupBtn.addEventListener('click', async () => {
+      const input = document.getElementById('footer-email-input');
+      const msg = document.getElementById('footer-signup-msg');
+      const email = input.value.trim();
+      if (!email || email.indexOf('@') === -1) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Please enter a valid email.';
+        return;
+      }
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({email: email})
+        });
+        const data = await res.json();
+        msg.style.color = '#3FA34D';
+        msg.textContent = data.alreadySubscribed
+          ? 'Already signed up — code: ' + data.discountCode
+          : 'Success! Your code: ' + data.discountCode;
+        input.value = '';
+      } catch (err) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Something went wrong. Please try again.';
+      }
+    });
+  }
+
   // Restores the header's cart count from localStorage now that the header
   // actually exists in the DOM (it didn't yet when updateCartIcon() first
   // ran further down this script).
@@ -522,8 +552,24 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// No customer email is known on this page (that's collected on
+// checkout.html), so a promo code can't actually be validated here --
+// this just saves the text for checkout.html to autofill and validate
+// for real when it submits the order.
+var savedPromoCode = localStorage.getItem('forgewell_promo_code');
+if (savedPromoCode) {
+  document.getElementById('cart-promo-input').value = savedPromoCode;
+}
 document.getElementById('cart-promo-btn').addEventListener('click', function() {
-  document.getElementById('cart-promo-msg').textContent = "Promo codes aren't available yet — check back soon.";
+  var code = document.getElementById('cart-promo-input').value.trim();
+  var msgEl = document.getElementById('cart-promo-msg');
+  if (!code) {
+    localStorage.removeItem('forgewell_promo_code');
+    msgEl.textContent = '';
+    return;
+  }
+  localStorage.setItem('forgewell_promo_code', code);
+  msgEl.textContent = "Code saved — it'll be applied at checkout.";
 });
 
 document.getElementById('cart-checkout-btn').addEventListener('click', function() {

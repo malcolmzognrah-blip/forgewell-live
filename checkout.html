@@ -153,6 +153,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-summary-card{ border:1px solid var(--line); border-radius:10px; padding:20px; background:var(--panel); position:sticky; top:90px; }
 .checkout-summary-line{ display:flex; justify-content:space-between; font-size:0.85rem; color:#444; margin-bottom:10px; }
 .checkout-summary-discount{ color:var(--green); font-weight:700; }
+.checkout-promo-row{ display:flex; gap:8px; margin:2px 0 6px; }
+.checkout-promo-row input{ flex:1; min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; box-sizing:border-box; background:#fff; }
+.checkout-promo-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.checkout-promo-row button:hover{ background:var(--navy); color:#fff; }
+.checkout-promo-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; margin-bottom:10px; }
+.checkout-promo-msg.error{ color:#c0392b; }
 .checkout-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .checkout-place-order-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .checkout-place-order-btn:hover{ background:var(--navy-dark); }
@@ -231,6 +237,11 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
     <div class="checkout-summary-col">
       <div class="checkout-summary-card">
         <div id="checkout-summary-lines"></div>
+        <div class="checkout-promo-row">
+          <input type="text" id="checkout-promo-input" placeholder="Promo code">
+          <button type="button" id="checkout-promo-btn">Apply</button>
+        </div>
+        <div id="checkout-promo-msg" class="checkout-promo-msg"></div>
         <div class="checkout-total-row">
           <span>Order Total</span>
           <span id="checkout-total">$0.00</span>
@@ -376,6 +387,36 @@ function wireHeaderFooter() {
         }
       })
       .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
+  }
+
+  var signupBtn = document.getElementById('footer-signup-btn');
+  if (signupBtn) {
+    signupBtn.addEventListener('click', async () => {
+      const input = document.getElementById('footer-email-input');
+      const msg = document.getElementById('footer-signup-msg');
+      const email = input.value.trim();
+      if (!email || email.indexOf('@') === -1) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Please enter a valid email.';
+        return;
+      }
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({email: email})
+        });
+        const data = await res.json();
+        msg.style.color = '#3FA34D';
+        msg.textContent = data.alreadySubscribed
+          ? 'Already signed up — code: ' + data.discountCode
+          : 'Success! Your code: ' + data.discountCode;
+        input.value = '';
+      } catch (err) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Something went wrong. Please try again.';
+      }
+    });
   }
 
   // Restores the header's cart count from localStorage now that the header
@@ -531,6 +572,26 @@ if (cart.length === 0) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
+  // No live validation here (that requires the email + a server round trip
+  // to check redemption history) -- same "preview only" role cart.html's
+  // copy of this field plays. The real check happens in POST /api/checkout
+  // when Place Order is actually clicked, below.
+  const promoInput = document.getElementById('checkout-promo-input');
+  const promoMsg = document.getElementById('checkout-promo-msg');
+  const savedPromoCode = localStorage.getItem('forgewell_promo_code');
+  if (savedPromoCode) promoInput.value = savedPromoCode;
+  document.getElementById('checkout-promo-btn').addEventListener('click', function() {
+    const code = promoInput.value.trim();
+    promoMsg.classList.remove('error');
+    if (!code) {
+      localStorage.removeItem('forgewell_promo_code');
+      promoMsg.textContent = '';
+      return;
+    }
+    localStorage.setItem('forgewell_promo_code', code);
+    promoMsg.textContent = "Code will be applied when you place your order.";
+  });
+
   renderShippingMethods();
   renderOrderSummary();
   document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
@@ -564,6 +625,9 @@ if (cart.length === 0) {
     localStorage.setItem('forgewell_checkout_email', email);
     localStorage.setItem('forgewell_shipping_address', JSON.stringify(shippingAddress));
 
+    const promoCode = promoInput.value.trim();
+    promoMsg.classList.remove('error');
+
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -571,12 +635,34 @@ if (cart.length === 0) {
         body: JSON.stringify({
           items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
           customerEmail: email,
-          shippingAddress: shippingAddress
+          shippingAddress: shippingAddress,
+          discountCode: promoCode || undefined
         })
       });
       const data = await res.json();
+
+      // The backend rejects an invalid/already-used code with a 400 and no
+      // order is created -- surface that inline on the promo field (that's
+      // the field the problem actually belongs to) rather than the earlier
+      // fallback below, which used to fire for this too with a misleading
+      // "checkout succeeded" message. Any other 400/500 (bad shipping data,
+      // unknown product, payment provider issue, etc.) isn't about the
+      // promo code, so that still falls back to the generic alert below --
+      // this only narrows the one case this change is actually about.
+      if (!res.ok) {
+        if (data.error && /promo code/i.test(data.error)) {
+          promoMsg.classList.add('error');
+          promoMsg.textContent = data.error;
+          return;
+        }
+        alert(data.error || 'Checkout failed — please try again.');
+        console.error('Checkout failed:', data);
+        return;
+      }
+
       if (data.payment && data.payment.paymentUrl) {
         localStorage.setItem('forgewell_last_order_id', data.orderId);
+        localStorage.removeItem('forgewell_promo_code');
         // Cart is intentionally left alone here -- this order is still
         // pending_payment, not paid. It's cleared on order-confirmation.html
         // once polling actually observes status === 'paid', so backing out

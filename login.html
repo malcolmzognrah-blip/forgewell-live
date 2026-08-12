@@ -368,6 +368,36 @@ function wireHeaderFooter() {
       .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
   }
 
+  var signupBtn = document.getElementById('footer-signup-btn');
+  if (signupBtn) {
+    signupBtn.addEventListener('click', async () => {
+      const input = document.getElementById('footer-email-input');
+      const msg = document.getElementById('footer-signup-msg');
+      const email = input.value.trim();
+      if (!email || email.indexOf('@') === -1) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Please enter a valid email.';
+        return;
+      }
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({email: email})
+        });
+        const data = await res.json();
+        msg.style.color = '#3FA34D';
+        msg.textContent = data.alreadySubscribed
+          ? 'Already signed up — code: ' + data.discountCode
+          : 'Success! Your code: ' + data.discountCode;
+        input.value = '';
+      } catch (err) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Something went wrong. Please try again.';
+      }
+    });
+  }
+
   // Restores the header's cart count from localStorage now that the header
   // actually exists in the DOM (it didn't yet when updateCartIcon() first
   // ran further down this script).
