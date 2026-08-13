@@ -37,9 +37,18 @@ const TEXT_COLOR = 'rgb(10,22,64)';
 // rectangle over the template and checking it lands within the center
 // vial's clean label area, then rendering real sample names (including a
 // 2-line case) to confirm before treating this as final.
+//
+// USABLE_WIDTH was originally 560, picked by testing whether specific
+// names fit -- never checked against the front vial's true edges in the
+// photo. That let text as wide as x=520-1080 through, but the vial's real
+// clean-label boundary (measured directly off the template, no text) is
+// only ~575-1015, so anything near the old budget bled onto the
+// neighboring vials visible in the gap. Re-measured via a box overlay
+// test: 420 sits with clear margin inside the true edges, 470 already
+// touches them, so 440 is used as a safe midpoint.
 const ZONE_TOP = 758;
 const ZONE_BOTTOM = 1145;
-const USABLE_WIDTH = 560;
+const USABLE_WIDTH = 440;
 
 // Same proportional position within the (shorter) zone as the vial
 // template's own calibrated layout, scaled by this zone's height ratio
