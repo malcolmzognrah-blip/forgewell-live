@@ -201,6 +201,35 @@ VIAL_TIERS.forEach((tier, i) => {
   tier.dosageSafeRight = visRight - SAFE_SHADOW_MARGIN;
 });
 
+// A full audit (checking every background vial's own boundary, not just
+// the one first reported) found the dosage-box fix above wasn't the whole
+// story: NAME text isn't width-constrained per side at all (only against
+// the tier's full symmetric usableWidth), so a plain, unshrunk product
+// name like "MOTS-C" on vial1 renders correctly up to the true 580
+// occlusion boundary -- clipped exactly where it should be -- but still
+// visibly extends solid navy right up to that hard edge, through the
+// shadow band that starts ~25-30px before it. A box has a visible border
+// to notice this on; plain text doesn't, which is why it went unnoticed
+// until this audit specifically zoomed into that boundary.
+//
+// Per-element width constraints (the dosage approach) would need to be
+// duplicated for name and purity too, and re-tuned per content type.
+// Instead: replace the hard clip on each background vial's occlusion-
+// facing (inner) edge with a soft luminance mask that fades to
+// transparent over the same margin, applied once to the whole vial group
+// (name+dosage+purity together) -- content that reaches the shadow band
+// fades out with it rather than being sliced at a hard edge, matching how
+// the boundary actually looks in the photo, regardless of what content
+// happens to reach that far. The vial's own TRUE outer edge (its actual
+// silhouette against open background, not another vial) keeps a hard
+// edge -- that boundary doesn't show the same shadow (confirmed by
+// checking the vial0/vial1 and vial3/vial4 boundaries directly: no
+// visible darkening there, unlike vial1/front and vial3/front).
+const FADE_MARGIN = 40;
+// Which side of each background vial's visible range is occlusion-facing
+// (needs the fade) vs. its own true silhouette edge (stays hard).
+const INNER_EDGE_SIDE = { 0: 'right', 1: 'right', 3: 'left', 4: 'left' };
+
 function textEl({ text, centerX, yCenter, fontSize, color, weight = 700 }) {
   return `<text x="${centerX}" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
             font-family="Quicksand" font-weight="${weight}" font-size="${fontSize}"
@@ -386,9 +415,40 @@ async function vialLabelGroup({ vialIndex, clipId, name, dosage, purity, opacity
     color: TEXT_COLOR, weight: tier.purity.weight,
   });
 
+  const innerSide = INNER_EDGE_SIDE[vialIndex];
+  let visibilityDefs, visibilityAttr;
+  if (!innerSide) {
+    // Front vial: fully visible, plain hard clip (matches its true edges
+    // exactly, no occlusion-facing side to soften).
+    visibilityDefs = `<clipPath id="${clipId}"><rect x="${clipLeft}" y="0" width="${clipRight - clipLeft}" height="${CANVAS}"/></clipPath>`;
+    visibilityAttr = `clip-path="url(#${clipId})"`;
+  } else {
+    // Background vial: soft luminance mask instead of a hard clip. White
+    // = fully visible, fading to black (transparent) over FADE_MARGIN on
+    // the occlusion-facing side only; the true outer edge stays a hard
+    // cutoff (mask fully white right up to that edge, nothing beyond it).
+    const gradId = `${clipId}-fade`;
+    const fadeStart = innerSide === 'right' ? clipRight - FADE_MARGIN : clipLeft;
+    const fadeEnd = innerSide === 'right' ? clipRight : clipLeft + FADE_MARGIN;
+    const solidX = innerSide === 'right' ? clipLeft : fadeEnd;
+    const solidWidth = innerSide === 'right' ? (fadeStart - clipLeft) : (clipRight - fadeEnd);
+    const stops = innerSide === 'right'
+      ? `<stop offset="0%" stop-color="white"/><stop offset="100%" stop-color="black"/>`
+      : `<stop offset="0%" stop-color="black"/><stop offset="100%" stop-color="white"/>`;
+    visibilityDefs = `
+      <linearGradient id="${gradId}" x1="${fadeStart}" x2="${fadeEnd}" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+        ${stops}
+      </linearGradient>
+      <mask id="${clipId}">
+        <rect x="${solidX}" y="0" width="${solidWidth}" height="${CANVAS}" fill="white"/>
+        <rect x="${fadeStart}" y="0" width="${FADE_MARGIN}" height="${CANVAS}" fill="url(#${gradId})"/>
+      </mask>`;
+    visibilityAttr = `mask="url(#${clipId})"`;
+  }
+
   const group = `
-    <clipPath id="${clipId}"><rect x="${clipLeft}" y="0" width="${clipRight - clipLeft}" height="${CANVAS}"/></clipPath>
-    <g clip-path="url(#${clipId})">
+    ${visibilityDefs}
+    <g ${visibilityAttr}>
       <g opacity="${opacity}">
         ${nameEls}
         ${dosageEl}
