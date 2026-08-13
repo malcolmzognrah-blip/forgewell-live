@@ -76,7 +76,18 @@ const FRONT = {
   nameTwoLine: { line1YCenter: 820, line2YCenter: 911, fontSize: 76 },
   dosageSingle: { yCenter: 999, fontSize: 56 },
   dosageWrapped: { yCenter: 1015, fontSize: 50 },
-  purity: { yCenter: 1123, fontSize: 35, weight: 400 },
+  // yCenter was 1123 (a 74px gap to the front vial's disclaimer at
+  // y~1197), inherited from the kit template's original ZONE_BOTTOM=1145
+  // guess -- ~52px off from the front vial's real disclaimer position.
+  // The single-vial template deliberately anchors purity *tight* against
+  // its own disclaimer (22px gap at fontSize 40 -- see
+  // generate-dosage-images.js's own comment: "sit 'just above/overlapping'
+  // the disclaimer"). Re-derived here to match that same proportional
+  // gap -- (1204-778)/(1226-778) of the single-vial's zone -- applied to
+  // the kit's own zone (738 to the measured 1197), then confirmed by
+  // rendering "00% Purity" at fontSize 35 and measuring its actual glyph
+  // bottom (not just the y-anchor): lands ~15px above the disclaimer.
+  purity: { yCenter: 1175, fontSize: 35, weight: 400 },
   dosageBoxPadX: 26,
   dosageBoxPadY: 16,
   minFontSize: 34,
@@ -133,10 +144,16 @@ const VIAL_TIERS = [
 ];
 const FRONT_VIAL_INDEX = 2;
 const BACKGROUND_VIAL_INDICES = [0, 1, 3, 4];
-const BACKGROUND_OPACITY = 0.4;
+// Was 0.4 (dimmed, to avoid 5 vials showing the same text at full strength
+// looking cluttered) -- reverted to 1 (no dimming) per explicit request:
+// background vials now match the front vial's solid opacity, relying on
+// the per-tier size/position calibration and clipping alone to read as
+// naturally occluded rather than on a faded look.
+const BACKGROUND_OPACITY = 1;
 // Purity is set 400-weight/35px vs. the bold 700-weight name/dosage text --
 // at identical opacity its thin strokes read visibly fainter (less
-// anti-aliased pixel coverage), so it needs a boost to look equally faded.
+// anti-aliased pixel coverage). Only matters when BACKGROUND_OPACITY < 1;
+// at 1 this boost is a no-op (opacity < 1 check below is false either way).
 const BACKGROUND_PURITY_OPACITY_BOOST = 1.6;
 
 // Visible (unoccluded) slice of each vial's trueRange, front-to-back
