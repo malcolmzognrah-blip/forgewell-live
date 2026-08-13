@@ -120,8 +120,12 @@ function deriveTier(scale, centerX, halfWidth) {
       line2YCenter: scaleY(FRONT.nameTwoLine.line2YCenter, scale),
       fontSize: FRONT.nameTwoLine.fontSize * scale,
     },
-    dosageSingle: { yCenter: scaleY(FRONT.dosageSingle.yCenter, scale), fontSize: FRONT.dosageSingle.fontSize * scale },
-    dosageWrapped: { yCenter: scaleY(FRONT.dosageWrapped.yCenter, scale), fontSize: FRONT.dosageWrapped.fontSize * scale },
+    // Dosage font size intentionally NOT scaled by tier (unlike name/
+    // purity) -- confirmed the dosage text should read the same size on
+    // every vial, front or background. yCenter still scales with the
+    // tier (that's placement, not size, and was already correct).
+    dosageSingle: { yCenter: scaleY(FRONT.dosageSingle.yCenter, scale), fontSize: FRONT.dosageSingle.fontSize },
+    dosageWrapped: { yCenter: scaleY(FRONT.dosageWrapped.yCenter, scale), fontSize: FRONT.dosageWrapped.fontSize },
     purity: { yCenter: scaleY(FRONT.purity.yCenter, scale), fontSize: FRONT.purity.fontSize * scale, weight: 400 },
     dosageBoxPadX: FRONT.dosageBoxPadX * scale,
     dosageBoxPadY: FRONT.dosageBoxPadY * scale,
@@ -381,23 +385,26 @@ async function vialLabelGroup({ vialIndex, clipId, name, dosage, purity, opacity
   let dosageEl = '';
   if (dosage) {
     const dosageText = dosage.toUpperCase();
+    // Dosage font size must match the front vial's (confirmed requirement --
+    // no per-tier scaling), so fitting the box into a background vial's
+    // narrower/asymmetric safe window is done by shifting position, not by
+    // shrinking. Shift first, at the full fixed size: if the box (still
+    // centered on centerX) already fits the tighter side, this clamp is a
+    // no-op; otherwise it slides toward whichever side has more room. Only
+    // if it's wider than the *entire* safe window even shifted all the way
+    // (e.g. a wide "20mg/20mg" string on the tightest tier) does it shrink,
+    // as a last resort -- and even then only down to the point where it
+    // fits the full window, not the old tighter symmetric-only budget.
     let dosageFontSize = layout.dosage.fontSize;
     let dosageMetrics = await measureTextMetrics(dosageText, dosageFontSize);
-    // Prefer shrinking (keeps it centered like name/purity) down to the
-    // tier's floor size if the box -- still centered on centerX -- would
-    // extend past the safe zone on whichever side is tighter.
-    const symmetricMaxHalfWidth = Math.min(centerX - tier.dosageSafeLeft, tier.dosageSafeRight - centerX);
+    const fullWindowHalfWidth = (tier.dosageSafeRight - tier.dosageSafeLeft) / 2;
     while (
-      dosageMetrics.width / 2 + tier.dosageBoxPadX > symmetricMaxHalfWidth &&
+      dosageMetrics.width / 2 + tier.dosageBoxPadX > fullWindowHalfWidth &&
       dosageFontSize > tier.minFontSize
     ) {
       dosageFontSize -= FONT_STEP;
       dosageMetrics = await measureTextMetrics(dosageText, dosageFontSize);
     }
-    // If it still doesn't fit even at the floor size (e.g. a wide
-    // "20mg/20mg" string on the tight side of a background vial), shift
-    // the box off-center toward whichever side has more room instead of
-    // letting it overflow the tight side.
     const halfWidth = dosageMetrics.width / 2 + tier.dosageBoxPadX;
     const dosageCenterX = Math.min(
       Math.max(centerX, tier.dosageSafeLeft + halfWidth),
