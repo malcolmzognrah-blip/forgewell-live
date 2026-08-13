@@ -658,11 +658,23 @@ function buildSuggestedEssentialsSection(product, products) {
 // same string plus a "-<suffix>" a sibling's id starts with -- covers every
 // suffix style in use (mg/mcg, high/low, bare) without needing to know
 // which one a given base uses.
+//
+// Also filtered by dosage, matching the currently-viewed variant exactly
+// (e.g. BPC-157 10mg only surfaces the two 10mg kit rows, not the 5mg
+// ones) -- confirmed against the live catalog that a kit's dosage is
+// always stored in the exact same string format as its base product's
+// (including combo strings like "20mg/20mg" for blends), so plain
+// equality is enough; no normalization needed. Switching the "SELECT MG"
+// selector navigates to a whole new product.html?id=... page (see the
+// size-option click handler), so `product` here is always already the
+// specific dosage variant being viewed -- no separate selection state to
+// track beyond product.dosage itself.
 function findRelatedKits(product, products) {
   if (product.category === 'kit') return []; // kits don't suggest other kits for themselves
   return products.filter(function(p) {
     if (p.category !== 'kit') return false;
     if (!resolveImagePath(p.image_path)) return false; // no image, no listing
+    if (p.dosage !== product.dosage) return false;
     var base = p.base_product_id;
     if (!base) return false;
     return product.id === base || product.id.indexOf(base + '-') === 0;
