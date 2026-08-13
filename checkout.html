@@ -466,13 +466,13 @@ function updateCartIcon() {
 }
 
 // Mirrors the exact same rule as the backend (routes/checkout.js):
-// flat 10% off, either buy 3+ of one item OR spend $150+ total —
+// flat 10% off, either buy 3+ of one item OR spend $300+ total —
 // whichever gives the bigger discount, never both stacked. This is
 // just a live preview for the customer; the backend recalculates the
 // real charge from scratch at checkout time, so this can't be gamed.
 const BULK_QTY_THRESHOLD = 3;
 const BULK_QTY_DISCOUNT = 0.10;
-const CART_TOTAL_THRESHOLD = 150;
+const CART_TOTAL_THRESHOLD = 300;
 const CART_TOTAL_DISCOUNT = 0.10;
 
 function calculateCartDiscount(cartItems) {
