@@ -489,7 +489,7 @@ function categoryMeta(cat) {
 
 function baseLabel(name) {
   if (!name) return '';
-  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)\)?\s*$/i, '').trim();
+  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
 }
 
 function resolveImagePath(path) {

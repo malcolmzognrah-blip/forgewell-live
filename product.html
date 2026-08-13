@@ -486,7 +486,7 @@ function getQueryParam(name) {
 // is empty for simple tiered products) -- confirmed in the DB this session.
 function baseLabel(name) {
   if (!name) return '';
-  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)\)?\s*$/i, '').trim();
+  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
 }
 
 // Siblings are already grouped by baseLabel(), so they always share one unit
