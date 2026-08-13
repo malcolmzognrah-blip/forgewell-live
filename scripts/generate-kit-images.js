@@ -160,6 +160,19 @@ const BACKGROUND_PURITY_OPACITY_BOOST = 1.6;
 // occlusion order 2 (front) > 1,3 > 0,4 -- same logic as before, now
 // applied to the independently-measured trueRanges above instead of a
 // symmetric formula.
+//
+// The geometric occlusion boundary (where the nearer vial's true edge
+// falls) is NOT the same as where a background vial's surface actually
+// still looks clean -- the curved glass visibly darkens into shadow in
+// the ~25-30px before that boundary (confirmed by measuring the raw
+// template: vial1's surface starts darkening around x~525-530, well
+// before its 580 occlusion boundary with the front vial). A first attempt
+// trimmed the clip rect itself to compensate, but that just hard-truncated
+// the dosage box mid-glyph with its border missing a side -- an obvious
+// rendering artifact, worse than the shadow it was meant to fix. Left the
+// clip at the true occlusion boundary and constrained content width
+// instead (see dosageMaxWidth below), so nothing needs to be clipped
+// there in the first place.
 const VIAL_VISIBLE_RANGES = [
   [VIAL_TIERS[0].trueRange[0], Math.min(VIAL_TIERS[0].trueRange[1], VIAL_TIERS[1].trueRange[0])],
   [VIAL_TIERS[1].trueRange[0], Math.min(VIAL_TIERS[1].trueRange[1], VIAL_TIERS[2].trueRange[0])],
@@ -167,6 +180,26 @@ const VIAL_VISIBLE_RANGES = [
   [Math.max(VIAL_TIERS[3].trueRange[0], VIAL_TIERS[2].trueRange[1]), VIAL_TIERS[3].trueRange[1]],
   [Math.max(VIAL_TIERS[4].trueRange[0], VIAL_TIERS[3].trueRange[1]), VIAL_TIERS[4].trueRange[1]],
 ];
+
+// The dosage box prefers to center on each vial's TRUE center (matching
+// name and purity), but a background vial's visible range is NOT
+// symmetric around that center -- it's cut short on whichever side faces
+// the occluding vial (e.g. vial1's true center sits only 81px from its
+// right visible edge, vs. 201px on the left). SAFE_SHADOW_MARGIN pulls
+// back from the raw visible range to stay clear of the shadow band
+// measured on the real template (see conversation). Wide dosage strings
+// (e.g. "20mg/20mg") can need more half-width than even the tier's
+// minFontSize leaves room for on the tight side alone -- shrinking alone
+// can't fix that without going illegibly small, so the box is allowed to
+// shift off the true center toward whichever side has more room, clamped
+// to stay within [dosageSafeLeft, dosageSafeRight], rather than staying
+// rigidly centered and overflowing the tight side.
+const SAFE_SHADOW_MARGIN = 25;
+VIAL_TIERS.forEach((tier, i) => {
+  const [visLeft, visRight] = VIAL_VISIBLE_RANGES[i];
+  tier.dosageSafeLeft = visLeft + SAFE_SHADOW_MARGIN;
+  tier.dosageSafeRight = visRight - SAFE_SHADOW_MARGIN;
+});
 
 function textEl({ text, centerX, yCenter, fontSize, color, weight = 700 }) {
   return `<text x="${centerX}" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
@@ -319,9 +352,30 @@ async function vialLabelGroup({ vialIndex, clipId, name, dosage, purity, opacity
   let dosageEl = '';
   if (dosage) {
     const dosageText = dosage.toUpperCase();
-    const dosageMetrics = await measureTextMetrics(dosageText, layout.dosage.fontSize);
+    let dosageFontSize = layout.dosage.fontSize;
+    let dosageMetrics = await measureTextMetrics(dosageText, dosageFontSize);
+    // Prefer shrinking (keeps it centered like name/purity) down to the
+    // tier's floor size if the box -- still centered on centerX -- would
+    // extend past the safe zone on whichever side is tighter.
+    const symmetricMaxHalfWidth = Math.min(centerX - tier.dosageSafeLeft, tier.dosageSafeRight - centerX);
+    while (
+      dosageMetrics.width / 2 + tier.dosageBoxPadX > symmetricMaxHalfWidth &&
+      dosageFontSize > tier.minFontSize
+    ) {
+      dosageFontSize -= FONT_STEP;
+      dosageMetrics = await measureTextMetrics(dosageText, dosageFontSize);
+    }
+    // If it still doesn't fit even at the floor size (e.g. a wide
+    // "20mg/20mg" string on the tight side of a background vial), shift
+    // the box off-center toward whichever side has more room instead of
+    // letting it overflow the tight side.
+    const halfWidth = dosageMetrics.width / 2 + tier.dosageBoxPadX;
+    const dosageCenterX = Math.min(
+      Math.max(centerX, tier.dosageSafeLeft + halfWidth),
+      tier.dosageSafeRight - halfWidth
+    );
     dosageEl = boxedTextEl({
-      text: dosageText, centerX, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
+      text: dosageText, centerX: dosageCenterX, yCenter: layout.dosage.yCenter, fontSize: dosageFontSize,
       color: TEXT_COLOR, textWidth: dosageMetrics.width, textHeight: dosageMetrics.height,
       boxCenterYOffset: dosageMetrics.centerYOffset, padX: tier.dosageBoxPadX, padY: tier.dosageBoxPadY,
     });
