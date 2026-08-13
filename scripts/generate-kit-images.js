@@ -1,16 +1,21 @@
 // Composites kit name, dosage, and purity onto the kit-specific template
-// (images/_templates/kit-template.png -- a 5-vial group shot where only the
-// front-center vial's label is clean/legible, everything else is
-// obstructed or blurred by the other vials in frame). Same overall
+// (images/_templates/kit-template.png -- a 5-vial group shot). Same overall
 // approach as generate-dosage-images.js (render + measure, don't guess),
 // duplicated here rather than sharing code because the template's
 // composition is fundamentally different from the single-vial template --
-// the label zone sits on one vial within a group shot, not an isolated
+// the label zone sits on a row of vials in a group shot, not an isolated
 // vial, so the automatic width-scan in measure-template.js doesn't work
 // here (it picks up the neighboring vials' label edges too). Zone
 // geometry below was determined by test-rendering a visible guide box
 // over the template and adjusting until it landed cleanly within the
 // center vial's clean label area, not by that automatic scan.
+//
+// The same label (name/dosage/purity) is composited once per vial, each
+// instance centered on that vial's own true axis and clipped to only the
+// portion of that vial actually visible in the photo (the rest is behind
+// a vial in front of it) -- this is what makes the 4 background vials
+// look like genuinely labeled, partially-occluded bottles instead of
+// blank ones. Only the front-center vial shows the label uncropped.
 //
 // Pack size is deliberately NOT drawn on the image -- an individual vial
 // within a 5-pack or 10-pack box would carry the same label as the
@@ -19,8 +24,8 @@
 // 5-Pack and 10-Pack row of a given dosage tier.
 //
 // Usage:
-//   node generate-kit-images.js "BPC-157 Kit|10mg|99"
-//   node generate-kit-images.js "CJC/IPA Blend Kit|10mg/10mg"   (purity omitted -> '00')
+//   node generate-kit-images.js "BPC-157|10mg|99"
+//   node generate-kit-images.js "CJC/IPA Blend|10mg/10mg"   (purity omitted -> '00')
 
 const sharp = require('sharp');
 const path = require('path');
@@ -50,6 +55,35 @@ const ZONE_TOP = 758;
 const ZONE_BOTTOM = 1145;
 const USABLE_WIDTH = 440;
 
+// Front-center vial axis and true silhouette half-width, both measured
+// directly off the template (see USABLE_WIDTH note above -- the true edge
+// happens to land at almost exactly the same 220px half-width used for
+// the text safety margin). VIAL_SPACING (center-to-center distance to the
+// next vial) was derived from where the second vial's unoccluded edge
+// sits (~295, an edge no other vial covers) and confirmed by overlaying
+// the resulting 5 vial boxes on the template -- they land on the true
+// vial boundaries and reproduce the same cutoff points as the
+// already-baked-in "FOR RESEARCH USE ONLY" line on each vial.
+const FRONT_CENTER_X = 800;
+const VIAL_HALF_WIDTH = 220;
+const VIAL_SPACING = 285;
+
+// 5 vials left to right; index 2 is the front-center one (fully visible,
+// nothing in front of it). 1/3 are the next layer back, partly covered by
+// vial 2. 0/4 are the back layer, partly covered by 1/3 respectively.
+const VIAL_CENTERS = [-2, -1, 0, 1, 2].map((i) => FRONT_CENTER_X + i * VIAL_SPACING);
+const VIAL_TRUE_RANGES = VIAL_CENTERS.map((c) => [c - VIAL_HALF_WIDTH, c + VIAL_HALF_WIDTH]);
+const VIAL_VISIBLE_RANGES = [
+  [VIAL_TRUE_RANGES[0][0], Math.min(VIAL_TRUE_RANGES[0][1], VIAL_TRUE_RANGES[1][0])],
+  [VIAL_TRUE_RANGES[1][0], Math.min(VIAL_TRUE_RANGES[1][1], VIAL_TRUE_RANGES[2][0])],
+  VIAL_TRUE_RANGES[2],
+  [Math.max(VIAL_TRUE_RANGES[3][0], VIAL_TRUE_RANGES[2][1]), VIAL_TRUE_RANGES[3][1]],
+  [Math.max(VIAL_TRUE_RANGES[4][0], VIAL_TRUE_RANGES[3][1]), VIAL_TRUE_RANGES[4][1]],
+];
+const FRONT_VIAL_INDEX = 2;
+const BACKGROUND_VIAL_INDICES = [0, 1, 3, 4];
+const BACKGROUND_OPACITY = 0.4;
+
 // Same proportional position within the (shorter) zone as the vial
 // template's own calibrated layout, scaled by this zone's height ratio
 // (387px here vs. 448px there) rather than reused verbatim.
@@ -63,29 +97,25 @@ const DOSAGE_BOX_PAD_Y = 16;
 const MIN_FONT_SIZE = 34;
 const FONT_STEP = 4;
 
-function textSvg({ text, yCenter, fontSize, color, weight = 700 }) {
-  return `
-    <svg width="${CANVAS}" height="${CANVAS}">
-      <text x="800" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
+function textEl({ text, centerX, yCenter, fontSize, color, weight = 700 }) {
+  return `<text x="${centerX}" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
             font-family="Quicksand" font-weight="${weight}" font-size="${fontSize}"
-            fill="${color}">${text}</text>
-    </svg>`;
+            fill="${color}">${text}</text>`;
 }
 
-function boxedTextSvg({ text, yCenter, fontSize, color, weight = 700, textWidth, textHeight, boxCenterYOffset }) {
+function textSvg({ text, yCenter, fontSize, color, weight = 700 }) {
+  return `<svg width="${CANVAS}" height="${CANVAS}">${textEl({ text, centerX: FRONT_CENTER_X, yCenter, fontSize, color, weight })}</svg>`;
+}
+
+function boxedTextEl({ text, centerX, yCenter, fontSize, color, weight = 700, textWidth, textHeight, boxCenterYOffset }) {
   const boxW = textWidth + DOSAGE_BOX_PAD_X * 2;
   const boxH = textHeight + DOSAGE_BOX_PAD_Y * 2;
   const boxCenterY = yCenter + boxCenterYOffset;
-  const boxX = 800 - boxW / 2;
+  const boxX = centerX - boxW / 2;
   const boxY = boxCenterY - boxH / 2;
-  return `
-    <svg width="${CANVAS}" height="${CANVAS}">
-      <rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="12" ry="12"
+  return `<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="12" ry="12"
             fill="none" stroke="${color}" stroke-width="3"/>
-      <text x="800" y="${yCenter}" text-anchor="middle" dominant-baseline="central"
-            font-family="Quicksand" font-weight="${weight}" font-size="${fontSize}"
-            fill="${color}">${text}</text>
-    </svg>`;
+          ${textEl({ text, centerX, yCenter, fontSize, color, weight })}`;
 }
 
 async function measureTextMetrics(text, fontSize, weight = 700) {
@@ -93,7 +123,7 @@ async function measureTextMetrics(text, fontSize, weight = 700) {
   const { info } = await sharp(buf).trim().toBuffer({ resolveWithObject: true });
   const centerX = -info.trimOffsetLeft + info.width / 2;
   const centerY = -info.trimOffsetTop + info.height / 2;
-  return { width: info.width, height: info.height, centerYOffset: centerY - 800, centerXOffset: centerX - 800 };
+  return { width: info.width, height: info.height, centerYOffset: centerY - 800, centerXOffset: centerX - FRONT_CENTER_X };
 }
 
 async function measureTextWidth(text, fontSize) {
@@ -185,6 +215,44 @@ function parseArg(arg) {
   return { name, dosage: dosage || '', purity: purity || '00' };
 }
 
+// Builds the <g clip-path="..."> block for one vial: the name/dosage/purity
+// elements recentered on that vial's own axis, clipped to the slice of it
+// actually visible in the photo. clipId must be unique per vial per call.
+// Background vials render at reduced opacity -- at full strength the same
+// oversized front-vial font tiled across 4 more vials read as cluttered
+// rather than like a natural photo of several bottles (see conversation --
+// this was rejected at opacity 1 before landing here).
+function vialLabelGroup({ vialIndex, clipId, layout, dosage, dosageMetrics, purity, opacity = 1 }) {
+  const centerX = VIAL_CENTERS[vialIndex];
+  const [clipLeft, clipRight] = VIAL_VISIBLE_RANGES[vialIndex];
+
+  const nameEls = layout.nameLines
+    .map((line) => textEl({ text: line.text, centerX, yCenter: line.yCenter, fontSize: line.fontSize, color: TEXT_COLOR }))
+    .join('\n');
+
+  const dosageEl = dosage
+    ? boxedTextEl({
+        text: dosage.toUpperCase(), centerX, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
+        color: TEXT_COLOR, textWidth: dosageMetrics.width, textHeight: dosageMetrics.height,
+        boxCenterYOffset: dosageMetrics.centerYOffset,
+      })
+    : '';
+
+  const purityEl = textEl({
+    text: `${purity}% Purity`, centerX, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
+    color: TEXT_COLOR, weight: PURITY.weight,
+  });
+
+  const filterAttr = opacity < 1 ? ` filter="url(#vial-blur)"` : '';
+  return `
+    <clipPath id="${clipId}"><rect x="${clipLeft}" y="0" width="${clipRight - clipLeft}" height="${CANVAS}"/></clipPath>
+    <g clip-path="url(#${clipId})" opacity="${opacity}"${filterAttr}>
+      ${nameEls}
+      ${dosageEl}
+      ${purityEl}
+    </g>`;
+}
+
 async function generate({ name, dosage, purity, slugSuffix = '' }) {
   const base = await sharp(TEMPLATE)
     .resize(CANVAS, CANVAS, { kernel: 'lanczos3' })
@@ -192,34 +260,28 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
 
   const layout = await layoutName(name);
 
-  const nameBufs = layout.nameLines.map((line) =>
-    Buffer.from(textSvg({ text: line.text, yCenter: line.yCenter, fontSize: line.fontSize, color: TEXT_COLOR }))
-  );
-
-  const dosageBufs = [];
+  let dosageMetrics = null;
   if (dosage) {
-    const dosageText = dosage.toUpperCase();
-    const dosageMetrics = await measureTextMetrics(dosageText, layout.dosage.fontSize);
-    dosageBufs.push(Buffer.from(boxedTextSvg({
-      text: dosageText, yCenter: layout.dosage.yCenter, fontSize: layout.dosage.fontSize,
-      color: TEXT_COLOR, textWidth: dosageMetrics.width, textHeight: dosageMetrics.height,
-      boxCenterYOffset: dosageMetrics.centerYOffset,
-    })));
+    dosageMetrics = await measureTextMetrics(dosage.toUpperCase(), layout.dosage.fontSize);
   }
 
-  const purityBuf = Buffer.from(textSvg({
-    text: `${purity}% Purity`, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
-    color: TEXT_COLOR, weight: PURITY.weight,
-  }));
+  const groups = [FRONT_VIAL_INDEX, ...BACKGROUND_VIAL_INDICES]
+    .map((vialIndex) =>
+      vialLabelGroup({
+        vialIndex, clipId: `vial-clip-${vialIndex}`, layout, dosage, dosageMetrics, purity,
+        opacity: vialIndex === FRONT_VIAL_INDEX ? 1 : BACKGROUND_OPACITY,
+      })
+    )
+    .join('\n');
+
+  const compositeSvg = Buffer.from(`<svg width="${CANVAS}" height="${CANVAS}">
+    <defs><filter id="vial-blur"><feGaussianBlur stdDeviation="1.6"/></filter></defs>
+    ${groups}</svg>`);
 
   const slug = slugify(name, dosage) + slugSuffix;
   const outPath = path.join(OUT_DIR, slug + '.webp');
   await sharp(base)
-    .composite([
-      ...nameBufs.map((buf) => ({ input: buf })),
-      ...dosageBufs.map((buf) => ({ input: buf })),
-      { input: purityBuf },
-    ])
+    .composite([{ input: compositeSvg }])
     .webp({ quality: 92 })
     .toFile(outPath);
 

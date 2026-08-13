@@ -264,7 +264,8 @@ const TARGETS = [
 
 async function main() {
   for (const t of TARGETS) {
-    const result = await generate({ name: t.namePrefix, dosage: t.dosage, purity: '00', slugSuffix: '-tpl' });
+    const displayName = t.namePrefix.replace(/\s*Kit$/, '');
+    const result = await generate({ name: displayName, dosage: t.dosage, purity: '00', slugSuffix: '-tpl' });
     const naturalWebp = result.outPath;
     let first = true;
     let firstTargetWebp = null;
