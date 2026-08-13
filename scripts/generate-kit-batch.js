@@ -14,10 +14,31 @@
 // Usage: node generate-kit-batch.js
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { generate } = require('./generate-kit-images.js');
 
 const OUT_DIR = path.join(__dirname, '..', 'images');
+// generate()'s natural (pre-rename) filename is derived from name+dosage
+// alone, which -- now that "Kit" is stripped from the rendered name --
+// can collide exactly with a real standalone product's image filename
+// (e.g. "BPC-157" 10mg vs. the real bpc-157-10mg-tpl.webp). Rendering
+// straight into images/ let that collision silently overwrite and then
+// rename away 13 real product images, twice. Rendering into a scratch dir
+// first makes that impossible regardless of what any name happens to slug to.
+const SCRATCH_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-batch-'));
+
+// os.tmpdir() is typically a different filesystem/device than the repo, so
+// a plain rename() across them fails (EXDEV) -- fall back to copy+delete.
+function moveFile(src, dest) {
+  try {
+    fs.renameSync(src, dest);
+  } catch (e) {
+    if (e.code !== 'EXDEV') throw e;
+    fs.copyFileSync(src, dest);
+    fs.unlinkSync(src);
+  }
+}
 
 const TARGETS = [
   {
@@ -265,7 +286,7 @@ const TARGETS = [
 async function main() {
   for (const t of TARGETS) {
     const displayName = t.namePrefix.replace(/\s*Kit$/, '');
-    const result = await generate({ name: displayName, dosage: t.dosage, purity: '00', slugSuffix: '-tpl' });
+    const result = await generate({ name: displayName, dosage: t.dosage, purity: '00', slugSuffix: '-tpl', outDir: SCRATCH_DIR });
     const naturalWebp = result.outPath;
     let first = true;
     let firstTargetWebp = null;
@@ -273,7 +294,7 @@ async function main() {
       const targetWebp = path.join(OUT_DIR, path.basename(targetPath).replace(/\.png$/, '.webp'));
       if (first) {
         if (path.resolve(naturalWebp) !== path.resolve(targetWebp)) {
-          fs.renameSync(naturalWebp, targetWebp);
+          moveFile(naturalWebp, targetWebp);
         }
         firstTargetWebp = targetWebp;
         first = false;
@@ -283,6 +304,7 @@ async function main() {
     }
     console.log(`OK  ${t.namePrefix.padEnd(20)} ${t.dosage.padEnd(10)} (mode: ${result.mode.padEnd(16)}) -> ${t.paths.map(p => path.basename(p)).join(', ')}`);
   }
+  fs.rmdirSync(SCRATCH_DIR);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

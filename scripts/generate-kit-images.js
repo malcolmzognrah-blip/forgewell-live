@@ -83,6 +83,10 @@ const VIAL_VISIBLE_RANGES = [
 const FRONT_VIAL_INDEX = 2;
 const BACKGROUND_VIAL_INDICES = [0, 1, 3, 4];
 const BACKGROUND_OPACITY = 0.4;
+// Purity is set 400-weight/35px vs. the bold 700-weight name/dosage text --
+// at identical opacity its thin strokes read visibly fainter (less
+// anti-aliased pixel coverage), so it needs a boost to look equally faded.
+const BACKGROUND_PURITY_OPACITY_BOOST = 1.6;
 
 // Same proportional position within the (shorter) zone as the vial
 // template's own calibrated layout, scaled by this zone's height ratio
@@ -221,10 +225,20 @@ function parseArg(arg) {
 // Background vials render at reduced opacity -- at full strength the same
 // oversized front-vial font tiled across 4 more vials read as cluttered
 // rather than like a natural photo of several bottles (see conversation --
-// this was rejected at opacity 1 before landing here).
+// this was rejected at opacity 1 before landing here). A blur filter was
+// also tried and rejected: SVG applies filters before clip-path, so the
+// blur only softened glyph interiors, not the clip boundary itself,
+// leaving a razor-sharp cut around a softened glyph (looked like a
+// mismatched artifact, not a natural occlusion edge) while also washing
+// out the thin 400-weight purity line far more than the bold 700-weight
+// name/dosage text at the same nominal opacity. Dropping blur fixed the
+// clip-edge artifact, but the purity/name opacity mismatch turned out to
+// be inherent to opacity math on thin vs. bold strokes, not the blur --
+// so purity gets its own higher opacity here to read as equally faded.
 function vialLabelGroup({ vialIndex, clipId, layout, dosage, dosageMetrics, purity, opacity = 1 }) {
   const centerX = VIAL_CENTERS[vialIndex];
   const [clipLeft, clipRight] = VIAL_VISIBLE_RANGES[vialIndex];
+  const purityOpacity = opacity < 1 ? Math.min(1, opacity * BACKGROUND_PURITY_OPACITY_BOOST) : opacity;
 
   const nameEls = layout.nameLines
     .map((line) => textEl({ text: line.text, centerX, yCenter: line.yCenter, fontSize: line.fontSize, color: TEXT_COLOR }))
@@ -243,17 +257,30 @@ function vialLabelGroup({ vialIndex, clipId, layout, dosage, dosageMetrics, puri
     color: TEXT_COLOR, weight: PURITY.weight,
   });
 
-  const filterAttr = opacity < 1 ? ` filter="url(#vial-blur)"` : '';
   return `
     <clipPath id="${clipId}"><rect x="${clipLeft}" y="0" width="${clipRight - clipLeft}" height="${CANVAS}"/></clipPath>
-    <g clip-path="url(#${clipId})" opacity="${opacity}"${filterAttr}>
-      ${nameEls}
-      ${dosageEl}
-      ${purityEl}
+    <g clip-path="url(#${clipId})">
+      <g opacity="${opacity}">
+        ${nameEls}
+        ${dosageEl}
+      </g>
+      <g opacity="${purityOpacity}">
+        ${purityEl}
+      </g>
     </g>`;
 }
 
-async function generate({ name, dosage, purity, slugSuffix = '' }) {
+// outDir defaults to images/ for direct CLI use, but callers doing a batch
+// rename afterward (generate-kit-batch.js) MUST pass a scratch directory
+// instead. The natural slug here is derived from `name`+`dosage` alone, and
+// once "Kit" was dropped from the rendered name those can collide exactly
+// with a real standalone product's own image filename (e.g. "BPC-157" 10mg
+// slugs to the same path as the real bpc-157-10mg-tpl.webp product image).
+// Writing straight into images/ overwrites that real file, then the
+// batch's rename moves it away entirely -- this silently destroyed 13 real
+// product images twice before being caught. Routing through a scratch dir
+// makes that collision structurally impossible, not just unlikely.
+async function generate({ name, dosage, purity, slugSuffix = '', outDir = OUT_DIR }) {
   const base = await sharp(TEMPLATE)
     .resize(CANVAS, CANVAS, { kernel: 'lanczos3' })
     .toBuffer();
@@ -274,12 +301,10 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
     )
     .join('\n');
 
-  const compositeSvg = Buffer.from(`<svg width="${CANVAS}" height="${CANVAS}">
-    <defs><filter id="vial-blur"><feGaussianBlur stdDeviation="1.6"/></filter></defs>
-    ${groups}</svg>`);
+  const compositeSvg = Buffer.from(`<svg width="${CANVAS}" height="${CANVAS}">${groups}</svg>`);
 
   const slug = slugify(name, dosage) + slugSuffix;
-  const outPath = path.join(OUT_DIR, slug + '.webp');
+  const outPath = path.join(outDir, slug + '.webp');
   await sharp(base)
     .composite([{ input: compositeSvg }])
     .webp({ quality: 92 })
