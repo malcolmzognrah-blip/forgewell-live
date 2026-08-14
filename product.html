@@ -1285,8 +1285,12 @@ function wireProductInteractions(product, trailIds, siblings) {
 // Base reference records for blend/kit products -- intentionally $0, never
 // meant to be sold standalone. Confirmed intentional, not a pending-Apex
 // gap. Same handling as missing-image products: not reachable as their own
-// page, not shown in the shop grid.
-var EXCLUDED_COMPONENT_IDS = ['cjc-1295', 'semax', 'selank', 'mt-2', 'pt-141'];
+// page, not shown in the shop grid. mt-2/pt-141 were removed from this
+// list -- both are now real, priced, sellable products (see
+// klow-mt2-pt141-and-8-kit-splits.sql), unlike cjc-1295/semax/selank,
+// which stay excluded since they have real combo-product alternatives
+// (CJC-1295/Ipamorelin, Semax/Selank) instead of a standalone listing.
+var EXCLUDED_COMPONENT_IDS = ['cjc-1295', 'semax', 'selank'];
 
 async function initProductPage() {
   var id = getQueryParam('id');

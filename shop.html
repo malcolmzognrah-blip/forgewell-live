@@ -342,8 +342,10 @@ function saveShopState() {
 // Ids that are base component records for blend/kit products -- intentionally
 // $0, never meant to be sold standalone. Excluded from the shop grid and
 // from the size-selector on product pages. Confirmed intentional, not a
-// pending-Apex pricing gap.
-const EXCLUDED_COMPONENT_IDS = ['cjc-1295', 'semax', 'selank', 'mt-2', 'pt-141'];
+// pending-Apex pricing gap. mt-2/pt-141 removed -- both are now real,
+// priced, sellable products; cjc-1295/semax/selank stay excluded since
+// they have real combo-product alternatives instead of a standalone listing.
+const EXCLUDED_COMPONENT_IDS = ['cjc-1295', 'semax', 'selank'];
 
 // Category tab colors -- assigned round-robin from real category values
 // found in the live data, since the old hardcoded 5-category taxonomy
