@@ -207,6 +207,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .product-section{max-width:1200px; margin:36px auto 0; padding:0 24px;}
 @media (max-width:600px){ .product-section{ padding-left:16px; padding-right:16px; } }
 .product-section h2{font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;}
+.product-section h3{font-size:0.95rem; color:var(--navy-dark); margin:22px 0 10px;}
+.product-section h3:first-of-type{margin-top:0;}
 .research-text{font-size:0.88rem; line-height:1.7; color:#333;}
 
 table.tech-table{width:100%; border-collapse:collapse; font-size:0.85rem;}
@@ -881,17 +883,36 @@ function renderProduct(product, siblings) {
     sizeOptionsHtml += buildSelectorHtml('SELECT PACK SIZE', 'pack-options', packSizeValues, product.pack_size, product.dosage, true);
   }
 
-  var techRows = '';
-  var techFields = [
-    ['CAS Number', product.cas_number],
-    ['Molecular Formula', product.molecular_formula],
-    ['Molecular Weight', product.molecular_weight],
-    ['Sequence', product.sequence],
-    ['PubChem CID', product.pubchem_cid],
-    ['Lot Number', product.lot],
+  // Current-Batch Specifications + Analytical Results together make up the
+  // Quality & Testing section (see render below) -- both are sourced from
+  // product_specs, a denormalized snapshot of whichever product_coas row is
+  // latest by batch_date (kept in sync by the backend on every COA
+  // upload/edit/delete). Product and Application are always present, and
+  // spec_purity always has a '99%' fallback baked into the API's join even
+  // before any real COA exists, so both tables always render at least one
+  // row; every other field follows the same "only show it if present" rule
+  // techFields used, so a product with no COA yet just omits those rows.
+  var batchSpecRows = '';
+  var batchSpecFields = [
+    ['Product', product.name],
+    ['Appearance', product.spec_appearance],
+    ['Current lot', product.spec_current_lot],
+    ['Net Content Average', product.spec_net_content_average],
   ];
-  techFields.forEach(function(f) {
-    if (f[1]) techRows += '<tr><th>' + f[0] + '</th><td>' + f[1] + '</td></tr>';
+  batchSpecFields.forEach(function(f) {
+    if (f[1]) batchSpecRows += '<tr><th>' + f[0] + '</th><td>' + f[1] + '</td></tr>';
+  });
+
+  var analyticalRows = '';
+  var analyticalFields = [
+    ['Purity (HPLC-UV)', product.spec_purity],
+    ['Endotoxin Threshold', product.spec_endotoxin_threshold],
+    ['Microbial Analysis (PCR)', product.spec_microbial_analysis],
+    ['Fentanyl Screen', product.spec_fentanyl_screen],
+    ['Application', 'Laboratory research use only'],
+  ];
+  analyticalFields.forEach(function(f) {
+    if (f[1]) analyticalRows += '<tr><th>' + f[0] + '</th><td>' + f[1] + '</td></tr>';
   });
 
   var verificationNote = '';
@@ -996,7 +1017,10 @@ function renderProduct(product, siblings) {
 
     descriptionHtml +
 
-    (techRows ? '<div class="product-section"><h2>Technical Data</h2><table class="tech-table">' + techRows + '</table></div>' : '');
+    '<div class="product-section"><h2>Quality & Testing</h2>' +
+      '<h3>Current-Batch Specifications</h3><table class="tech-table">' + batchSpecRows + '</table>' +
+      '<h3>Analytical Results</h3><table class="tech-table">' + analyticalRows + '</table>' +
+    '</div>';
 
   wireProductInteractions(product, trailIds, siblings);
   loadProductCoas(product);
