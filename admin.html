@@ -30,6 +30,27 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .filters input{ flex:1; min-width:200px; }
 .filters button{ padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
 
+.admin-tabs{ display:flex; gap:4px; margin-bottom:20px; border-bottom:1.5px solid var(--line); }
+.admin-tab{ padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1.5px; font-size:0.85rem; font-weight:700; color:var(--gray); cursor:pointer; }
+.admin-tab.active{ color:var(--navy); border-bottom-color:var(--navy); }
+.admin-view{ display:none; }
+.admin-view.active{ display:block; }
+
+.coa-panel{ max-width:640px; }
+.coa-panel label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:14px 0 5px; }
+.coa-panel label:first-of-type{ margin-top:0; }
+.coa-panel input[type="text"], .coa-panel input[type="date"], .coa-panel select{ width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
+.coa-fields{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-top:6px; padding-top:10px; border-top:1px solid var(--line); }
+.coa-extract-status{ font-size:0.8rem; color:var(--gray); margin-top:8px; }
+.coa-mismatch-warning{ background:#FDECD2; color:#9A6B1E; font-size:0.8rem; padding:10px 12px; border-radius:6px; margin-top:12px; display:none; }
+.coa-mismatch-warning.show{ display:block; }
+.coa-save-btn{ margin-top:20px; padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+.coa-save-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.coa-save-status{ font-size:0.82rem; margin-top:10px; display:none; }
+.coa-save-status.show{ display:block; }
+.coa-save-status.error{ color:#c0392b; }
+.coa-save-status.success{ color:#1F7A34; }
+
 table.orders-table{ width:100%; border-collapse:collapse; font-size:0.82rem; }
 table.orders-table th{ text-align:left; padding:10px; background:var(--panel); border-bottom:2px solid var(--line); color:var(--navy-dark); position:sticky; top:0; }
 table.orders-table td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -57,6 +78,12 @@ table.orders-table tr:hover{ background:var(--panel); }
 </div>
 
 <div class="admin-wrap" id="admin-wrap">
+  <div class="admin-tabs">
+    <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
+    <button type="button" class="admin-tab" id="tab-coas">Certificates of Analysis</button>
+  </div>
+
+  <div class="admin-view active" id="view-orders">
   <div class="filters">
     <input type="text" id="filter-email" placeholder="Filter by customer email...">
     <select id="filter-status">
@@ -81,6 +108,56 @@ table.orders-table tr:hover{ background:var(--panel); }
     </thead>
     <tbody id="orders-tbody"></tbody>
   </table>
+  </div>
+
+  <div class="admin-view coa-panel" id="view-coas">
+    <label for="coa-product-select">Product</label>
+    <select id="coa-product-select"><option value="">Loading products...</option></select>
+
+    <label for="coa-file-input">COA PDF</label>
+    <input type="file" id="coa-file-input" accept="application/pdf">
+    <p class="coa-extract-status" id="coa-extract-status"></p>
+
+    <p class="coa-mismatch-warning" id="coa-mismatch-warning"></p>
+
+    <div class="coa-fields" id="coa-fields" style="display:none;">
+      <div>
+        <label for="coa-batch-lot">Lot Number</label>
+        <input type="text" id="coa-batch-lot">
+      </div>
+      <div>
+        <label for="coa-batch-date">Batch Date</label>
+        <input type="date" id="coa-batch-date">
+      </div>
+      <div>
+        <label for="coa-appearance">Appearance</label>
+        <input type="text" id="coa-appearance">
+      </div>
+      <div>
+        <label for="coa-net-content">Net Content Average</label>
+        <input type="text" id="coa-net-content">
+      </div>
+      <div>
+        <label for="coa-purity">Purity (HPLC-UV)</label>
+        <input type="text" id="coa-purity">
+      </div>
+      <div>
+        <label for="coa-endotoxin">Endotoxin Threshold</label>
+        <input type="text" id="coa-endotoxin">
+      </div>
+      <div>
+        <label for="coa-microbial">Microbial Analysis (PCR)</label>
+        <input type="text" id="coa-microbial">
+      </div>
+      <div>
+        <label for="coa-fentanyl">Fentanyl Screen</label>
+        <input type="text" id="coa-fentanyl">
+      </div>
+    </div>
+
+    <button type="button" class="coa-save-btn" id="coa-save-btn" style="display:none;">Save Certificate</button>
+    <p class="coa-save-status" id="coa-save-status"></p>
+  </div>
 </div>
 
 <script>
@@ -135,6 +212,82 @@ function showLogin() {
   document.getElementById('admin-logout-link').style.display = 'none';
 }
 
+function showOrdersTab() {
+  document.getElementById('tab-coas').classList.remove('active');
+  document.getElementById('tab-orders').classList.add('active');
+  document.getElementById('view-coas').classList.remove('active');
+  document.getElementById('view-orders').classList.add('active');
+}
+
+function showCoaTab() {
+  document.getElementById('tab-orders').classList.remove('active');
+  document.getElementById('tab-coas').classList.add('active');
+  document.getElementById('view-orders').classList.remove('active');
+  document.getElementById('view-coas').classList.add('active');
+  loadCoaProducts();
+}
+
+// Lazy-loaded (and cached) the same live catalog every other page fetches
+// from GET /api/products, rather than a dedicated admin endpoint -- there's
+// nothing admin-specific about "list of products" here.
+var coaProductsLoaded = false;
+function loadCoaProducts() {
+  if (coaProductsLoaded) return;
+  coaProductsLoaded = true;
+  fetch('/api/products', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(products) {
+      var select = document.getElementById('coa-product-select');
+      select.innerHTML = '<option value="">Select a product...</option>' +
+        products.map(function(p) { return '<option value="' + p.id + '">' + p.name + '</option>'; }).join('');
+    })
+    .catch(function() {
+      document.getElementById('coa-product-select').innerHTML = '<option value="">Could not load products</option>';
+      coaProductsLoaded = false;
+    });
+}
+
+// Set by the extraction response, read by checkProductMismatch() and cleared
+// by resetCoaForm() -- extraction only ever runs again on a new file pick.
+var lastCoaExtraction = null;
+
+// Nudge, not a hard stop (see plan): naming conventions between the PDF's
+// "Product:" line and the catalog's product.name won't always line up
+// character-for-character, so this is a loose two-way substring check, not
+// an exact-match gate on Save.
+function checkProductMismatch() {
+  var warningEl = document.getElementById('coa-mismatch-warning');
+  if (!lastCoaExtraction || !lastCoaExtraction.product_name_on_coa) {
+    warningEl.classList.remove('show');
+    return;
+  }
+  var select = document.getElementById('coa-product-select');
+  var selectedOption = select.options[select.selectedIndex];
+  var selectedName = selectedOption ? selectedOption.text : '';
+  if (!selectedName) {
+    warningEl.classList.remove('show');
+    return;
+  }
+  var coaName = lastCoaExtraction.product_name_on_coa.toLowerCase();
+  var prodName = selectedName.toLowerCase();
+  if (coaName.indexOf(prodName) !== -1 || prodName.indexOf(coaName) !== -1) {
+    warningEl.classList.remove('show');
+  } else {
+    warningEl.textContent = 'This PDF appears to be for "' + lastCoaExtraction.product_name_on_coa +
+      '", but you selected "' + selectedName + '". Double check before saving.';
+    warningEl.classList.add('show');
+  }
+}
+
+function resetCoaForm() {
+  document.getElementById('coa-file-input').value = '';
+  document.getElementById('coa-fields').style.display = 'none';
+  document.getElementById('coa-save-btn').style.display = 'none';
+  document.getElementById('coa-extract-status').textContent = '';
+  document.getElementById('coa-mismatch-warning').classList.remove('show');
+  lastCoaExtraction = null;
+}
+
 document.getElementById('admin-login-btn').addEventListener('click', function() {
   var pw = document.getElementById('admin-password-input').value;
   var errorEl = document.getElementById('admin-login-error');
@@ -162,6 +315,114 @@ document.getElementById('admin-password-input').addEventListener('keydown', func
 
 document.getElementById('filter-btn').addEventListener('click', loadOrders);
 document.getElementById('filter-email').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
+
+document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
+document.getElementById('tab-coas').addEventListener('click', showCoaTab);
+
+document.getElementById('coa-product-select').addEventListener('change', checkProductMismatch);
+
+document.getElementById('coa-file-input').addEventListener('change', function() {
+  var file = this.files[0];
+  var statusEl = document.getElementById('coa-extract-status');
+  var fieldsEl = document.getElementById('coa-fields');
+  var saveBtn = document.getElementById('coa-save-btn');
+  document.getElementById('coa-mismatch-warning').classList.remove('show');
+  lastCoaExtraction = null;
+  if (!file) {
+    fieldsEl.style.display = 'none';
+    saveBtn.style.display = 'none';
+    statusEl.textContent = '';
+    return;
+  }
+
+  statusEl.textContent = 'Extracting fields from PDF...';
+  var formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/admin/coa-extract', { method: 'POST', credentials: 'include', body: formData })
+    .then(function(res) {
+      if (!res.ok) throw new Error('extraction failed');
+      return res.json();
+    })
+    .then(function(data) {
+      lastCoaExtraction = data;
+      statusEl.textContent = 'Fields extracted — review before saving.';
+      document.getElementById('coa-batch-lot').value = data.current_lot || '';
+      document.getElementById('coa-batch-date').value = data.batch_date_guess || '';
+      document.getElementById('coa-appearance').value = data.appearance || '';
+      document.getElementById('coa-net-content').value = data.net_content_average || '';
+      document.getElementById('coa-purity').value = data.purity || '';
+      document.getElementById('coa-endotoxin').value = data.endotoxin_threshold || '';
+      document.getElementById('coa-microbial').value = data.microbial_analysis || '';
+      document.getElementById('coa-fentanyl').value = data.fentanyl_screen || '';
+      fieldsEl.style.display = 'grid';
+      saveBtn.style.display = 'inline-block';
+      checkProductMismatch();
+    })
+    .catch(function() {
+      // Auto-extraction failing (endpoint down, unreadable PDF, unrecognized
+      // layout) still leaves a fully usable blank form -- same fail-quiet
+      // convention as loadProductCoas() on product.html: extraction is a
+      // convenience on top of manual entry, never a requirement for it.
+      statusEl.textContent = 'Could not auto-extract fields — enter them manually below.';
+      fieldsEl.style.display = 'grid';
+      saveBtn.style.display = 'inline-block';
+    });
+});
+
+document.getElementById('coa-save-btn').addEventListener('click', function() {
+  var saveBtn = this;
+  var productId = document.getElementById('coa-product-select').value;
+  var file = document.getElementById('coa-file-input').files[0];
+  var statusEl = document.getElementById('coa-save-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!productId) {
+    statusEl.textContent = 'Select a product first.';
+    statusEl.classList.add('show', 'error');
+    return;
+  }
+  if (!file) {
+    statusEl.textContent = 'Choose a COA PDF first.';
+    statusEl.classList.add('show', 'error');
+    return;
+  }
+
+  saveBtn.disabled = true;
+  var formData = new FormData();
+  formData.append('file', file);
+  formData.append('batch_lot', document.getElementById('coa-batch-lot').value.trim());
+  formData.append('batch_date', document.getElementById('coa-batch-date').value);
+  formData.append('appearance', document.getElementById('coa-appearance').value.trim());
+  formData.append('net_content_average', document.getElementById('coa-net-content').value.trim());
+  formData.append('purity', document.getElementById('coa-purity').value.trim());
+  formData.append('endotoxin_threshold', document.getElementById('coa-endotoxin').value.trim());
+  formData.append('microbial_analysis', document.getElementById('coa-microbial').value.trim());
+  formData.append('fentanyl_screen', document.getElementById('coa-fentanyl').value.trim());
+
+  fetch('/api/admin/products/' + encodeURIComponent(productId) + '/coas', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      saveBtn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save certificate.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Certificate saved.';
+      statusEl.classList.add('show', 'success');
+      resetCoaForm();
+    })
+    .catch(function() {
+      saveBtn.disabled = false;
+      statusEl.textContent = 'Could not save certificate.';
+      statusEl.classList.add('show', 'error');
+    });
+});
 
 document.getElementById('admin-logout-link').addEventListener('click', function(e) {
   e.preventDefault();
