@@ -672,11 +672,13 @@ Promise.all([
 });
 
 function buildCardHtml(group) {
-  // group = {baseId, name, category, lowestPrice, lot, dosage, imgUrl}
+  // group = {baseId, name, category, lowestPrice, highestPrice, lot, dosage, imgUrl}
   const meta = categoryMeta(group.category);
-  const priceLabel = group.lowestPrice > 0
-    ? (group.multi ? 'From $' + group.lowestPrice.toFixed(2) : '$' + group.lowestPrice.toFixed(2))
-    : '$XX';
+  const priceLabel = group.category === 'kit' && group.multi && group.highestPrice > group.lowestPrice
+    ? '$' + group.lowestPrice.toFixed(2) + '–$' + group.highestPrice.toFixed(2)
+    : group.lowestPrice > 0
+      ? (group.multi ? 'From $' + group.lowestPrice.toFixed(2) : '$' + group.lowestPrice.toFixed(2))
+      : '$XX';
   return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +

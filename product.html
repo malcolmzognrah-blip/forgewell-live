@@ -175,6 +175,19 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .buy-buttons{display:flex; gap:10px; margin-bottom:20px;}
 .btn-add{flex:1; padding:14px; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
 .btn-buy{flex:1; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
+.btn-add:disabled, .btn-buy:disabled, .qty-stepper button:disabled{opacity:0.5; cursor:not-allowed; pointer-events:none;}
+
+.notify-btn{display:block; width:100%; padding:12px; margin:-10px 0 20px; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
+
+#notify-modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;}
+#notify-modal-overlay.active{display:flex;}
+#notify-modal{background:#fff; border-radius:12px; max-width:380px; width:90%; padding:28px 24px; position:relative; text-align:center;}
+#notify-modal-close{position:absolute; top:10px; right:14px; background:none; border:none; font-size:22px; color:var(--gray); cursor:pointer; line-height:1;}
+#notify-modal h3{color:var(--navy); margin:0 0 8px; font-size:1.15rem;}
+#notify-modal p{color:var(--gray); font-size:0.85rem; margin:0 0 16px;}
+#notify-modal-input{width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.9rem; margin-bottom:8px; box-sizing:border-box;}
+#notify-modal-error{color:#c0392b; font-size:0.78rem; min-height:16px; margin-bottom:6px;}
+#notify-modal-submit{width:100%; padding:12px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
 
 .trust-note{font-size:0.75rem; color:var(--gray); margin-top:20px; padding-top:16px; border-top:1px solid var(--line); margin-bottom:10px;}
 .trust-badges{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; margin-bottom:6px;}
@@ -489,6 +502,19 @@ function baseLabel(name) {
   return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
 }
 
+// Kit names are formatted "<Family> Kit (<dosage>, <N>-Pack)" -- the
+// ", N-Pack" text before the closing paren means baseLabel()'s regex never
+// matches, so a kit's sibling variants (other dosage/pack-size combos)
+// never grouped and this page's "SELECT MG" selector never appeared for
+// kits. Strip the whole trailing parenthetical instead, but only for
+// kits -- broadening baseLabel() itself would also wrongly merge unrelated
+// non-kit products that happen to end in parens.
+function groupKeyFor(p) {
+  return p.category === 'kit'
+    ? p.name.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    : baseLabel(p.name);
+}
+
 // Siblings are already grouped by baseLabel(), so they always share one unit
 // (mg/mcg/iu/ml) -- comparing the leading number alone is enough to order
 // them correctly. Unparsable values sort last instead of throwing.
@@ -789,6 +815,33 @@ function renderProduct(product, siblings) {
   var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
   var kitsAvailableHtml = buildKitsAvailableSection(product, allProducts);
 
+  // stock_status is a manually-set flag (see products.stock_status), not a
+  // count -- anything other than the literal string 'out_of_stock' (including
+  // it being missing entirely) is treated as in-stock, so a data gap never
+  // blocks a sale.
+  var isOutOfStock = product.stock_status === 'out_of_stock';
+  var notifySectionHtml = '';
+  if (isOutOfStock) {
+    notifySectionHtml =
+      '<button type="button" class="notify-btn" id="notify-btn">Notify When In Stock</button>' +
+      '<div id="notify-modal-overlay">' +
+        '<div id="notify-modal">' +
+          '<button type="button" id="notify-modal-close" aria-label="Close">&times;</button>' +
+          '<div id="notify-modal-step-form">' +
+            '<h3>Notify Me</h3>' +
+            '<p>We&rsquo;ll email you when this item is back in stock.</p>' +
+            '<input type="email" id="notify-modal-input" placeholder="you@example.com">' +
+            '<div id="notify-modal-error"></div>' +
+            '<button type="button" id="notify-modal-submit">Notify Me</button>' +
+          '</div>' +
+          '<div id="notify-modal-step-success" style="display:none;">' +
+            '<h3>You&rsquo;re All Set</h3>' +
+            '<p>We&rsquo;ll email you when this item is back in stock.</p>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
   // Full-width section below product-main, placed after Suggested Essentials
   // (not inside buy-col) -- uses .product-section like Suggested Essentials
   // and Technical Data below it.
@@ -815,15 +868,16 @@ function renderProduct(product, siblings) {
           sizeOptionsHtml +
           '<div class="qty-row">' +
             '<div class="qty-stepper">' +
-              '<button id="qty-minus" type="button">-</button>' +
+              '<button id="qty-minus" type="button"' + (isOutOfStock ? ' disabled' : '') + '>-</button>' +
               '<input type="text" id="qty-input" value="1" readonly>' +
-              '<button id="qty-plus" type="button">+</button>' +
+              '<button id="qty-plus" type="button"' + (isOutOfStock ? ' disabled' : '') + '>+</button>' +
             '</div>' +
           '</div>' +
           '<div class="buy-buttons">' +
-            '<button class="btn-add" id="add-to-cart-btn">Add to Cart</button>' +
-            '<button class="btn-buy" id="buy-now-btn">Buy Now</button>' +
+            '<button class="btn-add" id="add-to-cart-btn"' + (isOutOfStock ? ' disabled' : '') + '>Add to Cart</button>' +
+            '<button class="btn-buy" id="buy-now-btn"' + (isOutOfStock ? ' disabled' : '') + '>' + (isOutOfStock ? 'Out of Stock' : 'Buy Now') + '</button>' +
           '</div>' +
+          notifySectionHtml +
           kitsAvailableHtml +
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<p class="trust-note">For laboratory research use only.</p>' +
@@ -1062,6 +1116,53 @@ function wireProductInteractions(product, trailIds) {
       }
     });
   }
+
+  // Only exists in the DOM when the product is out_of_stock (see renderProduct).
+  var notifyBtn = document.getElementById('notify-btn');
+  if (notifyBtn) {
+    var notifyOverlay = document.getElementById('notify-modal-overlay');
+    var notifyInput = document.getElementById('notify-modal-input');
+    var notifyError = document.getElementById('notify-modal-error');
+    var notifyFormStep = document.getElementById('notify-modal-step-form');
+    var notifySuccessStep = document.getElementById('notify-modal-step-success');
+
+    notifyBtn.addEventListener('click', function() {
+      notifyOverlay.classList.add('active');
+    });
+    document.getElementById('notify-modal-close').addEventListener('click', function() {
+      notifyOverlay.classList.remove('active');
+    });
+    notifyOverlay.addEventListener('click', function(e) {
+      if (e.target === notifyOverlay) notifyOverlay.classList.remove('active');
+    });
+    document.getElementById('notify-modal-submit').addEventListener('click', function() {
+      var email = notifyInput.value.trim();
+      if (!email || email.indexOf('@') === -1) {
+        notifyError.textContent = 'Please enter a valid email address.';
+        return;
+      }
+      notifyError.textContent = '';
+      fetch('/api/stock-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id, email: email }),
+      })
+        .then(function(res) {
+          return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+        })
+        .then(function(result) {
+          if (!result.ok) {
+            notifyError.textContent = result.data.error || 'Something went wrong, please try again.';
+            return;
+          }
+          notifyFormStep.style.display = 'none';
+          notifySuccessStep.style.display = '';
+        })
+        .catch(function() {
+          notifyError.textContent = 'Something went wrong, please try again.';
+        });
+    });
+  }
 }
 
 // Base reference records for blend/kit products -- intentionally $0, never
@@ -1091,9 +1192,9 @@ async function initProductPage() {
       return;
     }
 
-    var base = baseLabel(product.name);
+    var base = groupKeyFor(product);
     var siblings = products.filter(function(p) {
-      return baseLabel(p.name) === base && EXCLUDED_COMPONENT_IDS.indexOf(p.id) === -1;
+      return groupKeyFor(p) === base && EXCLUDED_COMPONENT_IDS.indexOf(p.id) === -1;
     });
 
     renderProduct(product, siblings);

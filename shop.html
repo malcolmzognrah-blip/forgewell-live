@@ -375,6 +375,21 @@ function baseLabel(name) {
   return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
 }
 
+// Kit names are formatted "<Family> Kit (<dosage>, <N>-Pack)" -- the
+// ", N-Pack" text before the closing paren means baseLabel()'s regex
+// (which expects the string to end right after the dosage/unit) never
+// matches, so kits never grouped under baseLabel() alone. Strip the whole
+// trailing parenthetical instead, but only for kits -- broadening
+// baseLabel() itself to strip any trailing parenthetical would also wrongly
+// merge unrelated non-kit products that happen to end in parens (e.g. two
+// differently-sized "Insulin Needles (Large pack)" / "(Small pack)"
+// listings).
+function groupKeyFor(p) {
+  return p.category === 'kit'
+    ? p.name.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    : baseLabel(p.name);
+}
+
 function resolveImagePath(path) {
   if (!path) return null;
   if (path.indexOf('http') === 0) return path;
@@ -559,11 +574,13 @@ Promise.all([
 });
 
 function buildCardHtml(group) {
-  // group = {baseId, name, category, lowestPrice, lot, dosage, imgUrl}
+  // group = {baseId, name, category, lowestPrice, highestPrice, lot, dosage, imgUrl}
   const meta = categoryMeta(group.category);
-  const priceLabel = group.lowestPrice > 0
-    ? (group.multi ? 'From $' + group.lowestPrice.toFixed(2) : '$' + group.lowestPrice.toFixed(2))
-    : '$XX';
+  const priceLabel = group.category === 'kit' && group.multi && group.highestPrice > group.lowestPrice
+    ? '$' + group.lowestPrice.toFixed(2) + '–$' + group.highestPrice.toFixed(2)
+    : group.lowestPrice > 0
+      ? (group.multi ? 'From $' + group.lowestPrice.toFixed(2) : '$' + group.lowestPrice.toFixed(2))
+      : '$XX';
   return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +
@@ -599,10 +616,10 @@ async function renderShopGrid() {
     if (EXCLUDED_COMPONENT_IDS.indexOf(p.id) !== -1) return;
     const imgUrl = resolveImagePath(p.image_path);
     if (!imgUrl) return; // image-matching display rule: no image, no listing
-    const base = baseLabel(p.name);
+    const base = groupKeyFor(p);
     if (!groups[base]) {
       groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
-        lowestPrice: p.price, lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1 };
+        lowestPrice: p.price, highestPrice: p.price, lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1 };
     } else {
       groups[base].count += 1;
       groups[base].multi = true;
@@ -611,6 +628,9 @@ async function renderShopGrid() {
         groups[base].baseId = p.id; // link to the cheapest tier
         groups[base].dosage = p.dosage;
         groups[base].lot = p.lot;
+      }
+      if (p.price > 0 && p.price > groups[base].highestPrice) {
+        groups[base].highestPrice = p.price;
       }
     }
   });
