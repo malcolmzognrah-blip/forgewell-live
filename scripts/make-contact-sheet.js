@@ -7,9 +7,8 @@ const path = require('path');
 
 const IMAGES_DIR = path.join(__dirname, '..', 'images');
 const IDS = [
-  '5-amino-1mq','cagrilintide','chonluten','crystagen','epithalon','ghrp-2',
-  'glow-pro-blend','hexarelin','igf1-lr3','kisspeptin','ll-37','mt-1','ovagen',
-  'pancragen','pnc-27','snap-8','thymalin','vesugen',
+  'adamax','ara-290','bronchogen','cartalax','cortagen','ghrp-6',
+  'livagen','pinealon','prostamax','survodutide','testagen',
 ];
 
 const TILE = 260;
