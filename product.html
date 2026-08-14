@@ -514,6 +514,39 @@ function groupKeyFor(p) {
     : baseLabel(p.name);
 }
 
+// A kit's base_product_id is a stem (e.g. 'bpc-157'), not a literal row id
+// -- the same matching rule findRelatedKits() already uses in the other
+// direction (vial -> its kits) applies here too: a vial backs this kit if
+// its id is the stem exactly or starts with "<stem>-", AND its dosage
+// matches. Verified against the live catalog: 65 of 68 kits resolve to
+// exactly one backing vial this way, 0 resolve to more than one. The 3
+// that resolve to none are expected, not bugs -- klow-kit has no
+// base_product_id at all (multi-bioregulator blend, no single base), and
+// mt-2-kit/pt-141-kit point at mt-2/pt-141, which are 2 of the 5
+// EXCLUDED_COMPONENT_IDS ($0, never sold standalone) -- MT-2 and PT-141
+// are only ever sold via their kits, so there's genuinely no vial to check.
+function findBackingVial(product) {
+  if (product.category !== 'kit' || !product.base_product_id) return null;
+  var base = product.base_product_id;
+  return allProducts.filter(function(p) {
+    return p.category !== 'kit' &&
+      (p.id === base || p.id.indexOf(base + '-') === 0) &&
+      p.dosage === product.dosage;
+  })[0] || null;
+}
+
+// stock_status stays a simple, directly-set manual flag on every row
+// (including kits) -- this doesn't write or sync anything, it just also
+// checks the kit's backing vial (if any) at read time, so a kit never
+// shows as buyable when the thing it's actually built from isn't
+// available, without needing a trigger or any risk of stale propagated
+// state.
+function isEffectivelyOutOfStock(product) {
+  if (product.stock_status === 'out_of_stock') return true;
+  var vial = findBackingVial(product);
+  return !!vial && vial.stock_status === 'out_of_stock';
+}
+
 // Extracts the leading number from a dosage/pack-size string for sorting
 // (e.g. "10mg" -> 10, "5-Pack" -> 5). Unparsable values sort last instead
 // of throwing.
@@ -818,17 +851,24 @@ function renderProduct(product, siblings) {
   // pack-size-given-dosage, so neither selector can ever lead to a
   // nonexistent row no matter which one a visitor touches first. For a
   // single-axis family (packSize always null on every sibling) this
-  // reduces to a plain dosage match and never disables anything.
-  function comboExists(dosage, packSize) {
-    return siblings.some(function(s) { return s.dosage === dosage && s.pack_size === packSize; });
+  // reduces to a plain dosage match and never disables anything. Also
+  // disables a combo whose row exists but is a kit that's effectively out
+  // of stock (its own flag, or its backing vial's) -- scoped to kits only,
+  // so a plain peptide's sibling pills don't grey out based on another
+  // tier's stock (only that tier's own buy buttons react to its own flag).
+  function comboAvailable(dosage, packSize) {
+    var match = siblings.filter(function(s) { return s.dosage === dosage && s.pack_size === packSize; })[0];
+    if (!match) return false;
+    if (match.category === 'kit' && isEffectivelyOutOfStock(match)) return false;
+    return true;
   }
 
   function buildSelectorHtml(label, id, values, activeValue, otherActiveValue, isPackAxis) {
     return '<div class="size-selector"><label>' + label + '</label><div class="size-options" id="' + id + '">' +
       values.map(function(v) {
         var active = v === activeValue;
-        var exists = isPackAxis ? comboExists(otherActiveValue, v) : comboExists(v, otherActiveValue);
-        var cls = 'size-option' + (active ? ' active' : '') + (exists ? '' : ' disabled');
+        var available = isPackAxis ? comboAvailable(otherActiveValue, v) : comboAvailable(v, otherActiveValue);
+        var cls = 'size-option' + (active ? ' active' : '') + (available ? '' : ' disabled');
         return '<div class="' + cls + '" data-value="' + v + '">' + v + '</div>';
       }).join('') + '</div></div>';
   }
@@ -866,8 +906,10 @@ function renderProduct(product, siblings) {
   // stock_status is a manually-set flag (see products.stock_status), not a
   // count -- anything other than the literal string 'out_of_stock' (including
   // it being missing entirely) is treated as in-stock, so a data gap never
-  // blocks a sale.
-  var isOutOfStock = product.stock_status === 'out_of_stock';
+  // blocks a sale. For a kit, also effectively out of stock if the vial
+  // it's built from is (isEffectivelyOutOfStock reduces to the plain flag
+  // check for non-kits, so this is a strict superset of the old check).
+  var isOutOfStock = isEffectivelyOutOfStock(product);
   // "Notify When In Stock" takes over the Buy Now button's slot (see
   // buy-buttons markup below) rather than being a separate button, so this
   // only needs to build the modal itself.
