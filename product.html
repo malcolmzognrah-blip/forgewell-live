@@ -777,10 +777,21 @@ function renderProduct(product, siblings) {
   }
 
   var sizeOptionsHtml = '';
-  if (siblings.length > 1) {
+  // A product whose dosage is a generic, non-measurement placeholder
+  // ('vial', or the Insulin Needles pack-size text) has nothing real to
+  // show under a "SELECT MG" label -- every actual measured dosage value
+  // in the catalog starts with a digit (e.g. '10mg', '5mg/5mg', '75iu'),
+  // every placeholder doesn't, so that's the check. Matches the same
+  // "vial/pack isn't a real dosage" convention already used by
+  // scripts/generate-dosage-images.js, which omits the dosage box on the
+  // product image itself for the same reason.
+  var hasRealDosage = !!product.dosage && /^\d/.test(product.dosage);
+  if (siblings.length >= 1 && hasRealDosage) {
     // Siblings come back from /api/products in whatever order the backend
     // returns them (not necessarily dosage order), so sort smallest-to-largest
     // by the leading number in dosage (falling back to name) before rendering.
+    // A single-tier product's own siblings list is just itself, so this
+    // renders one already-"active" pill instead of a switchable set.
     var sortedSiblings = siblings.slice().sort(function(a, b) {
       return parseDosageValue(a) - parseDosageValue(b);
     });
