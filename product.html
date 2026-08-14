@@ -175,9 +175,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .buy-buttons{display:flex; gap:10px; margin-bottom:20px;}
 .btn-add{flex:1; padding:14px; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
 .btn-buy{flex:1; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
-.btn-add:disabled, .btn-buy:disabled, .qty-stepper button:disabled{opacity:0.5; cursor:not-allowed; pointer-events:none;}
-
-.notify-btn{display:block; width:100%; padding:12px; margin:-10px 0 20px; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
+.btn-add:disabled{opacity:0.5; cursor:not-allowed; pointer-events:none;}
 
 #notify-modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;}
 #notify-modal-overlay.active{display:flex;}
@@ -820,10 +818,12 @@ function renderProduct(product, siblings) {
   // it being missing entirely) is treated as in-stock, so a data gap never
   // blocks a sale.
   var isOutOfStock = product.stock_status === 'out_of_stock';
-  var notifySectionHtml = '';
+  // "Notify When In Stock" takes over the Buy Now button's slot (see
+  // buy-buttons markup below) rather than being a separate button, so this
+  // only needs to build the modal itself.
+  var notifyModalHtml = '';
   if (isOutOfStock) {
-    notifySectionHtml =
-      '<button type="button" class="notify-btn" id="notify-btn">Notify When In Stock</button>' +
+    notifyModalHtml =
       '<div id="notify-modal-overlay">' +
         '<div id="notify-modal">' +
           '<button type="button" id="notify-modal-close" aria-label="Close">&times;</button>' +
@@ -866,18 +866,18 @@ function renderProduct(product, siblings) {
           shortDescriptionHtml +
           '<div class="product-price">' + priceHtml + '</div>' +
           sizeOptionsHtml +
-          '<div class="qty-row">' +
+          '<div class="qty-row"' + (isOutOfStock ? ' style="display:none;"' : '') + '>' +
             '<div class="qty-stepper">' +
-              '<button id="qty-minus" type="button"' + (isOutOfStock ? ' disabled' : '') + '>-</button>' +
+              '<button id="qty-minus" type="button">-</button>' +
               '<input type="text" id="qty-input" value="1" readonly>' +
-              '<button id="qty-plus" type="button"' + (isOutOfStock ? ' disabled' : '') + '>+</button>' +
+              '<button id="qty-plus" type="button">+</button>' +
             '</div>' +
           '</div>' +
           '<div class="buy-buttons">' +
-            '<button class="btn-add" id="add-to-cart-btn"' + (isOutOfStock ? ' disabled' : '') + '>Add to Cart</button>' +
-            '<button class="btn-buy" id="buy-now-btn"' + (isOutOfStock ? ' disabled' : '') + '>' + (isOutOfStock ? 'Out of Stock' : 'Buy Now') + '</button>' +
+            '<button class="btn-add" id="add-to-cart-btn"' + (isOutOfStock ? ' disabled' : '') + '>' + (isOutOfStock ? 'Out of Stock' : 'Add to Cart') + '</button>' +
+            '<button class="btn-buy" id="buy-now-btn">' + (isOutOfStock ? 'Notify When In Stock' : 'Buy Now') + '</button>' +
           '</div>' +
-          notifySectionHtml +
+          notifyModalHtml +
           kitsAvailableHtml +
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<p class="trust-note">For laboratory research use only.</p>' +
@@ -1046,6 +1046,13 @@ function wireProductInteractions(product, trailIds) {
   });
 
   document.getElementById('buy-now-btn').addEventListener('click', function() {
+    // Out of stock: this button's slot/label is repurposed as "Notify When
+    // In Stock" (see renderProduct) -- open the modal instead of checking out.
+    if (product.stock_status === 'out_of_stock') {
+      var overlay = document.getElementById('notify-modal-overlay');
+      if (overlay) overlay.classList.add('active');
+      return;
+    }
     var qty = parseInt(qtyInput.value, 10) || 1;
     for (var i = 0; i < qty; i++) addToCart(product.id);
     window.location.href = '/checkout.html';
@@ -1118,17 +1125,13 @@ function wireProductInteractions(product, trailIds) {
   }
 
   // Only exists in the DOM when the product is out_of_stock (see renderProduct).
-  var notifyBtn = document.getElementById('notify-btn');
-  if (notifyBtn) {
-    var notifyOverlay = document.getElementById('notify-modal-overlay');
+  var notifyOverlay = document.getElementById('notify-modal-overlay');
+  if (notifyOverlay) {
     var notifyInput = document.getElementById('notify-modal-input');
     var notifyError = document.getElementById('notify-modal-error');
     var notifyFormStep = document.getElementById('notify-modal-step-form');
     var notifySuccessStep = document.getElementById('notify-modal-step-success');
 
-    notifyBtn.addEventListener('click', function() {
-      notifyOverlay.classList.add('active');
-    });
     document.getElementById('notify-modal-close').addEventListener('click', function() {
       notifyOverlay.classList.remove('active');
     });
