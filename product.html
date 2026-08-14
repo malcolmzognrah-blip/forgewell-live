@@ -166,6 +166,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .size-options{display:flex; flex-wrap:wrap; gap:8px;}
 .size-option{padding:9px 16px; border:1.5px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:'Quicksand',sans-serif; background:#fff;}
 .size-option.active{border-color:var(--navy); background:var(--navy); color:#fff;}
+.size-option.disabled{opacity:0.45; cursor:not-allowed; pointer-events:none;}
 
 .qty-row{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
 .qty-stepper{display:flex; align-items:center; border:1.5px solid var(--line); border-radius:6px; overflow:hidden;}
@@ -513,13 +514,19 @@ function groupKeyFor(p) {
     : baseLabel(p.name);
 }
 
+// Extracts the leading number from a dosage/pack-size string for sorting
+// (e.g. "10mg" -> 10, "5-Pack" -> 5). Unparsable values sort last instead
+// of throwing.
+function parseLeadingNumber(text) {
+  var m = String(text || '').match(/(\d+(\.\d+)?)/);
+  return m ? parseFloat(m[1]) : Infinity;
+}
+
 // Siblings are already grouped by baseLabel(), so they always share one unit
 // (mg/mcg/iu/ml) -- comparing the leading number alone is enough to order
-// them correctly. Unparsable values sort last instead of throwing.
+// them correctly.
 function parseDosageValue(product) {
-  var text = product.dosage || product.name || '';
-  var m = text.match(/(\d+(\.\d+)?)/);
-  return m ? parseFloat(m[1]) : Infinity;
+  return parseLeadingNumber(product.dosage || product.name);
 }
 
 function resolveImagePath(path) {
@@ -776,30 +783,62 @@ function renderProduct(product, siblings) {
     shortDescriptionHtml = '<div class="short-description">' + shortDescriptionHtml + '</div>';
   }
 
-  var sizeOptionsHtml = '';
-  // A product whose dosage is a generic, non-measurement placeholder
-  // ('vial', or the Insulin Needles pack-size text) has nothing real to
-  // show under a "SELECT MG" label -- every actual measured dosage value
-  // in the catalog starts with a digit (e.g. '10mg', '5mg/5mg', '75iu'),
-  // every placeholder doesn't, so that's the check. Matches the same
-  // "vial/pack isn't a real dosage" convention already used by
+  // Two independent axes, not one pill per sibling row -- a kit family
+  // varies along both dosage AND pack size (e.g. Tesamorelin Kit is
+  // 5/10/20mg x 5-Pack/10-Pack, 6 rows), so a naive one-pill-per-row model
+  // shows duplicate dosage labels with no way to pick a pack size. For
+  // non-kit products pack_size is always null on every sibling, so the
+  // Pack Size axis below simply never has a real value and that selector
+  // never renders -- this is one shared model for both cases, not a
+  // kit-specific branch.
+  //
+  // A generic, non-measurement placeholder ('vial' for dosage, 'pack' for
+  // pack_size on single-variant kits) has nothing real to show under a
+  // "SELECT MG"/"SELECT PACK SIZE" label -- every real value on either
+  // axis starts with a digit ('10mg', '5mg/5mg', '75iu', '5-Pack'), every
+  // placeholder doesn't, so that's the check both axes use. Matches the
+  // same "vial/pack isn't real" convention already used by
   // scripts/generate-dosage-images.js, which omits the dosage box on the
   // product image itself for the same reason.
-  var hasRealDosage = !!product.dosage && /^\d/.test(product.dosage);
-  if (siblings.length >= 1 && hasRealDosage) {
-    // Siblings come back from /api/products in whatever order the backend
-    // returns them (not necessarily dosage order), so sort smallest-to-largest
-    // by the leading number in dosage (falling back to name) before rendering.
-    // A single-tier product's own siblings list is just itself, so this
-    // renders one already-"active" pill instead of a switchable set.
-    var sortedSiblings = siblings.slice().sort(function(a, b) {
-      return parseDosageValue(a) - parseDosageValue(b);
+  function isRealAxisValue(v) {
+    return !!v && /^\d/.test(v);
+  }
+  function dedupedSorted(values) {
+    var seen = [];
+    values.forEach(function(v) {
+      if (isRealAxisValue(v) && seen.indexOf(v) === -1) seen.push(v);
     });
-    sizeOptionsHtml = '<div class="size-selector"><label>SELECT MG</label><div class="size-options" id="size-options">' +
-      sortedSiblings.map(function(s) {
-        var activeClass = s.id === product.id ? ' active' : '';
-        return '<div class="size-option' + activeClass + '" data-id="' + s.id + '">' + (s.dosage || s.name) + '</div>';
+    return seen.sort(function(a, b) { return parseLeadingNumber(a) - parseLeadingNumber(b); });
+  }
+  var dosageValues = dedupedSorted(siblings.map(function(s) { return s.dosage; }));
+  var packSizeValues = dedupedSorted(siblings.map(function(s) { return s.pack_size; }));
+
+  // Shared by both selectors, and deliberately symmetric -- either axis's
+  // current selection can disable options in the other, not just
+  // pack-size-given-dosage, so neither selector can ever lead to a
+  // nonexistent row no matter which one a visitor touches first. For a
+  // single-axis family (packSize always null on every sibling) this
+  // reduces to a plain dosage match and never disables anything.
+  function comboExists(dosage, packSize) {
+    return siblings.some(function(s) { return s.dosage === dosage && s.pack_size === packSize; });
+  }
+
+  function buildSelectorHtml(label, id, values, activeValue, otherActiveValue, isPackAxis) {
+    return '<div class="size-selector"><label>' + label + '</label><div class="size-options" id="' + id + '">' +
+      values.map(function(v) {
+        var active = v === activeValue;
+        var exists = isPackAxis ? comboExists(otherActiveValue, v) : comboExists(v, otherActiveValue);
+        var cls = 'size-option' + (active ? ' active' : '') + (exists ? '' : ' disabled');
+        return '<div class="' + cls + '" data-value="' + v + '">' + v + '</div>';
       }).join('') + '</div></div>';
+  }
+
+  var sizeOptionsHtml = '';
+  if (dosageValues.length >= 1) {
+    sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
+  }
+  if (packSizeValues.length >= 1) {
+    sizeOptionsHtml += buildSelectorHtml('SELECT PACK SIZE', 'pack-options', packSizeValues, product.pack_size, product.dosage, true);
   }
 
   var techRows = '';
@@ -917,7 +956,7 @@ function renderProduct(product, siblings) {
 
     (techRows ? '<div class="product-section"><h2>Technical Data</h2><table class="tech-table">' + techRows + '</table></div>' : '');
 
-  wireProductInteractions(product, trailIds);
+  wireProductInteractions(product, trailIds, siblings);
   loadProductCoas(product);
   syncColumnHeights();
   window.addEventListener('resize', syncColumnHeights);
@@ -1036,7 +1075,7 @@ async function loadProductCoas(product) {
   syncColumnHeights();
 }
 
-function wireProductInteractions(product, trailIds) {
+function wireProductInteractions(product, trailIds, siblings) {
   var qtyInput = document.getElementById('qty-input');
   var minusBtn = document.getElementById('qty-minus');
   var plusBtn = document.getElementById('qty-plus');
@@ -1069,16 +1108,38 @@ function wireProductInteractions(product, trailIds) {
     window.location.href = '/checkout.html';
   });
 
-  var sizeOptions = document.querySelectorAll('.size-option');
-  sizeOptions.forEach(function(opt) {
-    opt.addEventListener('click', function() {
-      var newId = opt.getAttribute('data-id');
-      if (newId !== product.id) {
-        // Switching dosage/size variant is the same product conceptually,
-        // not a new hop -- trail carries through unchanged.
-        window.location.href = buildProductUrl(newId, trailIds);
-      }
+  // MG and Pack Size pills carry the axis *value* (data-value), not a
+  // product id directly -- a pill can represent multiple rows (e.g. "10mg"
+  // spans every pack size at that dosage), so the target row is looked up
+  // by combining the clicked value with whichever axis wasn't clicked,
+  // using the currently-loaded product's own value for that other axis
+  // (the same source of truth the disabled state was computed from in
+  // renderProduct, so a click can never target a nonexistent row).
+  function findSiblingByCombo(dosage, packSize) {
+    return siblings.filter(function(s) { return s.dosage === dosage && s.pack_size === packSize; })[0];
+  }
+  function wireAxisSelector(containerId, otherAxisValue, buildCombo) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.size-option').forEach(function(opt) {
+      opt.addEventListener('click', function() {
+        // Belt-and-suspenders: CSS (pointer-events:none) already blocks
+        // this, same convention as .btn-add:disabled elsewhere on this page.
+        if (opt.classList.contains('disabled')) return;
+        var target = findSiblingByCombo.apply(null, buildCombo(opt.getAttribute('data-value'), otherAxisValue));
+        if (target && target.id !== product.id) {
+          // Switching dosage/pack size is the same product conceptually,
+          // not a new hop -- trail carries through unchanged.
+          window.location.href = buildProductUrl(target.id, trailIds);
+        }
+      });
     });
+  }
+  wireAxisSelector('mg-options', product.pack_size, function(clickedDosage, currentPackSize) {
+    return [clickedDosage, currentPackSize];
+  });
+  wireAxisSelector('pack-options', product.dosage, function(clickedPackSize, currentDosage) {
+    return [currentDosage, clickedPackSize];
   });
 
   // Delegated since gallery-thumbs starts empty. Nothing currently populates
