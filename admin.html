@@ -100,6 +100,37 @@ table.orders-table tr:hover{ background:var(--panel); }
 .promo-scheduled-item-subject{ font-weight:700; color:var(--navy-dark); }
 .promo-scheduled-item-date{ color:var(--gray); font-size:0.75rem; }
 .promo-scheduled-empty{ font-size:0.8rem; color:var(--gray); }
+
+.inbox-panel{ max-width:900px; }
+.inbox-filters{ display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.inbox-filters select, .inbox-filters input{ padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
+.inbox-filters input{ flex:1; min-width:200px; }
+.inbox-filters button{ padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+table.inbox-table{ width:100%; border-collapse:collapse; font-size:0.82rem; }
+table.inbox-table th{ text-align:left; padding:10px; background:var(--panel); border-bottom:2px solid var(--line); color:var(--navy-dark); }
+table.inbox-table td{ padding:10px; border-bottom:1px solid var(--line); cursor:pointer; }
+table.inbox-table tr:hover{ background:var(--panel); }
+table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
+.inbox-pagination{ display:flex; align-items:center; gap:10px; margin-top:12px; font-size:0.82rem; color:var(--gray); }
+.inbox-pagination button{ padding:6px 12px; background:#fff; border:1px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.8rem; }
+.inbox-pagination button:disabled{ opacity:0.4; cursor:not-allowed; }
+.inbox-detail{ margin-top:20px; padding-top:20px; border-top:1px solid var(--line); display:none; }
+.inbox-detail.show{ display:block; }
+.inbox-detail-header{ margin-bottom:12px; }
+.inbox-detail-subject{ font-size:1.05rem; font-weight:700; color:var(--navy-dark); margin:0 0 4px; }
+.inbox-detail-meta{ font-size:0.8rem; color:var(--gray); }
+.inbox-detail-body{ width:100%; height:360px; border:1px solid var(--line); border-radius:8px; }
+.inbox-reply{ margin-top:16px; }
+.inbox-reply label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:0 0 5px; }
+.inbox-reply textarea{ width:100%; min-height:120px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; box-sizing:border-box; resize:vertical; }
+.inbox-reply-btn{ margin-top:10px; padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+.inbox-reply-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.inbox-reply-status{ font-size:0.82rem; margin-top:10px; display:none; }
+.inbox-reply-status.show{ display:block; }
+.inbox-reply-status.error{ color:#c0392b; }
+.inbox-reply-status.success{ color:#1F7A34; }
+.inbox-back-btn{ background:none; border:none; color:var(--navy); font-weight:700; cursor:pointer; font-size:0.82rem; padding:0; margin-bottom:12px; }
+.inbox-empty{ color:var(--gray); font-size:0.85rem; padding:20px 0; }
 </style>
 </head>
 <body>
@@ -121,6 +152,7 @@ table.orders-table tr:hover{ background:var(--panel); }
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
     <button type="button" class="admin-tab" id="tab-coas">Certificates of Analysis</button>
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
+    <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -227,6 +259,46 @@ table.orders-table tr:hover{ background:var(--panel); }
 
     <div class="promo-scheduled-list" id="promo-scheduled-list"></div>
   </div>
+
+  <div class="admin-view inbox-panel" id="view-inbox">
+    <div class="inbox-filters">
+      <select id="inbox-folder-select"><option value="INBOX">INBOX</option></select>
+      <input type="text" id="inbox-search-input" placeholder="Search subject, sender, or body...">
+      <button type="button" id="inbox-search-btn">Search</button>
+    </div>
+
+    <div id="inbox-list-view">
+      <table class="inbox-table">
+        <thead><tr><th>From</th><th>Subject</th><th>Date</th></tr></thead>
+        <tbody id="inbox-tbody"></tbody>
+      </table>
+      <div class="inbox-pagination">
+        <button type="button" id="inbox-prev-btn">&larr; Newer</button>
+        <span id="inbox-page-info"></span>
+        <button type="button" id="inbox-next-btn">Older &rarr;</button>
+      </div>
+    </div>
+
+    <div class="inbox-detail" id="inbox-detail">
+      <button type="button" class="inbox-back-btn" id="inbox-back-btn">&larr; Back to list</button>
+      <div class="inbox-detail-header">
+        <p class="inbox-detail-subject" id="inbox-detail-subject"></p>
+        <p class="inbox-detail-meta" id="inbox-detail-meta"></p>
+      </div>
+      <!-- sandbox="" (no allow-scripts/allow-same-origin) so an email from
+           an arbitrary, untrusted sender can never run script or reach the
+           admin session's cookies -- same protection real webmail clients
+           apply to message bodies. -->
+      <iframe class="inbox-detail-body" id="inbox-detail-body" sandbox=""></iframe>
+
+      <div class="inbox-reply">
+        <label for="inbox-reply-body">Reply</label>
+        <textarea id="inbox-reply-body"></textarea>
+        <button type="button" class="inbox-reply-btn" id="inbox-reply-btn">Send Reply</button>
+        <p class="inbox-reply-status" id="inbox-reply-status"></p>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -291,15 +363,15 @@ function showLogin() {
   document.getElementById('admin-logout-link').style.display = 'none';
 }
 
-// Shared by all three tabs (rather than each function individually
+// Shared by every tab (rather than each function individually
 // deactivating "the other one," which stopped scaling once a third tab
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo'].forEach(function(id) {
+  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo'].forEach(function(id) {
+  ['view-orders', 'view-coas', 'view-promo', 'view-inbox'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -319,6 +391,127 @@ function showPromoTab() {
   showAdminTab('tab-promo', 'view-promo');
   loadPromoSubscriberCount();
   loadScheduledPromos();
+}
+
+// ============================================================
+// Inbox
+// ============================================================
+
+var INBOX_PAGE_SIZE = 20;
+var inboxCurrentPage = 1;
+var inboxFoldersLoaded = false;
+// Set by openInboxMessage(), read by the reply-send handler -- which
+// message the currently-open detail view/reply box belongs to.
+var inboxCurrentMessage = null;
+
+function showInboxTab() {
+  showAdminTab('tab-inbox', 'view-inbox');
+  closeInboxDetail();
+  if (!inboxFoldersLoaded) {
+    inboxFoldersLoaded = true;
+    loadInboxFolders();
+  }
+  inboxCurrentPage = 1;
+  loadInboxMessages();
+}
+
+function loadInboxFolders() {
+  fetch('/api/admin/inbox/folders', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(folders) {
+      if (!Array.isArray(folders) || folders.length === 0) return;
+      var select = document.getElementById('inbox-folder-select');
+      var current = select.value;
+      select.innerHTML = folders.map(function(f) {
+        return '<option value="' + f.path + '"' + (f.path === current ? ' selected' : '') + '>' + f.name + '</option>';
+      }).join('');
+    })
+    .catch(function() {});
+}
+
+function formatInboxDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function loadInboxMessages() {
+  var folder = document.getElementById('inbox-folder-select').value || 'INBOX';
+  var q = document.getElementById('inbox-search-input').value.trim();
+  var params = new URLSearchParams();
+  params.set('folder', folder);
+  params.set('page', inboxCurrentPage);
+  params.set('pageSize', INBOX_PAGE_SIZE);
+  if (q) params.set('q', q);
+
+  var tbody = document.getElementById('inbox-tbody');
+  tbody.innerHTML = '<tr><td colspan="3" class="inbox-empty">Loading...</td></tr>';
+
+  fetch('/api/admin/inbox/messages?' + params.toString(), { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var messages = data.messages || [];
+      if (messages.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="inbox-empty">No messages found.</td></tr>';
+      } else {
+        tbody.innerHTML = messages.map(function(m) {
+          return '<tr class="' + (m.seen ? '' : 'unread') + '" data-uid="' + m.uid + '">' +
+            '<td>' + m.from + '</td>' +
+            '<td>' + m.subject + '</td>' +
+            '<td>' + formatInboxDate(m.date) + '</td>' +
+          '</tr>';
+        }).join('');
+      }
+      var total = data.total || 0;
+      var totalPages = Math.max(1, Math.ceil(total / INBOX_PAGE_SIZE));
+      document.getElementById('inbox-page-info').textContent = 'Page ' + inboxCurrentPage + ' of ' + totalPages + ' (' + total + ' total)';
+      document.getElementById('inbox-prev-btn').disabled = inboxCurrentPage <= 1;
+      document.getElementById('inbox-next-btn').disabled = inboxCurrentPage >= totalPages;
+    })
+    .catch(function() {
+      tbody.innerHTML = '<tr><td colspan="3" class="inbox-empty">Could not load messages.</td></tr>';
+    });
+}
+
+// textContent round-trip, not string concatenation -- the safe way to
+// HTML-escape a plain-text fallback body before it lands inside a <pre>.
+function escapeForHtml(s) {
+  var div = document.createElement('div');
+  div.textContent = s || '';
+  return div.innerHTML;
+}
+
+function openInboxMessage(uid) {
+  var folder = document.getElementById('inbox-folder-select').value || 'INBOX';
+  fetch('/api/admin/inbox/messages/' + encodeURIComponent(uid) + '?folder=' + encodeURIComponent(folder), { credentials: 'include' })
+    .then(function(res) {
+      if (!res.ok) throw new Error('failed');
+      return res.json();
+    })
+    .then(function(message) {
+      inboxCurrentMessage = { uid: uid, folder: folder };
+      document.getElementById('inbox-detail-subject').textContent = message.subject;
+      document.getElementById('inbox-detail-meta').textContent = 'From ' + message.from + ' — ' + formatInboxDate(message.date);
+      document.getElementById('inbox-detail-body').srcdoc = message.html
+        || ('<pre style="white-space:pre-wrap; font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif; margin:12px;">' + escapeForHtml(message.text) + '</pre>');
+      document.getElementById('inbox-reply-body').value = '';
+      document.getElementById('inbox-reply-status').classList.remove('show', 'error', 'success');
+      document.getElementById('inbox-list-view').style.display = 'none';
+      document.getElementById('inbox-detail').classList.add('show');
+      // Refreshes the (hidden) list in the background so its unread
+      // styling is correct once the admin clicks back -- opening a
+      // message marks it \Seen server-side.
+      loadInboxMessages();
+    })
+    .catch(function() {
+      window.alert('Could not load this message.');
+    });
+}
+
+function closeInboxDetail() {
+  document.getElementById('inbox-detail').classList.remove('show');
+  document.getElementById('inbox-list-view').style.display = '';
+  document.getElementById('inbox-detail-body').srcdoc = '';
+  inboxCurrentMessage = null;
 }
 
 // Lazy-loaded (and cached) the same live catalog every other page fetches
@@ -514,6 +707,7 @@ document.getElementById('filter-email').addEventListener('keydown', function(e) 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
+document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
 
 // Delegated since #orders-tbody is rebuilt by every loadOrders() call.
 document.getElementById('orders-tbody').addEventListener('click', function(e) {
@@ -782,6 +976,86 @@ document.getElementById('promo-scheduled-list').addEventListener('click', functi
       loadScheduledPromos();
     })
     .catch(function() { window.alert('Could not cancel.'); });
+});
+
+document.getElementById('inbox-folder-select').addEventListener('change', function() {
+  inboxCurrentPage = 1;
+  closeInboxDetail();
+  loadInboxMessages();
+});
+
+document.getElementById('inbox-search-btn').addEventListener('click', function() {
+  inboxCurrentPage = 1;
+  loadInboxMessages();
+});
+document.getElementById('inbox-search-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { inboxCurrentPage = 1; loadInboxMessages(); }
+});
+
+document.getElementById('inbox-prev-btn').addEventListener('click', function() {
+  if (inboxCurrentPage <= 1) return;
+  inboxCurrentPage -= 1;
+  loadInboxMessages();
+});
+document.getElementById('inbox-next-btn').addEventListener('click', function() {
+  inboxCurrentPage += 1;
+  loadInboxMessages();
+});
+
+// Delegated since #inbox-tbody is rebuilt by every loadInboxMessages() call.
+document.getElementById('inbox-tbody').addEventListener('click', function(e) {
+  var row = e.target.closest('tr[data-uid]');
+  if (!row) return;
+  openInboxMessage(row.getAttribute('data-uid'));
+});
+
+document.getElementById('inbox-back-btn').addEventListener('click', function() {
+  closeInboxDetail();
+  loadInboxMessages();
+});
+
+document.getElementById('inbox-reply-btn').addEventListener('click', function() {
+  var btn = this;
+  var body = document.getElementById('inbox-reply-body').value.trim();
+  var statusEl = document.getElementById('inbox-reply-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!body) {
+    statusEl.textContent = 'Reply body is required.';
+    statusEl.classList.add('show', 'error');
+    return;
+  }
+  if (!inboxCurrentMessage) return;
+
+  btn.disabled = true;
+  statusEl.textContent = 'Sending...';
+  statusEl.classList.add('show');
+
+  fetch('/api/admin/inbox/reply', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder: inboxCurrentMessage.folder, uid: inboxCurrentMessage.uid, body: body }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.classList.remove('error', 'success');
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not send reply.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Reply sent.';
+      statusEl.classList.add('show', 'success');
+      document.getElementById('inbox-reply-body').value = '';
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not send reply.';
+      statusEl.classList.remove('success');
+      statusEl.classList.add('show', 'error');
+    });
 });
 
 document.getElementById('admin-logout-link').addEventListener('click', function(e) {
