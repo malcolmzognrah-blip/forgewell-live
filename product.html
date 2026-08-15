@@ -1041,10 +1041,18 @@ function renderProduct(product, siblings) {
 
     descriptionHtml +
 
-    '<div class="product-section"><h2>Quality & Testing</h2>' +
-      '<h3>Current-Batch Specifications</h3><table class="tech-table">' + batchSpecRows + '</table>' +
-      '<h3>Analytical Results</h3><table class="tech-table">' + analyticalRows + '</table>' +
-    '</div>';
+    // spec_has_coa reflects whether product_specs.source_coa_id is actually
+    // set -- i.e. a real COA upload produced this row -- rather than
+    // inferring "no real data" from which spec_* fields happen to be
+    // non-null (spec_purity always defaults to '99%' even with zero COAs,
+    // so that alone can't be the signal). A product with no COA ever
+    // uploaded gets no Quality & Testing section at all, not one full of
+    // placeholder values.
+    (product.spec_has_coa ?
+      '<div class="product-section"><h2>Quality & Testing</h2>' +
+        '<h3>Current-Batch Specifications</h3><table class="tech-table">' + batchSpecRows + '</table>' +
+        '<h3>Analytical Results</h3><table class="tech-table">' + analyticalRows + '</table>' +
+      '</div>' : '');
 
   wireProductInteractions(product, trailIds, siblings);
   loadProductCoas(product);

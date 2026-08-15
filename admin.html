@@ -42,6 +42,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .coa-panel input[type="text"], .coa-panel input[type="date"], .coa-panel select{ width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
 .coa-fields{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-top:6px; padding-top:10px; border-top:1px solid var(--line); }
 .coa-extract-status{ font-size:0.8rem; color:var(--gray); margin-top:8px; }
+.coa-existing-list{ margin-top:16px; }
+.coa-existing-list h3{ font-size:0.82rem; color:var(--navy-dark); margin:0 0 8px; font-weight:700; }
+.coa-existing-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; font-size:0.82rem; }
+.coa-existing-item:last-child{ margin-bottom:0; }
+.coa-existing-empty{ font-size:0.8rem; color:var(--gray); margin-top:12px; }
+.coa-delete-btn{ padding:5px 10px; background:#fff; color:#c0392b; border:1px solid #c0392b; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.75rem; }
+.coa-delete-btn:hover{ background:#c0392b; color:#fff; }
+.coa-delete-btn:disabled{ opacity:0.5; cursor:not-allowed; }
 .coa-mismatch-warning{ background:#FDECD2; color:#9A6B1E; font-size:0.8rem; padding:10px 12px; border-radius:6px; margin-top:12px; display:none; }
 .coa-mismatch-warning.show{ display:block; }
 .coa-save-btn{ margin-top:20px; padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
@@ -113,6 +121,8 @@ table.orders-table tr:hover{ background:var(--panel); }
   <div class="admin-view coa-panel" id="view-coas">
     <label for="coa-product-select">Product</label>
     <select id="coa-product-select"><option value="">Loading products...</option></select>
+
+    <div class="coa-existing-list" id="coa-existing-list"></div>
 
     <label for="coa-file-input">COA PDF</label>
     <input type="file" id="coa-file-input" accept="application/pdf">
@@ -288,6 +298,32 @@ function resetCoaForm() {
   lastCoaExtraction = null;
 }
 
+// Reuses the already-public GET /api/products/:id/coas (same endpoint
+// product.html's own COA list fetches) rather than a dedicated admin-only
+// listing route -- this data isn't sensitive, it's already shown to every
+// site visitor on the product page.
+function loadExistingCoas(productId) {
+  var container = document.getElementById('coa-existing-list');
+  if (!productId) { container.innerHTML = ''; return; }
+  fetch('/api/products/' + encodeURIComponent(productId) + '/coas')
+    .then(function(res) { return res.json(); })
+    .then(function(coas) {
+      if (!Array.isArray(coas) || coas.length === 0) {
+        container.innerHTML = '<p class="coa-existing-empty">No certificates uploaded yet for this product.</p>';
+        return;
+      }
+      container.innerHTML = '<h3>Existing Certificates</h3>' + coas.map(function(coa) {
+        return '<div class="coa-existing-item">' +
+          '<span>LOT #' + coa.batch_lot + ' — ' + coa.batch_date + '</span>' +
+          '<button type="button" class="coa-delete-btn" data-coa-id="' + coa.id + '">Delete</button>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      container.innerHTML = '<p class="coa-existing-empty">Could not load existing certificates.</p>';
+    });
+}
+
 document.getElementById('admin-login-btn').addEventListener('click', function() {
   var pw = document.getElementById('admin-password-input').value;
   var errorEl = document.getElementById('admin-login-error');
@@ -319,7 +355,38 @@ document.getElementById('filter-email').addEventListener('keydown', function(e) 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 
-document.getElementById('coa-product-select').addEventListener('change', checkProductMismatch);
+document.getElementById('coa-product-select').addEventListener('change', function() {
+  checkProductMismatch();
+  loadExistingCoas(this.value);
+});
+
+document.getElementById('coa-existing-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.coa-delete-btn');
+  if (!btn) return;
+  if (!window.confirm('Delete this certificate? This cannot be undone.')) return;
+
+  var productId = document.getElementById('coa-product-select').value;
+  var coaId = btn.getAttribute('data-coa-id');
+  btn.disabled = true;
+
+  fetch('/api/admin/products/' + encodeURIComponent(productId) + '/coas/' + encodeURIComponent(coaId), {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) {
+        btn.disabled = false;
+        window.alert(r.d.error || 'Could not delete certificate.');
+        return;
+      }
+      loadExistingCoas(productId);
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.alert('Could not delete certificate.');
+    });
+});
 
 document.getElementById('coa-file-input').addEventListener('change', function() {
   var file = this.files[0];
@@ -416,6 +483,7 @@ document.getElementById('coa-save-btn').addEventListener('click', function() {
       statusEl.textContent = 'Certificate saved.';
       statusEl.classList.add('show', 'success');
       resetCoaForm();
+      loadExistingCoas(productId);
     })
     .catch(function() {
       saveBtn.disabled = false;
