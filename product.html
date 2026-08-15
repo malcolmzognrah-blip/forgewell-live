@@ -894,6 +894,16 @@ function renderProduct(product, siblings) {
     sizeOptionsHtml += buildSelectorHtml('SELECT PACK SIZE', 'pack-options', packSizeValues, product.pack_size, product.dosage, true);
   }
 
+  // A kit never gets its own COA upload -- it's just a discounted bundle of
+  // a real vial product (see admin.html's product picker, which excludes
+  // kits entirely for this reason) -- so its own spec_* fields are always
+  // empty. Reuse findBackingVial() (the same "kit inherits X from its
+  // vial" resolution already used for stock status below) so a kit's page
+  // shows its backing vial's actual COA data instead of nothing. Falls
+  // back to the kit's own record (which will correctly show nothing) for
+  // the few kits with no resolvable vial.
+  var coaSourceProduct = (product.category === 'kit' ? findBackingVial(product) : null) || product;
+
   // Current-Batch Specifications + Analytical Results together make up the
   // Quality & Testing section (see render below) -- both are sourced from
   // product_specs, a denormalized snapshot of whichever product_coas row is
@@ -906,9 +916,9 @@ function renderProduct(product, siblings) {
   var batchSpecRows = '';
   var batchSpecFields = [
     ['Product', product.name],
-    ['Appearance', product.spec_appearance],
-    ['Current lot', product.spec_current_lot],
-    ['Net Content Average', product.spec_net_content_average],
+    ['Appearance', coaSourceProduct.spec_appearance],
+    ['Current lot', coaSourceProduct.spec_current_lot],
+    ['Net Content Average', coaSourceProduct.spec_net_content_average],
   ];
   batchSpecFields.forEach(function(f) {
     if (f[1]) batchSpecRows += '<tr><th>' + f[0] + '</th><td>' + f[1] + '</td></tr>';
@@ -916,10 +926,10 @@ function renderProduct(product, siblings) {
 
   var analyticalRows = '';
   var analyticalFields = [
-    ['Purity (HPLC-UV)', product.spec_purity],
-    ['Endotoxin Threshold', product.spec_endotoxin_threshold],
-    ['Microbial Analysis (PCR)', product.spec_microbial_analysis],
-    ['Fentanyl Screen', product.spec_fentanyl_screen],
+    ['Purity (HPLC-UV)', coaSourceProduct.spec_purity],
+    ['Endotoxin Threshold', coaSourceProduct.spec_endotoxin_threshold],
+    ['Microbial Analysis (PCR)', coaSourceProduct.spec_microbial_analysis],
+    ['Fentanyl Screen', coaSourceProduct.spec_fentanyl_screen],
     ['Application', 'Laboratory research use only'],
   ];
   analyticalFields.forEach(function(f) {
@@ -1048,14 +1058,17 @@ function renderProduct(product, siblings) {
     // so that alone can't be the signal). A product with no COA ever
     // uploaded gets no Quality & Testing section at all, not one full of
     // placeholder values.
-    (product.spec_has_coa ?
+    (coaSourceProduct.spec_has_coa ?
       '<div class="product-section"><h2>Quality & Testing</h2>' +
         '<h3>Current-Batch Specifications</h3><table class="tech-table">' + batchSpecRows + '</table>' +
         '<h3>Analytical Results</h3><table class="tech-table">' + analyticalRows + '</table>' +
       '</div>' : '');
 
   wireProductInteractions(product, trailIds, siblings);
-  loadProductCoas(product);
+  // Fetches coaSourceProduct's COAs, not necessarily product's own -- see
+  // coaSourceProduct's resolution above (a kit shows its backing vial's
+  // certificates, since kits never get their own COA upload).
+  loadProductCoas(coaSourceProduct);
   syncColumnHeights();
   window.addEventListener('resize', syncColumnHeights);
   wireScrollIndicator('suggested-essentials-grid', 'suggested-essentials-scroll-indicator', 'suggested-essentials-scroll-thumb');

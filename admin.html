@@ -119,6 +119,9 @@ table.orders-table tr:hover{ background:var(--panel); }
   </div>
 
   <div class="admin-view coa-panel" id="view-coas">
+    <label for="coa-category-filter">Category</label>
+    <select id="coa-category-filter"><option value="">All Categories</option></select>
+
     <label for="coa-product-select">Product</label>
     <select id="coa-product-select"><option value="">Loading products...</option></select>
 
@@ -239,17 +242,47 @@ function showCoaTab() {
 
 // Lazy-loaded (and cached) the same live catalog every other page fetches
 // from GET /api/products, rather than a dedicated admin endpoint -- there's
-// nothing admin-specific about "list of products" here.
+// nothing admin-specific about "list of products" here. Kits are excluded
+// entirely -- a kit is just a discounted bundle of a real vial product, so
+// it never gets its own COA upload (see findBackingVial() in product.html,
+// which is how a kit's product page shows its backing vial's COA instead).
 var coaProductsLoaded = false;
+var coaAllProducts = [];
+
+function renderCoaProductOptions() {
+  var category = document.getElementById('coa-category-filter').value;
+  var select = document.getElementById('coa-product-select');
+  var filtered = coaAllProducts
+    .filter(function(p) { return !category || p.category === category; })
+    .slice()
+    .sort(function(a, b) { return a.name.localeCompare(b.name); });
+  select.innerHTML = '<option value="">Select a product...</option>' +
+    filtered.map(function(p) { return '<option value="' + p.id + '">' + p.name + '</option>'; }).join('');
+}
+
+// Categories present in the live (already kit-excluded) data, alphabetical
+// -- same "derive from what's actually there" approach shop.html uses for
+// its own category tabs, rather than hardcoding a list that could drift
+// out of sync with the real catalog.
+function renderCoaCategoryOptions() {
+  var categories = [];
+  coaAllProducts.forEach(function(p) {
+    if (categories.indexOf(p.category) === -1) categories.push(p.category);
+  });
+  categories.sort();
+  document.getElementById('coa-category-filter').innerHTML = '<option value="">All Categories</option>' +
+    categories.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+}
+
 function loadCoaProducts() {
   if (coaProductsLoaded) return;
   coaProductsLoaded = true;
   fetch('/api/products', { credentials: 'include' })
     .then(function(res) { return res.json(); })
     .then(function(products) {
-      var select = document.getElementById('coa-product-select');
-      select.innerHTML = '<option value="">Select a product...</option>' +
-        products.map(function(p) { return '<option value="' + p.id + '">' + p.name + '</option>'; }).join('');
+      coaAllProducts = products.filter(function(p) { return p.category !== 'kit'; });
+      renderCoaCategoryOptions();
+      renderCoaProductOptions();
     })
     .catch(function() {
       document.getElementById('coa-product-select').innerHTML = '<option value="">Could not load products</option>';
@@ -354,6 +387,8 @@ document.getElementById('filter-email').addEventListener('keydown', function(e) 
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
+
+document.getElementById('coa-category-filter').addEventListener('change', renderCoaProductOptions);
 
 document.getElementById('coa-product-select').addEventListener('change', function() {
   checkProductMismatch();
