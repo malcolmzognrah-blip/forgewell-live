@@ -69,6 +69,37 @@ table.orders-table tr:hover{ background:var(--panel); }
 .order-status-pill.other{ background:var(--line); color:var(--gray); }
 .order-items-cell{ max-width:280px; font-size:0.78rem; line-height:1.5; }
 .result-count{ color:var(--gray); font-size:0.8rem; margin-bottom:12px; }
+
+.order-fulfillment-cell select, .order-fulfillment-cell input{ width:100%; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-size:0.78rem; margin-bottom:4px; }
+.order-save-btn{ padding:5px 10px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.72rem; }
+.order-save-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.order-save-status{ font-size:0.72rem; margin-top:4px; }
+.order-save-status.error{ color:#c0392b; }
+.order-save-status.success{ color:#1F7A34; }
+
+.promo-panel{ max-width:640px; }
+.promo-panel label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:14px 0 5px; }
+.promo-panel label:first-of-type{ margin-top:0; }
+.promo-panel input[type="text"], .promo-panel input[type="datetime-local"], .promo-panel textarea{ width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; box-sizing:border-box; }
+.promo-panel textarea{ min-height:160px; resize:vertical; }
+.promo-subscriber-count{ font-size:0.8rem; color:var(--gray); margin-top:8px; }
+.promo-actions{ display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap; }
+.promo-send-btn{ padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+.promo-send-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.promo-schedule-row{ display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.promo-schedule-row input[type="datetime-local"]{ width:auto; flex:1; min-width:200px; }
+.promo-status{ font-size:0.82rem; margin-top:10px; display:none; }
+.promo-status.show{ display:block; }
+.promo-status.error{ color:#c0392b; }
+.promo-status.success{ color:#1F7A34; }
+.promo-scheduled-list{ margin-top:24px; padding-top:16px; border-top:1px solid var(--line); }
+.promo-scheduled-list h3{ font-size:0.85rem; color:var(--navy-dark); margin:0 0 10px; font-weight:700; }
+.promo-scheduled-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; font-size:0.82rem; }
+.promo-scheduled-item:last-child{ margin-bottom:0; }
+.promo-scheduled-item-info{ min-width:0; }
+.promo-scheduled-item-subject{ font-weight:700; color:var(--navy-dark); }
+.promo-scheduled-item-date{ color:var(--gray); font-size:0.75rem; }
+.promo-scheduled-empty{ font-size:0.8rem; color:var(--gray); }
 </style>
 </head>
 <body>
@@ -89,6 +120,7 @@ table.orders-table tr:hover{ background:var(--panel); }
   <div class="admin-tabs">
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
     <button type="button" class="admin-tab" id="tab-coas">Certificates of Analysis</button>
+    <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -111,6 +143,7 @@ table.orders-table tr:hover{ background:var(--panel); }
         <th>Items</th>
         <th>Total</th>
         <th>Status</th>
+        <th>Fulfillment</th>
         <th>Date</th>
       </tr>
     </thead>
@@ -171,6 +204,29 @@ table.orders-table tr:hover{ background:var(--panel); }
     <button type="button" class="coa-save-btn" id="coa-save-btn" style="display:none;">Save Certificate</button>
     <p class="coa-save-status" id="coa-save-status"></p>
   </div>
+
+  <div class="admin-view promo-panel" id="view-promo">
+    <label for="promo-subject">Subject</label>
+    <input type="text" id="promo-subject">
+
+    <label for="promo-body">Body</label>
+    <textarea id="promo-body"></textarea>
+
+    <p class="promo-subscriber-count" id="promo-subscriber-count"></p>
+
+    <div class="promo-actions">
+      <button type="button" class="promo-send-btn" id="promo-send-btn">Send Now</button>
+    </div>
+    <p class="promo-status" id="promo-send-status"></p>
+
+    <div class="promo-schedule-row">
+      <input type="datetime-local" id="promo-schedule-time">
+      <button type="button" class="promo-send-btn" id="promo-schedule-btn">Schedule Send</button>
+    </div>
+    <p class="promo-status" id="promo-schedule-status"></p>
+
+    <div class="promo-scheduled-list" id="promo-scheduled-list"></div>
+  </div>
 </div>
 
 <script>
@@ -178,6 +234,7 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 function statusClass(s) { return s === 'paid' ? 'paid' : s === 'pending_payment' ? 'pending_payment' : 'other'; }
+var FULFILLMENT_STATUSES = ['pending', 'processing', 'shipped', 'delivered'];
 
 function showAdmin() {
   document.getElementById('login-wrap').style.display = 'none';
@@ -203,6 +260,9 @@ function loadOrders() {
       document.getElementById('result-count').textContent = orders.length + ' order' + (orders.length === 1 ? '' : 's');
       document.getElementById('orders-tbody').innerHTML = orders.map(function(o) {
         var items = (o.line_items || []).map(function(i) { return i.name + ' x' + i.qty; }).join('<br>');
+        var fulfillmentOptions = FULFILLMENT_STATUSES.map(function(s) {
+          return '<option value="' + s + '"' + (s === o.fulfillment_status ? ' selected' : '') + '>' + s + '</option>';
+        }).join('');
         return '<tr>' +
           '<td><code>' + o.id.slice(0, 8) + '...</code></td>' +
           '<td>' + o.customer_email + '</td>' +
@@ -210,12 +270,18 @@ function loadOrders() {
           '<td class="order-items-cell">' + items + '</td>' +
           '<td>$' + Number(o.total).toFixed(2) + '</td>' +
           '<td><span class="order-status-pill ' + statusClass(o.status) + '">' + o.status.replace('_', ' ') + '</span></td>' +
+          '<td class="order-fulfillment-cell">' +
+            '<select class="order-fulfillment-select" data-order-id="' + o.id + '">' + fulfillmentOptions + '</select>' +
+            '<input type="text" class="order-tracking-input" data-order-id="' + o.id + '" placeholder="Tracking #" value="' + (o.tracking_number || '') + '">' +
+            '<button type="button" class="order-save-btn" data-order-id="' + o.id + '">Save</button>' +
+            '<div class="order-save-status" id="order-save-status-' + o.id + '"></div>' +
+          '</td>' +
           '<td>' + formatDate(o.created_at) + '</td>' +
         '</tr>';
       }).join('');
     })
     .catch(function() {
-      document.getElementById('orders-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
+      document.getElementById('orders-tbody').innerHTML = '<tr><td colspan="8" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
     });
 }
 
@@ -225,19 +291,34 @@ function showLogin() {
   document.getElementById('admin-logout-link').style.display = 'none';
 }
 
+// Shared by all three tabs (rather than each function individually
+// deactivating "the other one," which stopped scaling once a third tab
+// -- Promotions -- was added) -- deactivates every tab/view, then
+// activates just the requested pair.
+function showAdminTab(tabId, viewId) {
+  ['tab-orders', 'tab-coas', 'tab-promo'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  ['view-orders', 'view-coas', 'view-promo'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById(tabId).classList.add('active');
+  document.getElementById(viewId).classList.add('active');
+}
+
 function showOrdersTab() {
-  document.getElementById('tab-coas').classList.remove('active');
-  document.getElementById('tab-orders').classList.add('active');
-  document.getElementById('view-coas').classList.remove('active');
-  document.getElementById('view-orders').classList.add('active');
+  showAdminTab('tab-orders', 'view-orders');
 }
 
 function showCoaTab() {
-  document.getElementById('tab-orders').classList.remove('active');
-  document.getElementById('tab-coas').classList.add('active');
-  document.getElementById('view-orders').classList.remove('active');
-  document.getElementById('view-coas').classList.add('active');
+  showAdminTab('tab-coas', 'view-coas');
   loadCoaProducts();
+}
+
+function showPromoTab() {
+  showAdminTab('tab-promo', 'view-promo');
+  loadPromoSubscriberCount();
+  loadScheduledPromos();
 }
 
 // Lazy-loaded (and cached) the same live catalog every other page fetches
@@ -357,6 +438,51 @@ function loadExistingCoas(productId) {
     });
 }
 
+// ============================================================
+// Promotions / newsletter
+// ============================================================
+
+function loadPromoSubscriberCount() {
+  var el = document.getElementById('promo-subscriber-count');
+  el.textContent = 'Loading subscriber count...';
+  fetch('/api/admin/promo/subscriber-count', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      el.textContent = 'This will be sent to ' + d.count + ' subscriber' + (d.count === 1 ? '' : 's') + '.';
+    })
+    .catch(function() {
+      el.textContent = '';
+    });
+}
+
+function formatScheduledDate(iso) {
+  return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function loadScheduledPromos() {
+  var container = document.getElementById('promo-scheduled-list');
+  fetch('/api/admin/promo/scheduled', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(scheduled) {
+      if (!Array.isArray(scheduled) || scheduled.length === 0) {
+        container.innerHTML = '<h3>Scheduled Sends</h3><p class="promo-scheduled-empty">Nothing currently scheduled.</p>';
+        return;
+      }
+      container.innerHTML = '<h3>Scheduled Sends</h3>' + scheduled.map(function(job) {
+        return '<div class="promo-scheduled-item">' +
+          '<div class="promo-scheduled-item-info">' +
+            '<div class="promo-scheduled-item-subject">' + job.subject + '</div>' +
+            '<div class="promo-scheduled-item-date">' + formatScheduledDate(job.scheduled_for) + '</div>' +
+          '</div>' +
+          '<button type="button" class="coa-delete-btn" data-scheduled-id="' + job.id + '">Cancel</button>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      container.innerHTML = '<h3>Scheduled Sends</h3><p class="promo-scheduled-empty">Could not load scheduled sends.</p>';
+    });
+}
+
 document.getElementById('admin-login-btn').addEventListener('click', function() {
   var pw = document.getElementById('admin-password-input').value;
   var errorEl = document.getElementById('admin-login-error');
@@ -387,6 +513,45 @@ document.getElementById('filter-email').addEventListener('keydown', function(e) 
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
+document.getElementById('tab-promo').addEventListener('click', showPromoTab);
+
+// Delegated since #orders-tbody is rebuilt by every loadOrders() call.
+document.getElementById('orders-tbody').addEventListener('click', function(e) {
+  var btn = e.target.closest('.order-save-btn');
+  if (!btn) return;
+  var orderId = btn.getAttribute('data-order-id');
+  var row = btn.closest('tr');
+  var fulfillmentStatus = row.querySelector('.order-fulfillment-select').value;
+  var trackingNumber = row.querySelector('.order-tracking-input').value.trim();
+  var statusEl = document.getElementById('order-save-status-' + orderId);
+
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'order-save-status';
+
+  fetch('/api/admin/orders/' + encodeURIComponent(orderId) + '/fulfillment', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fulfillment_status: fulfillmentStatus, tracking_number: trackingNumber }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save.';
+        statusEl.className = 'order-save-status error';
+        return;
+      }
+      statusEl.textContent = 'Saved.';
+      statusEl.className = 'order-save-status success';
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'order-save-status error';
+    });
+});
 
 document.getElementById('coa-category-filter').addEventListener('change', renderCoaProductOptions);
 
@@ -525,6 +690,98 @@ document.getElementById('coa-save-btn').addEventListener('click', function() {
       statusEl.textContent = 'Could not save certificate.';
       statusEl.classList.add('show', 'error');
     });
+});
+
+document.getElementById('promo-send-btn').addEventListener('click', function() {
+  var btn = this;
+  var subject = document.getElementById('promo-subject').value.trim();
+  var body = document.getElementById('promo-body').value.trim();
+  var statusEl = document.getElementById('promo-send-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!subject) { statusEl.textContent = 'Subject is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!body) { statusEl.textContent = 'Body is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!window.confirm('Send this email to every subscriber right now? This cannot be undone.')) return;
+
+  btn.disabled = true;
+  fetch('/api/admin/promo/send', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject: subject, body: body }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not send.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' subscriber(s).';
+      statusEl.classList.add('show', 'success');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not send.';
+      statusEl.classList.add('show', 'error');
+    });
+});
+
+document.getElementById('promo-schedule-btn').addEventListener('click', function() {
+  var btn = this;
+  var subject = document.getElementById('promo-subject').value.trim();
+  var body = document.getElementById('promo-body').value.trim();
+  var scheduledFor = document.getElementById('promo-schedule-time').value;
+  var statusEl = document.getElementById('promo-schedule-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!subject) { statusEl.textContent = 'Subject is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!body) { statusEl.textContent = 'Body is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!scheduledFor) { statusEl.textContent = 'Pick a date/time first.'; statusEl.classList.add('show', 'error'); return; }
+
+  btn.disabled = true;
+  fetch('/api/admin/promo/schedule', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject: subject, body: body, scheduled_for: new Date(scheduledFor).toISOString() }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not schedule.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Scheduled.';
+      statusEl.classList.add('show', 'success');
+      loadScheduledPromos();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not schedule.';
+      statusEl.classList.add('show', 'error');
+    });
+});
+
+// Delegated since #promo-scheduled-list is rebuilt by every loadScheduledPromos() call.
+document.getElementById('promo-scheduled-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-scheduled-id]');
+  if (!btn) return;
+  if (!window.confirm('Cancel this scheduled send?')) return;
+
+  fetch('/api/admin/promo/scheduled/' + encodeURIComponent(btn.getAttribute('data-scheduled-id')), {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) { window.alert(r.d.error || 'Could not cancel.'); return; }
+      loadScheduledPromos();
+    })
+    .catch(function() { window.alert('Could not cancel.'); });
 });
 
 document.getElementById('admin-logout-link').addEventListener('click', function(e) {
