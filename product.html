@@ -200,13 +200,19 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .coa-list-item-info{display:flex; flex-direction:column; gap:2px; min-width:0;}
 .coa-list-item-lot{font-weight:700; color:var(--navy-dark); font-size:0.82rem;}
 .coa-list-item-date{color:var(--gray); font-size:0.75rem;}
-.coa-list-item .btn-buy{display:block; width:100%;}
+.coa-list-item .btn-buy{display:flex; align-items:center; justify-content:center; gap:8px; width:100%;}
+.coa-list-item .btn-buy svg{flex-shrink:0; width:15px; height:15px;}
 
 #coa-viewer-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;}
 #coa-viewer-overlay.active{display:flex;}
-#coa-viewer-modal{background:#fff; border-radius:12px; width:90%; max-width:900px; height:85vh; position:relative; overflow:hidden;}
+#coa-viewer-modal{background:#fff; border-radius:12px; width:90%; max-width:900px; height:85vh; position:relative; overflow:hidden; display:flex; flex-direction:column;}
+#coa-viewer-toolbar{display:flex; align-items:center; justify-content:center; gap:12px; padding:10px 50px 10px 14px; border-bottom:1px solid var(--line); flex-shrink:0;}
+#coa-viewer-toolbar button{width:32px; height:32px; border-radius:6px; border:1px solid var(--line); background:#fff; color:var(--navy); font-size:1.1rem; font-weight:700; cursor:pointer; line-height:1; font-family:'Quicksand',sans-serif;}
+#coa-viewer-toolbar button:hover{background:var(--panel);}
+#coa-viewer-zoom-level{font-size:0.82rem; color:var(--gray); min-width:44px; text-align:center;}
 #coa-viewer-close{position:absolute; top:10px; right:14px; background:#fff; border:none; font-size:22px; color:var(--gray); cursor:pointer; line-height:1; z-index:1; width:32px; height:32px; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,0.2);}
-#coa-viewer-frame{width:100%; height:100%; border:none; display:block;}
+#coa-viewer-frame-wrap{flex:1; overflow:auto; background:var(--panel);}
+#coa-viewer-frame{width:100%; height:100%; border:none; display:block; transform-origin:top center; transition:transform 0.15s ease;}
 
 .product-section{max-width:1200px; margin:36px auto 0; padding:0 24px;}
 @media (max-width:600px){ .product-section{ padding-left:16px; padding-right:16px; } }
@@ -1000,8 +1006,15 @@ function renderProduct(product, siblings) {
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<div id="coa-viewer-overlay">' +
             '<div id="coa-viewer-modal">' +
+              '<div id="coa-viewer-toolbar">' +
+                '<button type="button" id="coa-viewer-zoom-out" aria-label="Zoom out">&minus;</button>' +
+                '<span id="coa-viewer-zoom-level">100%</span>' +
+                '<button type="button" id="coa-viewer-zoom-in" aria-label="Zoom in">+</button>' +
+              '</div>' +
               '<button type="button" id="coa-viewer-close" aria-label="Close">&times;</button>' +
-              '<iframe id="coa-viewer-frame" src="" title="Certificate of Analysis"></iframe>' +
+              '<div id="coa-viewer-frame-wrap">' +
+                '<iframe id="coa-viewer-frame" src="" title="Certificate of Analysis"></iframe>' +
+              '</div>' +
             '</div>' +
           '</div>' +
           '<p class="trust-note">For laboratory research use only.</p>' +
@@ -1130,6 +1143,8 @@ async function loadProductCoas(product) {
   }
   if (!Array.isArray(coas) || coas.length === 0) return;
 
+  var docIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
+
   container.innerHTML =
     '<h3>Certificates of Analysis</h3>' +
     coas.map(function(coa) {
@@ -1140,7 +1155,7 @@ async function loadProductCoas(product) {
           '<span class="coa-list-item-lot">LOT #' + coa.batch_lot + '</span>' +
           '<span class="coa-list-item-date">' + formatCoaDate(coa.batch_date) + '</span>' +
         '</div>' +
-        '<button type="button" class="btn-buy" data-coa-pdf-url="' + pdfUrl + '">Click Here to View Certificate of Analysis</button>' +
+        '<button type="button" class="btn-buy" data-coa-pdf-url="' + pdfUrl + '">' + docIcon + '<span>Click Here to View Certificate of Analysis</span></button>' +
       '</div>';
     }).join('');
   container.style.display = '';
@@ -1220,11 +1235,38 @@ function wireProductInteractions(product, trailIds, siblings) {
   // Delegated since #coa-list starts empty and is populated later by
   // loadProductCoas() -- same reasoning as gallery-thumbs/suggested-essentials
   // /kits-available below.
+  //
+  // #toolbar=0 hides the native PDF viewer's whole toolbar (print/download
+  // included -- there's no way to cherry-pick individual buttons in a plain
+  // iframe embed, it's all-or-nothing) in favor of the custom zoom-only
+  // controls below, which CSS-scale the iframe itself rather than reaching
+  // into the native viewer (which page JS has no access to).
+  var COA_VIEWER_ZOOM_MIN = 0.5;
+  var COA_VIEWER_ZOOM_MAX = 2.5;
+  var COA_VIEWER_ZOOM_STEP = 0.25;
+  var coaViewerZoom = 1;
+
+  function applyCoaViewerZoom() {
+    document.getElementById('coa-viewer-frame').style.transform = 'scale(' + coaViewerZoom + ')';
+    document.getElementById('coa-viewer-zoom-level').textContent = Math.round(coaViewerZoom * 100) + '%';
+  }
+
   document.getElementById('coa-list').addEventListener('click', function(e) {
     var btn = e.target.closest('[data-coa-pdf-url]');
     if (!btn) return;
-    document.getElementById('coa-viewer-frame').src = btn.getAttribute('data-coa-pdf-url') + '#toolbar=1';
+    coaViewerZoom = 1;
+    applyCoaViewerZoom();
+    document.getElementById('coa-viewer-frame').src = btn.getAttribute('data-coa-pdf-url') + '#toolbar=0';
     document.getElementById('coa-viewer-overlay').classList.add('active');
+  });
+
+  document.getElementById('coa-viewer-zoom-in').addEventListener('click', function() {
+    coaViewerZoom = Math.min(COA_VIEWER_ZOOM_MAX, coaViewerZoom + COA_VIEWER_ZOOM_STEP);
+    applyCoaViewerZoom();
+  });
+  document.getElementById('coa-viewer-zoom-out').addEventListener('click', function() {
+    coaViewerZoom = Math.max(COA_VIEWER_ZOOM_MIN, coaViewerZoom - COA_VIEWER_ZOOM_STEP);
+    applyCoaViewerZoom();
   });
 
   function closeCoaViewer() {
