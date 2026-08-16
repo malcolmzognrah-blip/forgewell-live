@@ -284,6 +284,7 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
       <select id="inbox-folder-select"><option value="INBOX">INBOX</option></select>
       <input type="text" id="inbox-search-input" placeholder="Search subject, sender, or body...">
       <button type="button" id="inbox-search-btn">Search</button>
+      <button type="button" id="inbox-refresh-btn">Refresh</button>
     </div>
 
     <div id="inbox-list-view">
@@ -1066,6 +1067,13 @@ document.getElementById('inbox-search-btn').addEventListener('click', function()
 });
 document.getElementById('inbox-search-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { inboxCurrentPage = 1; loadInboxMessages(); }
+});
+
+// Re-fetches the current page/folder/search as-is (unlike Search, this
+// does not reset to page 1) -- lets the admin manually check for new mail
+// without losing their place.
+document.getElementById('inbox-refresh-btn').addEventListener('click', function() {
+  loadInboxMessages();
 });
 
 document.getElementById('inbox-prev-btn').addEventListener('click', function() {
