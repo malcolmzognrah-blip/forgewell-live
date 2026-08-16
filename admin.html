@@ -131,6 +131,24 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
 .inbox-reply-status.success{ color:#1F7A34; }
 .inbox-back-btn{ background:none; border:none; color:var(--navy); font-weight:700; cursor:pointer; font-size:0.82rem; padding:0; margin-bottom:12px; }
 .inbox-empty{ color:var(--gray); font-size:0.85rem; padding:20px 0; }
+
+.fulfillment-panel{ max-width:640px; }
+.fulfillment-panel label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:14px 0 5px; }
+.fulfillment-panel label:first-of-type{ margin-top:0; }
+.fulfillment-panel input[type="text"], .fulfillment-panel input[type="time"]{ width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; box-sizing:border-box; }
+.fulfillment-radio-row{ display:flex; gap:16px; margin-top:6px; }
+.fulfillment-radio-row label{ display:flex; align-items:center; gap:6px; font-size:0.82rem; font-weight:400; color:#333; margin:0; cursor:pointer; }
+.fulfillment-checkbox-row{ display:flex; align-items:center; gap:7px; margin-top:14px; font-size:0.82rem; font-weight:700; color:var(--gray); cursor:pointer; }
+.fulfillment-section{ margin-bottom:28px; padding-bottom:24px; border-bottom:1px solid var(--line); }
+.fulfillment-section:last-child{ border-bottom:none; padding-bottom:0; margin-bottom:0; }
+.fulfillment-section h3{ font-size:0.95rem; color:var(--navy-dark); margin:0 0 4px; }
+.fulfillment-section-note{ font-size:0.78rem; color:var(--gray); margin:0 0 14px; }
+.fulfillment-btn{ margin-top:16px; padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+.fulfillment-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.fulfillment-status{ font-size:0.82rem; margin-top:10px; display:none; }
+.fulfillment-status.show{ display:block; }
+.fulfillment-status.error{ color:#c0392b; }
+.fulfillment-status.success{ color:#1F7A34; }
 </style>
 </head>
 <body>
@@ -153,6 +171,7 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
     <button type="button" class="admin-tab" id="tab-coas">Certificates of Analysis</button>
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
+    <button type="button" class="admin-tab" id="tab-fulfillment">Fulfillment Report</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -299,6 +318,38 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
       </div>
     </div>
   </div>
+
+  <div class="admin-view fulfillment-panel" id="view-fulfillment">
+    <div class="fulfillment-section">
+      <h3>Generate Report</h3>
+      <p class="fulfillment-section-note">Downloads immediately — paid orders not yet marked shipped.</p>
+      <label>Format</label>
+      <div class="fulfillment-radio-row">
+        <label><input type="radio" name="fulfillment-manual-format" value="csv" checked> CSV</label>
+        <label><input type="radio" name="fulfillment-manual-format" value="pdf"> PDF</label>
+      </div>
+      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-manual-hide-pii"> Hide customer name &amp; shipping address</label>
+      <button type="button" class="fulfillment-btn" id="fulfillment-generate-btn">Generate Report</button>
+    </div>
+
+    <div class="fulfillment-section">
+      <h3>Scheduled Daily Report</h3>
+      <p class="fulfillment-section-note">Checked every few minutes; sends once per day at or after the time below (server time, UTC).</p>
+      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-schedule-enabled"> Enabled</label>
+      <label for="fulfillment-schedule-recipient">Recipient Email</label>
+      <input type="text" id="fulfillment-schedule-recipient" placeholder="supplier@example.com">
+      <label>Format</label>
+      <div class="fulfillment-radio-row">
+        <label><input type="radio" name="fulfillment-schedule-format" value="csv" checked> CSV</label>
+        <label><input type="radio" name="fulfillment-schedule-format" value="pdf"> PDF</label>
+      </div>
+      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-schedule-hide-pii"> Hide customer name &amp; shipping address</label>
+      <label for="fulfillment-schedule-time">Send Time (UTC)</label>
+      <input type="time" id="fulfillment-schedule-time" value="09:00">
+      <button type="button" class="fulfillment-btn" id="fulfillment-schedule-save-btn">Save Settings</button>
+      <p class="fulfillment-status" id="fulfillment-schedule-status"></p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -368,10 +419,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox'].forEach(function(id) {
+  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo', 'view-inbox'].forEach(function(id) {
+  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -413,6 +464,30 @@ function showInboxTab() {
   }
   inboxCurrentPage = 1;
   loadInboxMessages();
+}
+
+// ============================================================
+// Fulfillment report
+// ============================================================
+
+function showFulfillmentTab() {
+  showAdminTab('tab-fulfillment', 'view-fulfillment');
+  loadFulfillmentSchedule();
+}
+
+function loadFulfillmentSchedule() {
+  fetch('/api/admin/fulfillment-report/schedule', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(cfg) {
+      if (!cfg) return;
+      document.getElementById('fulfillment-schedule-enabled').checked = !!cfg.enabled;
+      document.getElementById('fulfillment-schedule-recipient').value = cfg.recipient_email || '';
+      var formatRadio = document.querySelector('input[name="fulfillment-schedule-format"][value="' + cfg.format + '"]');
+      if (formatRadio) formatRadio.checked = true;
+      document.getElementById('fulfillment-schedule-hide-pii').checked = !!cfg.hide_customer_info;
+      document.getElementById('fulfillment-schedule-time').value = String(cfg.send_time).slice(0, 5);
+    })
+    .catch(function() {});
 }
 
 function loadInboxFolders() {
@@ -708,6 +783,7 @@ document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
+document.getElementById('tab-fulfillment').addEventListener('click', showFulfillmentTab);
 
 // Delegated since #orders-tbody is rebuilt by every loadOrders() call.
 document.getElementById('orders-tbody').addEventListener('click', function(e) {
@@ -1054,6 +1130,58 @@ document.getElementById('inbox-reply-btn').addEventListener('click', function() 
       btn.disabled = false;
       statusEl.textContent = 'Could not send reply.';
       statusEl.classList.remove('success');
+      statusEl.classList.add('show', 'error');
+    });
+});
+
+// GET with query params -- letting the browser navigate there directly
+// triggers its native download handling off the Content-Disposition
+// header, no fetch+blob+synthetic-click dance needed. The httpOnly admin
+// session cookie is sent automatically on this same-origin navigation.
+document.getElementById('fulfillment-generate-btn').addEventListener('click', function() {
+  var format = document.querySelector('input[name="fulfillment-manual-format"]:checked').value;
+  var hidePii = document.getElementById('fulfillment-manual-hide-pii').checked;
+  var params = new URLSearchParams();
+  params.set('format', format);
+  params.set('hideCustomerInfo', hidePii ? 'true' : 'false');
+  window.location.href = '/api/admin/fulfillment-report?' + params.toString();
+});
+
+document.getElementById('fulfillment-schedule-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('fulfillment-schedule-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  var enabled = document.getElementById('fulfillment-schedule-enabled').checked;
+  var recipient = document.getElementById('fulfillment-schedule-recipient').value.trim();
+  var format = document.querySelector('input[name="fulfillment-schedule-format"]:checked').value;
+  var hidePii = document.getElementById('fulfillment-schedule-hide-pii').checked;
+  var sendTime = document.getElementById('fulfillment-schedule-time').value || '09:00';
+
+  btn.disabled = true;
+  fetch('/api/admin/fulfillment-report/schedule', {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      enabled: enabled, recipient_email: recipient, format: format,
+      hide_customer_info: hidePii, send_time: sendTime,
+    }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save settings.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Settings saved.';
+      statusEl.classList.add('show', 'success');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save settings.';
       statusEl.classList.add('show', 'error');
     });
 });
