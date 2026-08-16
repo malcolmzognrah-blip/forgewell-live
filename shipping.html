@@ -458,7 +458,7 @@ function addToCart(productId) {
   if (existing) {
     existing.qty += 1;
   } else {
-    cart.push({ productId: product.id, name: product.name, price: product.price, qty: 1 });
+    cart.push({ productId: product.id, name: product.name, price: (product.effectivePrice != null ? product.effectivePrice : product.price), qty: 1 });
   }
   saveCart();
 }

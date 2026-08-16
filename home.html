@@ -82,6 +82,7 @@ header{
 .card h3{ font-weight:700; font-size:1rem; margin-bottom:4px; color:#141414; text-align:center; }
 .price-row{ display:flex; flex-direction:column; gap:8px; margin-top:auto; padding-top:10px; }
 .price{ font-weight:700; font-size:0.95rem; color:var(--navy-dark); text-align:center; margin-bottom:4px; }
+.price .was{ font-weight:500; font-size:0.78rem; color:var(--gray); text-decoration:line-through; margin-left:5px; }
 .buy-btn{ display:block; width:100%; text-align:center; font-size:0.75rem; font-weight:700; padding:10px; border-radius:6px; color:#fff; }
 .add-btn{ display:block; width:100%; text-align:center; font-size:0.72rem; font-weight:700; padding:9px; border-radius:6px; border-width:1.5px; border-style:solid; }
 
@@ -331,90 +332,53 @@ body.gate-active{ overflow:hidden; }
 <section class="faq-section">
   <h2>Frequently Asked Questions</h2>
 
-  <div class="faq-item">
-    <button class="faq-question" type="button">
-      <span>What does "Research Use Only" mean?</span>
-      <span class="faq-icon">+</span>
-    </button>
-    <div class="faq-answer">
-      <p>All products sold on this site are designated for laboratory, analytical, or scientific research use only. They are not intended for human or veterinary use, and are not approved by the FDA or any regulatory body for diagnosis, treatment, or prevention of any condition. Purchasing indicates you are a qualified researcher acquiring these products exclusively for laboratory use.</p>
-    </div>
-  </div>
-
-  <div class="faq-item">
-    <button class="faq-question" type="button">
-      <span>How do I place an order?</span>
-      <span class="faq-icon">+</span>
-    </button>
-    <div class="faq-answer">
-      <p>Browse the catalog, add products to your cart using the quantity controls, and check out directly from the cart panel or by clicking "Buy Now" on any product. You'll be guided through payment from there.</p>
-    </div>
-  </div>
-
-  <div class="faq-item">
-    <button class="faq-question" type="button">
-      <span>What payment methods do you accept?</span>
-      <span class="faq-icon">+</span>
-    </button>
-    <div class="faq-answer">
-      <p>We currently process payments through a secure, self-hosted checkout system. Additional payment options may be added in the future.</p>
-    </div>
-  </div>
-
-  <div class="faq-item">
-    <button class="faq-question" type="button">
-      <span>How long does shipping take?</span>
-      <span class="faq-icon">+</span>
-    </button>
-    <div class="faq-answer">
-      <p>Orders are processed and shipped promptly once payment is confirmed. Exact delivery timelines depend on your location and will be communicated at checkout.</p>
-    </div>
-  </div>
-
-  <div class="faq-item">
-    <button class="faq-question" type="button">
-      <span>Do you offer discounts?</span>
-      <span class="faq-icon">+</span>
-    </button>
-    <div class="faq-answer">
-      <p>Yes — sign up with your email for a 15% discount code on your next order, and check the shop for bulk pricing on qualifying orders.</p>
-    </div>
-  </div>
-
-  <div class="faq-item">
-    <button class="faq-question" type="button">
-      <span>How should research peptides be stored?</span>
-      <span class="faq-icon">+</span>
-    </button>
-    <div class="faq-answer">
-      <p>Proper storage and handling of research compounds is the responsibility of the qualified researcher, in accordance with standard laboratory practices and all applicable regulations.</p>
-    </div>
-  </div>
+  <div id="faq-items"></div>
 </section>
 
 <script>
-document.querySelectorAll('.faq-question').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const item = btn.parentElement;
-    const answer = item.querySelector('.faq-answer');
-    const isOpen = item.classList.contains('open');
+// FAQ items are fetched and rendered below (admin-editable via
+// admin.html's Content tab, see routes/content.js) rather than hardcoded,
+// so this listens on the always-present #faq-items container instead of
+// binding to each .faq-question directly -- delegation means the toggle
+// still works no matter when the items actually land in the DOM.
+document.getElementById('faq-items').addEventListener('click', function(e) {
+  var btn = e.target.closest('.faq-question');
+  if (!btn) return;
+  var item = btn.parentElement;
+  var answer = item.querySelector('.faq-answer');
+  var isOpen = item.classList.contains('open');
 
-    document.querySelectorAll('.faq-item.open').forEach(openItem => {
-      if (openItem !== item) {
-        openItem.classList.remove('open');
-        openItem.querySelector('.faq-answer').style.maxHeight = null;
-      }
-    });
-
-    if (isOpen) {
-      item.classList.remove('open');
-      answer.style.maxHeight = null;
-    } else {
-      item.classList.add('open');
-      answer.style.maxHeight = answer.scrollHeight + 'px';
+  document.querySelectorAll('.faq-item.open').forEach(function(openItem) {
+    if (openItem !== item) {
+      openItem.classList.remove('open');
+      openItem.querySelector('.faq-answer').style.maxHeight = null;
     }
   });
+
+  if (isOpen) {
+    item.classList.remove('open');
+    answer.style.maxHeight = null;
+  } else {
+    item.classList.add('open');
+    answer.style.maxHeight = answer.scrollHeight + 'px';
+  }
 });
+
+fetch('/api/content/faq').then(function(r) { return r.json(); })
+  .then(function(items) {
+    document.getElementById('faq-items').innerHTML = items.map(function(f) {
+      return '<div class="faq-item">' +
+        '<button class="faq-question" type="button">' +
+          '<span>' + f.question + '</span>' +
+          '<span class="faq-icon">+</span>' +
+        '</button>' +
+        '<div class="faq-answer">' +
+          '<p>' + f.answer + '</p>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  })
+  .catch(function() {});
 </script>
 
 <style>
@@ -672,13 +636,21 @@ Promise.all([
 });
 
 function buildCardHtml(group) {
-  // group = {baseId, name, category, lowestPrice, highestPrice, lot, dosage, imgUrl}
+  // group = {baseId, name, category, lowestPrice, highestPrice, lowestRegularPrice, lot, dosage, imgUrl}
+  // lowestPrice is already effectivePrice (sale-aware) -- see the picks
+  // mapping in renderHomeMostPopular() below.
   const meta = categoryMeta(group.category);
-  const priceLabel = group.category === 'kit' && group.multi && group.highestPrice > group.lowestPrice
-    ? '$' + group.lowestPrice.toFixed(2) + '–$' + group.highestPrice.toFixed(2)
-    : group.lowestPrice > 0
-      ? (group.multi ? 'From $' + group.lowestPrice.toFixed(2) : '$' + group.lowestPrice.toFixed(2))
-      : '$XX';
+  let priceLabel;
+  if (group.category === 'kit' && group.multi && group.highestPrice > group.lowestPrice) {
+    priceLabel = '$' + group.lowestPrice.toFixed(2) + '–$' + group.highestPrice.toFixed(2);
+  } else if (group.lowestPrice > 0) {
+    priceLabel = (group.multi ? 'From $' : '$') + group.lowestPrice.toFixed(2);
+    if (group.lowestRegularPrice > group.lowestPrice) {
+      priceLabel += '<span class="was">$' + group.lowestRegularPrice.toFixed(2) + '</span>';
+    }
+  } else {
+    priceLabel = '$XX';
+  }
   return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +
@@ -745,7 +717,8 @@ async function renderHomeMostPopular() {
     .filter(Boolean)
     .map(p => ({
       baseId: p.id, name: p.name, category: p.category || 'other',
-      lowestPrice: p.price, lot: p.lot, dosage: p.dosage,
+      lowestPrice: (p.effectivePrice != null ? p.effectivePrice : p.price), lowestRegularPrice: p.price,
+      lot: p.lot, dosage: p.dosage,
       imgUrl: resolveImagePath(p.image_path), multi: false,
     }))
     .filter(g => g.imgUrl); // still respect the image-matching display rule
@@ -801,7 +774,7 @@ function addToCart(productId) {
   if (existing) {
     existing.qty += 1;
   } else {
-    cart.push({ productId: product.id, name: product.name, price: product.price, qty: 1 });
+    cart.push({ productId: product.id, name: product.name, price: (product.effectivePrice != null ? product.effectivePrice : product.price), qty: 1 });
   }
   saveCart();
 }

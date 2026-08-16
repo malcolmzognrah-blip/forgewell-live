@@ -107,6 +107,7 @@ header{
 .card h3{ font-weight:700; font-size:1rem; margin-bottom:4px; color:#141414; text-align:center; }
 .price-row{ display:flex; flex-direction:column; gap:8px; margin-top:auto; padding-top:10px; }
 .price{ font-weight:700; font-size:0.95rem; color:var(--navy-dark); text-align:center; margin-bottom:4px; }
+.price .was{ font-weight:500; font-size:0.78rem; color:var(--gray); text-decoration:line-through; margin-left:5px; }
 .buy-btn{ display:block; width:100%; text-align:center; font-size:0.75rem; font-weight:700; padding:10px; border-radius:6px; color:#fff; }
 .add-btn{ display:block; width:100%; text-align:center; font-size:0.72rem; font-weight:700; padding:9px; border-radius:6px; border-width:1.5px; border-style:solid; }
 
@@ -637,13 +638,24 @@ Promise.all([
 });
 
 function buildCardHtml(group) {
-  // group = {baseId, name, category, lowestPrice, highestPrice, lot, dosage, imgUrl}
+  // group = {baseId, name, category, lowestPrice, highestPrice, lowestRegularPrice, lot, dosage, imgUrl}
+  // lowestPrice/highestPrice are already effectivePrice (sale-aware) as
+  // computed in renderShopGrid()'s grouping step below -- a range (kit
+  // with varying tiers) never gets a "was" strikethrough since the range
+  // itself already communicates variability; a single/"From" price does,
+  // when the cheapest tier backing that card is actually on sale.
   const meta = categoryMeta(group.category);
-  const priceLabel = group.category === 'kit' && group.multi && group.highestPrice > group.lowestPrice
-    ? '$' + group.lowestPrice.toFixed(2) + '–$' + group.highestPrice.toFixed(2)
-    : group.lowestPrice > 0
-      ? (group.multi ? 'From $' + group.lowestPrice.toFixed(2) : '$' + group.lowestPrice.toFixed(2))
-      : '$XX';
+  let priceLabel;
+  if (group.category === 'kit' && group.multi && group.highestPrice > group.lowestPrice) {
+    priceLabel = '$' + group.lowestPrice.toFixed(2) + '–$' + group.highestPrice.toFixed(2);
+  } else if (group.lowestPrice > 0) {
+    priceLabel = (group.multi ? 'From $' : '$') + group.lowestPrice.toFixed(2);
+    if (group.lowestRegularPrice > group.lowestPrice) {
+      priceLabel += '<span class="was">$' + group.lowestRegularPrice.toFixed(2) + '</span>';
+    }
+  } else {
+    priceLabel = '$XX';
+  }
   return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +
@@ -688,22 +700,24 @@ async function renderShopGrid() {
     const base = groupKeyFor(p);
     if (!groups[base]) {
       groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
-        lowestPrice: p.price, highestPrice: p.price, lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
-        inStock: p.stock_status !== 'out_of_stock', onSale: !!p.on_sale, unitsSold: p.units_sold || 0 };
+        lowestPrice: p.effectivePrice, highestPrice: p.effectivePrice, lowestRegularPrice: p.price,
+        lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
+        inStock: p.stock_status !== 'out_of_stock', onSale: !!p.onSaleNow, unitsSold: p.units_sold || 0 };
     } else {
       groups[base].count += 1;
       groups[base].multi = true;
       groups[base].inStock = groups[base].inStock || (p.stock_status !== 'out_of_stock');
-      groups[base].onSale = groups[base].onSale || !!p.on_sale;
+      groups[base].onSale = groups[base].onSale || !!p.onSaleNow;
       groups[base].unitsSold += (p.units_sold || 0);
-      if (p.price > 0 && (groups[base].lowestPrice <= 0 || p.price < groups[base].lowestPrice)) {
-        groups[base].lowestPrice = p.price;
+      if (p.effectivePrice > 0 && (groups[base].lowestPrice <= 0 || p.effectivePrice < groups[base].lowestPrice)) {
+        groups[base].lowestPrice = p.effectivePrice;
+        groups[base].lowestRegularPrice = p.price;
         groups[base].baseId = p.id; // link to the cheapest tier
         groups[base].dosage = p.dosage;
         groups[base].lot = p.lot;
       }
-      if (p.price > 0 && p.price > groups[base].highestPrice) {
-        groups[base].highestPrice = p.price;
+      if (p.effectivePrice > 0 && p.effectivePrice > groups[base].highestPrice) {
+        groups[base].highestPrice = p.effectivePrice;
       }
     }
   });
@@ -950,7 +964,7 @@ function addToCart(productId) {
   if (existing) {
     existing.qty += 1;
   } else {
-    cart.push({ productId: product.id, name: product.name, price: product.price, qty: 1 });
+    cart.push({ productId: product.id, name: product.name, price: (product.effectivePrice != null ? product.effectivePrice : product.price), qty: 1 });
   }
   saveCart();
 }

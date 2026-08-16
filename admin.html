@@ -40,6 +40,9 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .coa-panel label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:14px 0 5px; }
 .coa-panel label:first-of-type{ margin-top:0; }
 .coa-panel input[type="text"], .coa-panel input[type="date"], .coa-panel select{ width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
+.coa-panel textarea{ width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical; min-height:80px; }
+.content-item{ padding-bottom:16px; margin-bottom:16px; border-bottom:1px solid var(--line); }
+.content-item:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
 .coa-fields{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-top:6px; padding-top:10px; border-top:1px solid var(--line); }
 .coa-extract-status{ font-size:0.8rem; color:var(--gray); margin-top:8px; }
 .coa-existing-list{ margin-top:16px; }
@@ -149,6 +152,27 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
 .fulfillment-status.show{ display:block; }
 .fulfillment-status.error{ color:#c0392b; }
 .fulfillment-status.success{ color:#1F7A34; }
+
+.products-panel{ max-width:900px; }
+table.products-table{ width:100%; border-collapse:collapse; font-size:0.82rem; }
+table.products-table th{ text-align:left; padding:10px; background:var(--panel); border-bottom:2px solid var(--line); color:var(--navy-dark); }
+table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.product-row-price-input{ width:80px; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-size:0.78rem; }
+.product-row-stock-select{ padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-size:0.78rem; }
+.product-edit-toggle-btn{ padding:5px 10px; background:#fff; border:1px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.72rem; font-weight:700; color:var(--navy); }
+.product-detail-row{ display:none; }
+.product-detail-row.show{ display:table-row; }
+.product-detail-cell{ background:var(--panel); padding:16px; }
+.product-detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
+.product-detail-cell label{ display:block; font-size:0.72rem; font-weight:700; color:var(--gray); margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.03em; }
+.product-detail-cell label:first-of-type{ margin-top:0; }
+.product-detail-cell input, .product-detail-cell textarea{ width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:0.82rem; font-family:inherit; }
+.product-detail-cell textarea{ min-height:70px; resize:vertical; }
+.product-save-btn{ margin-top:14px; padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.8rem; }
+.product-save-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+.product-save-status{ font-size:0.78rem; margin-left:10px; }
+.product-save-status.error{ color:#c0392b; }
+.product-save-status.success{ color:#1F7A34; }
 </style>
 </head>
 <body>
@@ -172,6 +196,8 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
     <button type="button" class="admin-tab" id="tab-fulfillment">Fulfillment Report</button>
+    <button type="button" class="admin-tab" id="tab-products">Products</button>
+    <button type="button" class="admin-tab" id="tab-content">Content</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -351,6 +377,46 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
       <p class="fulfillment-status" id="fulfillment-schedule-status"></p>
     </div>
   </div>
+
+  <div class="admin-view products-panel" id="view-products">
+    <div class="filters">
+      <select id="products-category-filter"><option value="">All Categories</option></select>
+    </div>
+    <table class="products-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th>On Sale</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="products-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="admin-view coa-panel" id="view-content">
+    <div class="fulfillment-section">
+      <h3>About Us Sections</h3>
+      <p class="fulfillment-section-note">Edits the copy shown on the About Us page.</p>
+      <div id="content-about-us-list"></div>
+    </div>
+
+    <div class="fulfillment-section">
+      <h3>FAQ Items</h3>
+      <p class="fulfillment-section-note">Edits the accordion shown on the FAQs page.</p>
+      <div id="content-faq-list"></div>
+    </div>
+
+    <div class="fulfillment-section">
+      <h3>Disclaimer</h3>
+      <p class="fulfillment-section-note">Shown on About Us, Contact, Terms, the RUO Agreement, and every product page.</p>
+      <textarea id="content-disclaimer-textarea" style="width:100%; box-sizing:border-box; min-height:110px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;"></textarea>
+      <button type="button" class="fulfillment-btn" id="content-disclaimer-save-btn">Save Disclaimer</button>
+      <span class="product-save-status" id="content-disclaimer-status"></span>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -420,10 +486,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment'].forEach(function(id) {
+  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment'].forEach(function(id) {
+  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -474,6 +540,151 @@ function showInboxTab() {
 function showFulfillmentTab() {
   showAdminTab('tab-fulfillment', 'view-fulfillment');
   loadFulfillmentSchedule();
+}
+
+// ============================================================
+// Products -- price, stock status, sale scheduling, bullets/description.
+// Reuses the COA tab's fetch-all/filter-by-category-client-side pattern
+// (loadCoaProducts()/renderCoaProductOptions() above), but does NOT
+// exclude kits -- unlike COAs, kits have their own independent price/
+// stock_status/on_sale columns worth managing directly here.
+// ============================================================
+
+var productsAllProducts = [];
+var productsLoaded = false;
+
+function escapeHtml(s) {
+  var div = document.createElement('div');
+  div.textContent = s == null ? '' : String(s);
+  return div.innerHTML;
+}
+
+function renderProductsCategoryOptions() {
+  var categories = [];
+  productsAllProducts.forEach(function(p) {
+    if (categories.indexOf(p.category) === -1) categories.push(p.category);
+  });
+  categories.sort();
+  document.getElementById('products-category-filter').innerHTML = '<option value="">All Categories</option>' +
+    categories.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+}
+
+function renderProductsRows() {
+  var category = document.getElementById('products-category-filter').value;
+  var filtered = productsAllProducts
+    .filter(function(p) { return !category || p.category === category; })
+    .slice()
+    .sort(function(a, b) { return a.name.localeCompare(b.name); });
+  var tbody = document.getElementById('products-tbody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">No products.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(function(p) {
+    var bulletsText = Array.isArray(p.bullets) ? p.bullets.join('\n') : (p.bullets || '');
+    return '<tr data-product-id="' + p.id + '">' +
+        '<td>' + escapeHtml(p.name) + (p.on_sale ? ' <span style="color:var(--green);font-weight:700;font-size:0.72rem;">ON SALE</span>' : '') + '</td>' +
+        '<td><input type="number" step="0.01" min="0" class="product-row-price-input" value="' + p.price + '"></td>' +
+        '<td><select class="product-row-stock-select">' +
+          '<option value="in_stock"' + (p.stock_status !== 'out_of_stock' ? ' selected' : '') + '>In Stock</option>' +
+          '<option value="out_of_stock"' + (p.stock_status === 'out_of_stock' ? ' selected' : '') + '>Out of Stock</option>' +
+        '</select></td>' +
+        '<td style="text-align:center;"><input type="checkbox" class="product-row-onsale-checkbox"' + (p.on_sale ? ' checked' : '') + '></td>' +
+        '<td><button type="button" class="product-edit-toggle-btn" data-product-id="' + p.id + '">Edit Details</button></td>' +
+      '</tr>' +
+      '<tr class="product-detail-row" data-product-id="' + p.id + '">' +
+        '<td colspan="5" class="product-detail-cell">' +
+          '<div class="product-detail-grid">' +
+            '<div>' +
+              '<label>Sale Price</label>' +
+              '<input type="number" step="0.01" min="0" class="product-detail-sale-price" value="' + (p.sale_price != null ? p.sale_price : '') + '">' +
+              '<label>Sale Start</label>' +
+              '<input type="date" class="product-detail-sale-start" value="' + (p.sale_start || '') + '">' +
+              '<label>Sale End</label>' +
+              '<input type="date" class="product-detail-sale-end" value="' + (p.sale_end || '') + '">' +
+            '</div>' +
+            '<div>' +
+              '<label>Bullets (one per line)</label>' +
+              '<textarea class="product-detail-bullets">' + escapeHtml(bulletsText) + '</textarea>' +
+              '<label>Description</label>' +
+              '<textarea class="product-detail-research-use">' + escapeHtml(p.research_use || '') + '</textarea>' +
+            '</div>' +
+          '</div>' +
+          '<button type="button" class="product-save-btn" data-product-id="' + p.id + '">Save</button>' +
+          '<span class="product-save-status" id="product-save-status-' + p.id + '"></span>' +
+        '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function loadProductsList() {
+  if (productsLoaded) { renderProductsRows(); return; }
+  fetch('/api/products', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(products) {
+      productsAllProducts = products;
+      productsLoaded = true;
+      renderProductsCategoryOptions();
+      renderProductsRows();
+    })
+    .catch(function() {
+      document.getElementById('products-tbody').innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">Could not load products.</td></tr>';
+    });
+}
+
+function showProductsTab() {
+  showAdminTab('tab-products', 'view-products');
+  loadProductsList();
+}
+
+// ============================================================
+// Content -- About Us sections, FAQ items, disclaimer. Fixed sets of
+// rows (edit-only, no add/delete -- see routes/admin.js's content
+// endpoints), each with its own per-row Save, same pattern as the
+// Orders tab's fulfillment editor.
+// ============================================================
+
+var contentLoaded = false;
+
+function renderContentAboutUs(sections) {
+  document.getElementById('content-about-us-list').innerHTML = sections.map(function(s) {
+    return '<div class="content-item" data-about-us-id="' + s.id + '">' +
+      '<label>Heading</label>' +
+      '<input type="text" class="content-about-us-heading" value="' + escapeHtml(s.heading) + '">' +
+      '<label>Body</label>' +
+      '<textarea class="content-about-us-body">' + escapeHtml(s.body) + '</textarea>' +
+      '<button type="button" class="fulfillment-btn content-about-us-save-btn" data-about-us-id="' + s.id + '" style="margin-top:10px;">Save</button>' +
+      '<span class="product-save-status" id="content-about-us-status-' + s.id + '"></span>' +
+    '</div>';
+  }).join('');
+}
+
+function renderContentFaq(items) {
+  document.getElementById('content-faq-list').innerHTML = items.map(function(f) {
+    return '<div class="content-item" data-faq-id="' + f.id + '">' +
+      '<label>Question</label>' +
+      '<input type="text" class="content-faq-question" value="' + escapeHtml(f.question) + '">' +
+      '<label>Answer</label>' +
+      '<textarea class="content-faq-answer">' + escapeHtml(f.answer) + '</textarea>' +
+      '<button type="button" class="fulfillment-btn content-faq-save-btn" data-faq-id="' + f.id + '" style="margin-top:10px;">Save</button>' +
+      '<span class="product-save-status" id="content-faq-status-' + f.id + '"></span>' +
+    '</div>';
+  }).join('');
+}
+
+function loadContent() {
+  if (contentLoaded) return;
+  contentLoaded = true;
+  fetch('/api/content/about-us', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentAboutUs).catch(function() {});
+  fetch('/api/content/faq', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentFaq).catch(function() {});
+  fetch('/api/content/disclaimer', { credentials: 'include' }).then(function(r) { return r.json(); })
+    .then(function(d) { document.getElementById('content-disclaimer-textarea').value = d.body || ''; })
+    .catch(function() {});
+}
+
+function showContentTab() {
+  showAdminTab('tab-content', 'view-content');
+  loadContent();
 }
 
 function loadFulfillmentSchedule() {
@@ -785,6 +996,163 @@ document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
 document.getElementById('tab-fulfillment').addEventListener('click', showFulfillmentTab);
+document.getElementById('tab-products').addEventListener('click', showProductsTab);
+document.getElementById('tab-content').addEventListener('click', showContentTab);
+
+document.getElementById('products-category-filter').addEventListener('change', renderProductsRows);
+
+// Delegated since #products-tbody is rebuilt by every renderProductsRows() call.
+document.getElementById('products-tbody').addEventListener('click', function(e) {
+  var toggleBtn = e.target.closest('.product-edit-toggle-btn');
+  if (toggleBtn) {
+    var toggleId = toggleBtn.getAttribute('data-product-id');
+    var detailRow = document.querySelector('.product-detail-row[data-product-id="' + toggleId + '"]');
+    if (detailRow) {
+      detailRow.classList.toggle('show');
+      toggleBtn.textContent = detailRow.classList.contains('show') ? 'Hide Details' : 'Edit Details';
+    }
+    return;
+  }
+
+  var saveBtn = e.target.closest('.product-save-btn');
+  if (!saveBtn) return;
+  var productId = saveBtn.getAttribute('data-product-id');
+  var mainRow = document.querySelector('#products-tbody tr[data-product-id="' + productId + '"]:not(.product-detail-row)');
+  var detailRow2 = document.querySelector('.product-detail-row[data-product-id="' + productId + '"]');
+  var statusEl = document.getElementById('product-save-status-' + productId);
+
+  var body = {
+    price: mainRow.querySelector('.product-row-price-input').value,
+    stock_status: mainRow.querySelector('.product-row-stock-select').value,
+    on_sale: mainRow.querySelector('.product-row-onsale-checkbox').checked,
+    sale_price: detailRow2.querySelector('.product-detail-sale-price').value || null,
+    sale_start: detailRow2.querySelector('.product-detail-sale-start').value || null,
+    sale_end: detailRow2.querySelector('.product-detail-sale-end').value || null,
+    bullets: detailRow2.querySelector('.product-detail-bullets').value,
+    research_use: detailRow2.querySelector('.product-detail-research-use').value,
+  };
+
+  saveBtn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+
+  fetch('/api/admin/products/' + encodeURIComponent(productId), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      saveBtn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      var idx = productsAllProducts.findIndex(function(p) { return p.id === productId; });
+      if (idx !== -1) productsAllProducts[idx] = Object.assign({}, productsAllProducts[idx], r.d);
+      renderProductsRows();
+      // Re-open the row just saved and show "Saved." there -- renderProductsRows()
+      // just rebuilt the DOM, so re-query rather than reuse the stale statusEl/detailRow2.
+      var reopenRow = document.querySelector('.product-detail-row[data-product-id="' + productId + '"]');
+      if (reopenRow) reopenRow.classList.add('show');
+      var reopenBtn = document.querySelector('.product-edit-toggle-btn[data-product-id="' + productId + '"]');
+      if (reopenBtn) reopenBtn.textContent = 'Hide Details';
+      var reopenStatus = document.getElementById('product-save-status-' + productId);
+      if (reopenStatus) {
+        reopenStatus.textContent = 'Saved.';
+        reopenStatus.className = 'product-save-status success';
+      }
+    })
+    .catch(function() {
+      saveBtn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// Delegated since both lists are rebuilt on load.
+document.getElementById('content-about-us-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.content-about-us-save-btn');
+  if (!btn) return;
+  var id = btn.getAttribute('data-about-us-id');
+  var item = document.querySelector('.content-item[data-about-us-id="' + id + '"]');
+  var statusEl = document.getElementById('content-about-us-status-' + id);
+  var body = {
+    heading: item.querySelector('.content-about-us-heading').value,
+    body: item.querySelector('.content-about-us-body').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/about-us/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-faq-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.content-faq-save-btn');
+  if (!btn) return;
+  var id = btn.getAttribute('data-faq-id');
+  var item = document.querySelector('.content-item[data-faq-id="' + id + '"]');
+  var statusEl = document.getElementById('content-faq-status-' + id);
+  var body = {
+    question: item.querySelector('.content-faq-question').value,
+    answer: item.querySelector('.content-faq-answer').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/faq/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-disclaimer-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-disclaimer-status');
+  var body = { body: document.getElementById('content-disclaimer-textarea').value };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/disclaimer', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
 
 // Delegated since #orders-tbody is rebuilt by every loadOrders() call.
 document.getElementById('orders-tbody').addEventListener('click', function(e) {

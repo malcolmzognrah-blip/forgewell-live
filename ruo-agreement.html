@@ -221,12 +221,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
   <h1>Research Use Only (RUO) Agreement</h1>
   <p class="updated">Last updated: August 2026</p>
 
-  <div class="ruo-disclaimer">
-    <h2>Disclaimer</h2>
-    <p>The statements on this website have not been evaluated by the U.S. Food and Drug Administration. The products and information provided by Forgewell LLC are not intended to diagnose, treat, cure, or prevent any disease.</p>
-    <p>Forgewell LLC is a research chemical supplier. We are not a compounding pharmacy or compounding facility as defined under Section 503A of the Federal Food, Drug, and Cosmetic Act, nor are we an outsourcing facility as defined under Section 503B.</p>
-    <p>All products are sold for research, laboratory, or analytical purposes only, and are NOT for human consumption. All sales are final. Customers are responsible for compliance with all applicable laws.</p>
-  </div>
+  <div class="ruo-disclaimer" id="canonical-disclaimer"></div>
 
   <h2>Intended Use</h2>
   <p>All products sold on forgewellpeptide.com are designated For Research Use Only (RUO). They are supplied solely for laboratory, analytical, or scientific research by qualified professionals and institutions.</p>
@@ -428,6 +423,19 @@ Promise.all([
   console.error('Failed to load shared header/footer', err);
 });
 
+// Canonical disclaimer text is admin-editable (see admin.html's Content
+// tab) rather than hardcoded -- same text fetched here as on about-us.html,
+// contact.html, terms.html, and product.html.
+fetch('/api/content/disclaimer').then(function(r) { return r.json(); })
+  .then(function(d) {
+    var el = document.getElementById('canonical-disclaimer');
+    if (!el) return;
+    var paragraphs = (d.body || '').split('\n\n').filter(function(p) { return p.trim(); })
+      .map(function(p) { return '<p>' + p + '</p>'; }).join('');
+    el.innerHTML = '<h2>Disclaimer</h2>' + paragraphs;
+  })
+  .catch(function() {});
+
 async function loadProducts() {
   try {
     const res = await fetch('/api/products');
@@ -471,7 +479,7 @@ function addToCart(productId) {
   if (existing) {
     existing.qty += 1;
   } else {
-    cart.push({ productId: product.id, name: product.name, price: product.price, qty: 1 });
+    cart.push({ productId: product.id, name: product.name, price: (product.effectivePrice != null ? product.effectivePrice : product.price), qty: 1 });
   }
   saveCart();
 }

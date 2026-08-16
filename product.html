@@ -239,6 +239,7 @@ table.tech-table tr:nth-child(even){background:var(--panel);}
 .essential-card h3{ font-weight:700; font-size:0.85rem; margin:0 0 4px; color:#141414; text-align:center; }
 .essential-card .price-row{ display:flex; flex-direction:column; gap:8px; margin-top:auto; padding-top:8px; }
 .essential-card .price{ font-weight:700; font-size:0.82rem; color:var(--navy-dark); text-align:center; }
+.essential-card .price .was{ font-weight:500; font-size:0.72rem; color:var(--gray); text-decoration:line-through; margin-left:5px; }
 .essential-card .add-btn{ display:block; width:100%; text-align:center; font-size:0.7rem; font-weight:700; padding:8px; border-radius:6px; border:1.5px solid #6B4FA0; color:#6B4FA0; background:#fff; cursor:pointer; font-family:'Quicksand',sans-serif; }
 
 .loading-state, .error-state{max-width:1200px; margin:60px auto; padding:0 24px; text-align:center; color:var(--gray);}
@@ -259,6 +260,15 @@ table.tech-table tr:nth-child(even){background:var(--panel);}
 
 <script>
 let allProducts = [];
+// Fetched in parallel with the product catalog in initProductPage() below;
+// shared canonical text also editable via the admin Content tab and shown
+// verbatim on about-us.html, contact.html, terms.html, and
+// ruo-agreement.html.
+let disclaimerBody = '';
+function buildDisclaimerParagraphsHtml(text) {
+  return (text || '').split('\n\n').filter(function(p) { return p.trim(); })
+    .map(function(p) { return '<p>' + p + '</p>'; }).join('');
+}
 let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
 
 async function catalogSearchJump(query) {
@@ -453,7 +463,7 @@ function addToCart(productId) {
   if (existing) {
     existing.qty += 1;
   } else {
-    cart.push({ productId: product.id, name: product.name, price: product.price, qty: 1 });
+    cart.push({ productId: product.id, name: product.name, price: (product.effectivePrice != null ? product.effectivePrice : product.price), qty: 1 });
   }
   saveCart();
 }
@@ -699,9 +709,20 @@ function findSuggestedEssentials(product, products) {
   return matches;
 }
 
+// Shared by both upsell-card builders below (Suggested Essentials, Kits
+// Available) -- same onSaleNow/effectivePrice fields the main product-page
+// price (priceHtml, above) reads, just formatted for the smaller card.
+function buildCompactPriceLabel(p) {
+  if (!(p.price > 0)) return '$XX';
+  if (p.onSaleNow) {
+    return '$' + Number(p.effectivePrice).toFixed(2) + '<span class="was">$' + Number(p.price).toFixed(2) + '</span>';
+  }
+  return '$' + Number(p.price).toFixed(2);
+}
+
 function buildEssentialCardHtml(p) {
   var imgUrl = resolveImagePath(p.image_path);
-  var priceLabel = p.price > 0 ? '$' + Number(p.price).toFixed(2) : '$XX';
+  var priceLabel = buildCompactPriceLabel(p);
   return '<div class="essential-card" data-product-id="' + p.id + '">' +
     '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
     '<h3>' + p.name + '</h3>' +
@@ -760,7 +781,7 @@ function findRelatedKits(product, products) {
 
 function buildKitCardHtml(p) {
   var imgUrl = resolveImagePath(p.image_path);
-  var priceLabel = p.price > 0 ? '$' + Number(p.price).toFixed(2) : '$XX';
+  var priceLabel = buildCompactPriceLabel(p);
   return '<div class="essential-card" data-product-id="' + p.id + '">' +
     '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
     '<h3>' + p.name + '</h3>' +
@@ -941,7 +962,18 @@ function renderProduct(product, siblings) {
     verificationNote = '<p style="font-size:0.75rem;color:var(--gray);margin-top:8px;">Technical data for this product is pending final verification.</p>';
   }
 
-  var priceHtml = product.price > 0 ? '$' + Number(product.price).toFixed(2) : 'Price coming soon';
+  // .was is pre-existing CSS (a struck-through secondary price, styled
+  // smaller/gray with margin-left so it reads as "was $X" after the
+  // current price) that had never been wired up to any JS before -- this
+  // is the only place it's populated.
+  var priceHtml;
+  if (product.price > 0) {
+    priceHtml = product.onSaleNow
+      ? '$' + Number(product.effectivePrice).toFixed(2) + '<span class="was">$' + Number(product.price).toFixed(2) + '</span>'
+      : '$' + Number(product.price).toFixed(2);
+  } else {
+    priceHtml = 'Price coming soon';
+  }
   var suggestedEssentialsHtml = buildSuggestedEssentialsSection(product, allProducts);
   var kitsAvailableHtml = buildKitsAvailableSection(product, allProducts);
 
@@ -1042,11 +1074,7 @@ function renderProduct(product, siblings) {
     suggestedEssentialsHtml +
 
     '<div class="product-section">' +
-      '<div class="ruo-note">' +
-        '<p>The statements on this website have not been evaluated by the U.S. Food and Drug Administration. The products and information provided by Forgewell LLC are not intended to diagnose, treat, cure, or prevent any disease.</p>' +
-        '<p>Forgewell LLC is a research chemical supplier. We are not a compounding pharmacy or compounding facility as defined under Section 503A of the Federal Food, Drug, and Cosmetic Act, nor are we an outsourcing facility as defined under Section 503B.</p>' +
-        '<p>All products are sold for research, laboratory, or analytical purposes only, and are NOT for human consumption. All sales are final. Customers are responsible for compliance with all applicable laws.</p>' +
-      '</div>' +
+      '<div class="ruo-note">' + buildDisclaimerParagraphsHtml(disclaimerBody) + '</div>' +
     '</div>' +
 
     descriptionHtml +
@@ -1421,9 +1449,22 @@ async function initProductPage() {
     return;
   }
   try {
-    var res = await fetch('/api/products');
+    var results = await Promise.all([
+      fetch('/api/products'),
+      fetch('/api/content/disclaimer').catch(function() { return null; }),
+    ]);
+    var res = results[0];
+    var disclaimerRes = results[1];
     var products = await res.json();
     allProducts = products; // shared with cart script
+    // Falls back to '' (ruo-note renders no paragraphs) rather than
+    // blocking the whole product page on this one fetch -- same
+    // "best-effort, never blocks the primary content" pattern used
+    // elsewhere in this codebase (e.g. appendToSent() on the backend).
+    if (disclaimerRes && disclaimerRes.ok) {
+      var disclaimerData = await disclaimerRes.json();
+      disclaimerBody = disclaimerData.body || '';
+    }
 
     var product = products.find(function(p) { return String(p.id) === id; });
     if (!product) {
