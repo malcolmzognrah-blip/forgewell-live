@@ -139,6 +139,30 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 }
 .checkout-field-error.show{ display:block; }
 
+.checkout-saved-address-block{ display:none; margin-bottom:16px; }
+.checkout-saved-address-block.show{ display:block; }
+.checkout-saved-address-row{ display:flex; gap:8px; align-items:center; }
+.checkout-saved-address-row select{
+  flex:1; min-width:0; padding:11px 12px; border:1.5px solid var(--line); border-radius:8px;
+  font-size:0.88rem; font-family:'Quicksand',sans-serif; color:#333; background:#fff;
+}
+.checkout-saved-address-row select:focus{ outline:none; border-color:var(--navy); }
+.checkout-saved-address-delete{
+  flex-shrink:0; width:38px; height:38px; border:1.5px solid var(--line); border-radius:8px;
+  background:#fff; color:#c0392b; cursor:pointer; font-size:1rem; line-height:1;
+}
+.checkout-saved-address-delete:hover{ background:#fdecea; border-color:#c0392b; }
+.checkout-save-address-block{ display:none; margin-top:16px; }
+.checkout-save-address-block.show{ display:block; }
+.checkout-save-address-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#444; }
+.checkout-save-address-row input[type="checkbox"]{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
+.checkout-save-address-label-input{ display:none; margin-top:8px; }
+.checkout-save-address-label-input.show{ display:block; }
+.checkout-save-address-label-input input{
+  width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:8px;
+  font-size:0.85rem; font-family:'Quicksand',sans-serif; color:#333;
+}
+
 .shipping-method-option{
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   border:1.5px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:10px;
@@ -190,6 +214,16 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
       <div class="checkout-section">
         <h2>Contact &amp; Shipping Info</h2>
 
+        <div class="checkout-saved-address-block" id="checkout-saved-address-block">
+          <label class="checkout-field-label" for="checkout-saved-address-select">Saved Addresses</label>
+          <div class="checkout-saved-address-row">
+            <select id="checkout-saved-address-select">
+              <option value="">Enter a new address</option>
+            </select>
+            <button type="button" class="checkout-saved-address-delete" id="checkout-saved-address-delete" title="Delete this saved address" style="display:none;">&times;</button>
+          </div>
+        </div>
+
         <label class="checkout-field-label" for="checkout-email-input">Email</label>
         <input type="email" id="checkout-email-input" placeholder="you@example.com" autocomplete="email">
         <p id="checkout-email-error" class="checkout-field-error">Please enter a valid email address.</p>
@@ -226,6 +260,16 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         </div>
 
         <p id="checkout-shipping-error" class="checkout-field-error">Please fill in all required shipping fields.</p>
+
+        <div class="checkout-save-address-block" id="checkout-save-address-block">
+          <label class="checkout-save-address-row">
+            <input type="checkbox" id="checkout-save-address-checkbox">
+            Save this address to my account
+          </label>
+          <div class="checkout-save-address-label-input" id="checkout-save-address-label-wrap">
+            <input type="text" id="checkout-save-address-label" placeholder="Label (e.g. Home, Work) — optional">
+          </div>
+        </div>
       </div>
 
       <div class="checkout-section">
@@ -572,6 +616,79 @@ if (cart.length === 0) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
+  // ============================================================
+  // Saved addresses (signed-in customers only). checkout.html makes its
+  // own /api/auth/me call here rather than reusing wireHeaderFooter()'s --
+  // that one only drives the header's account icon and isn't the right
+  // place for checkout-specific address logic.
+  // ============================================================
+  const savedAddressBlock = document.getElementById('checkout-saved-address-block');
+  const savedAddressSelect = document.getElementById('checkout-saved-address-select');
+  const savedAddressDeleteBtn = document.getElementById('checkout-saved-address-delete');
+  const saveAddressBlock = document.getElementById('checkout-save-address-block');
+  const saveAddressCheckbox = document.getElementById('checkout-save-address-checkbox');
+  const saveAddressLabelWrap = document.getElementById('checkout-save-address-label-wrap');
+  const saveAddressLabelInput = document.getElementById('checkout-save-address-label');
+
+  let savedAddresses = [];
+  let isSignedIn = false;
+
+  function renderSavedAddressOptions() {
+    savedAddressSelect.innerHTML = '<option value="">Enter a new address</option>' +
+      savedAddresses.map(function(a) {
+        var label = (a.label && a.label.trim()) || 'Address';
+        return '<option value="' + a.id + '">' + label + ' — ' + a.line1 + ', ' + a.city + ', ' + a.state + '</option>';
+      }).join('');
+    savedAddressBlock.classList.toggle('show', savedAddresses.length > 0);
+    savedAddressDeleteBtn.style.display = 'none';
+  }
+
+  function loadSavedAddresses() {
+    return fetch('/api/addresses', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : []; })
+      .then(function(addresses) {
+        savedAddresses = Array.isArray(addresses) ? addresses : [];
+        renderSavedAddressOptions();
+      })
+      .catch(function() { savedAddresses = []; });
+  }
+
+  fetch('/api/auth/me', { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(customer) {
+      isSignedIn = !!customer;
+      if (!isSignedIn) return;
+      saveAddressBlock.classList.add('show');
+      loadSavedAddresses();
+    })
+    .catch(function() {});
+
+  savedAddressSelect.addEventListener('change', function() {
+    const selectedId = savedAddressSelect.value;
+    if (!selectedId) {
+      savedAddressDeleteBtn.style.display = 'none';
+      return;
+    }
+    const address = savedAddresses.find(function(a) { return a.id === selectedId; });
+    if (!address) return;
+    Object.keys(shipFields).forEach(function(key) {
+      if (shipFields[key]) shipFields[key].value = address[key] || '';
+    });
+    savedAddressDeleteBtn.style.display = '';
+  });
+
+  savedAddressDeleteBtn.addEventListener('click', function() {
+    const selectedId = savedAddressSelect.value;
+    if (!selectedId) return;
+    if (!window.confirm('Delete this saved address?')) return;
+    fetch('/api/addresses/' + encodeURIComponent(selectedId), { method: 'DELETE', credentials: 'include' })
+      .then(function() { return loadSavedAddresses(); });
+  });
+
+  saveAddressCheckbox.addEventListener('change', function() {
+    saveAddressLabelWrap.classList.toggle('show', saveAddressCheckbox.checked);
+  });
+
   // No live validation here (that requires the email + a server round trip
   // to check redemption history) -- same "preview only" role cart.html's
   // copy of this field plays. The real check happens in POST /api/checkout
@@ -663,6 +780,19 @@ if (cart.length === 0) {
       if (data.payment && data.payment.paymentUrl) {
         localStorage.setItem('forgewell_last_order_id', data.orderId);
         localStorage.removeItem('forgewell_promo_code');
+        // Best-effort, opt-in only -- never blocks the redirect below. The
+        // order itself already succeeded by this point; saving the address
+        // to the account is a convenience side-effect, not part of the
+        // critical path (same pattern as appendToSent() in the inbox-reply
+        // feature not blocking a reply that already sent).
+        if (isSignedIn && saveAddressCheckbox.checked) {
+          fetch('/api/addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(Object.assign({ label: saveAddressLabelInput.value.trim() }, shippingAddress)),
+          }).catch(function() {});
+        }
         // Cart is intentionally left alone here -- this order is still
         // pending_payment, not paid. It's cleared on order-confirmation.html
         // once polling actually observes status === 'paid', so backing out
