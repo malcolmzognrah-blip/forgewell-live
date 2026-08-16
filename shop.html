@@ -76,10 +76,16 @@ header{
 .cat-tab{ flex:0 0 auto; padding:9px 16px; border-radius:20px; font-size:0.74rem; font-weight:700; border:1.5px solid var(--line); color:var(--gray); white-space:nowrap; cursor:pointer; background:#fff; }
 .cat-tab.active{ color:#fff; }
 
+.shop-controls{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:0 24px 14px; max-width:1200px; margin:0 auto; }
+#sort-select{ padding:9px 14px; border-radius:20px; font-size:0.78rem; font-weight:700; border:1.5px solid var(--line); color:var(--gray); background:#fff; font-family:'Quicksand',sans-serif; cursor:pointer; }
+.in-stock-toggle{ display:flex; align-items:center; gap:7px; font-size:0.78rem; font-weight:700; color:var(--gray); cursor:pointer; white-space:nowrap; }
+.in-stock-toggle input{ cursor:pointer; }
+
 .section{ padding:10px 24px 50px; max-width:1200px; margin:0 auto; }
 @media (max-width:600px){
   .section-heading{ padding-left:16px; padding-right:16px; }
   .cat-tabs{ padding-left:16px; padding-right:16px; }
+  .shop-controls{ padding-left:16px; padding-right:16px; }
   .section{ padding-left:16px; padding-right:16px; }
 }
 .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:14px; }
@@ -252,6 +258,18 @@ body.gate-active{ overflow:hidden; }
 <div class="section-heading">Our Products</div>
 <div class="cat-tabs" id="tabs"></div>
 
+<div class="shop-controls" id="shop-controls">
+  <select id="sort-select">
+    <option value="az">Sort: A to Z</option>
+    <option value="za">Sort: Z to A</option>
+    <option value="price_low">Sort: Price Low to High</option>
+    <option value="price_high">Sort: Price High to Low</option>
+    <option value="popular">Sort: Most Popular</option>
+    <option value="sales">Sort: Sales</option>
+  </select>
+  <label class="in-stock-toggle"><input type="checkbox" id="in-stock-only-checkbox"> In Stock Only</label>
+</div>
+
 <div class="section">
   <div class="grid" id="grid"></div>
   <div class="pagination" id="pagination"></div>
@@ -316,6 +334,8 @@ let allProducts = [];
 let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
 let productGroupList = [];
 let currentCategoryFilter = 'all';
+let currentSortMode = 'az';
+let inStockOnlyFilter = false;
 let currentPage = 1;
 // Caches HEAD-check results per image URL so revisiting a page (or flipping
 // between category tabs) doesn't re-verify images already confirmed this
@@ -334,9 +354,49 @@ const SHOP_STATE_KEY = 'forgewell_shop_state';
 function saveShopState() {
   sessionStorage.setItem(SHOP_STATE_KEY, JSON.stringify({
     category: currentCategoryFilter,
+    sort: currentSortMode,
+    inStockOnly: inStockOnlyFilter,
     page: currentPage,
     scrollY: window.scrollY,
   }));
+}
+
+const SORT_MODES = ['az', 'za', 'price_low', 'price_high', 'popular', 'sales'];
+
+// Applied after the category filter and before pagination -- everything
+// needed (inStock/onSale/unitsSold/lowestPrice/name) was already computed
+// per-group in renderShopGrid()'s grouping step, so this never re-fetches
+// or re-groups, just re-orders the already-loaded list.
+function sortGroupList(list, mode) {
+  const sorted = list.slice();
+  switch (mode) {
+    case 'za':
+      sorted.sort((a, b) => b.name.localeCompare(a.name));
+      break;
+    case 'price_low':
+      sorted.sort((a, b) => a.lowestPrice - b.lowestPrice);
+      break;
+    case 'price_high':
+      sorted.sort((a, b) => b.lowestPrice - a.lowestPrice);
+      break;
+    case 'popular':
+      sorted.sort((a, b) => b.unitsSold - a.unitsSold);
+      break;
+    case 'sales':
+      // onSale families first; A-Z as a stable tiebreak within each bucket
+      // (both the on-sale group and the not-on-sale group) rather than
+      // leaving same-bucket order unspecified.
+      sorted.sort((a, b) => {
+        if (a.onSale !== b.onSale) return a.onSale ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      break;
+    case 'az':
+    default:
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+  }
+  return sorted;
 }
 
 // Ids that are base component records for blend/kit products -- intentionally
@@ -613,6 +673,12 @@ async function renderShopGrid() {
 
   // Group by base label (size-tier variants collapse into one card, linking
   // to the lowest-priced tier by default), excluding component-only records.
+  // inStock/onSale/unitsSold are family-level aggregates for the sort/filter
+  // controls, not just the representative (cheapest) tier's own values --
+  // a family counts as in-stock or on-sale if ANY tier is, and unitsSold is
+  // summed across every tier, since the card represents the whole family,
+  // not one arbitrary row within it (same reasoning already applied to
+  // "cheapest tier wins the card" for price/dosage/lot below).
   const groups = {};
   products.forEach(p => {
     if (EXCLUDED_COMPONENT_IDS.indexOf(p.id) !== -1) return;
@@ -621,10 +687,14 @@ async function renderShopGrid() {
     const base = groupKeyFor(p);
     if (!groups[base]) {
       groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
-        lowestPrice: p.price, highestPrice: p.price, lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1 };
+        lowestPrice: p.price, highestPrice: p.price, lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
+        inStock: p.stock_status !== 'out_of_stock', onSale: !!p.on_sale, unitsSold: p.units_sold || 0 };
     } else {
       groups[base].count += 1;
       groups[base].multi = true;
+      groups[base].inStock = groups[base].inStock || (p.stock_status !== 'out_of_stock');
+      groups[base].onSale = groups[base].onSale || !!p.on_sale;
+      groups[base].unitsSold += (p.units_sold || 0);
       if (p.price > 0 && (groups[base].lowestPrice <= 0 || p.price < groups[base].lowestPrice)) {
         groups[base].lowestPrice = p.price;
         groups[base].baseId = p.id; // link to the cheapest tier
@@ -660,20 +730,28 @@ async function renderShopGrid() {
       return ai - bi;
     });
 
-  // Restore whatever category/page/scroll the customer had before clicking
-  // into a product (see saveShopState()), so the "Shop" breadcrumb link on
-  // product.html returns them to where they actually were instead of a
-  // blank default. Falls back to the normal defaults if there's no saved
-  // state, or if the saved category no longer exists in the live catalog.
+  // Restore whatever category/sort/filter/page/scroll the customer had
+  // before clicking into a product (see saveShopState()), so the "Shop"
+  // breadcrumb link on product.html returns them to where they actually
+  // were instead of a blank default. Falls back to the normal defaults if
+  // there's no saved state, or if the saved category no longer exists in
+  // the live catalog.
   let savedShopState = null;
   try {
     const raw = sessionStorage.getItem(SHOP_STATE_KEY);
     if (raw) savedShopState = JSON.parse(raw);
   } catch (e) { savedShopState = null; }
   const savedCategoryValid = savedShopState && (savedShopState.category === 'all' || categories.includes(savedShopState.category));
+  const savedSortValid = savedShopState && SORT_MODES.includes(savedShopState.sort);
 
   currentCategoryFilter = savedCategoryValid ? savedShopState.category : 'all';
+  currentSortMode = savedSortValid ? savedShopState.sort : 'az';
+  inStockOnlyFilter = !!(savedShopState && savedShopState.inStockOnly);
   currentPage = (savedShopState && savedShopState.page) || 1;
+  const sortSelectEl = document.getElementById('sort-select');
+  if (sortSelectEl) sortSelectEl.value = currentSortMode;
+  const inStockCheckboxEl = document.getElementById('in-stock-only-checkbox');
+  if (inStockCheckboxEl) inStockCheckboxEl.checked = inStockOnlyFilter;
   renderProductsPage().then(() => {
     if (savedShopState && typeof savedShopState.scrollY === 'number') {
       window.scrollTo(0, savedShopState.scrollY);
@@ -732,9 +810,11 @@ async function renderProductsPage() {
 
   const myGeneration = ++renderGeneration;
 
-  const filtered = currentCategoryFilter === 'all'
+  let filtered = currentCategoryFilter === 'all'
     ? productGroupList
     : productGroupList.filter(g => g.category === currentCategoryFilter);
+  if (inStockOnlyFilter) filtered = filtered.filter(g => g.inStock);
+  filtered = sortGroupList(filtered, currentSortMode);
 
   const itemsPerPage = computeGridColumns() * 4;
   let totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
@@ -834,6 +914,18 @@ document.addEventListener('click', (e) => {
   renderProductsPage();
   const heading = document.querySelector('.section-heading');
   if (heading) heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+document.getElementById('sort-select').addEventListener('change', function() {
+  currentSortMode = this.value;
+  currentPage = 1;
+  renderProductsPage();
+});
+
+document.getElementById('in-stock-only-checkbox').addEventListener('change', function() {
+  inStockOnlyFilter = this.checked;
+  currentPage = 1;
+  renderProductsPage();
 });
 
 function saveCart() {
