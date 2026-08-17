@@ -78,6 +78,8 @@ header{
 .cat-tab.active{ color:#fff; }
 
 .shop-controls{ display:flex; align-items:center; gap:14px; flex:0 0 auto; }
+#product-search-input{ width:170px; max-width:100%; padding:9px 14px; border-radius:20px; font-size:0.78rem; font-weight:700; border:1.5px solid var(--line); color:#333; background:#fff; font-family:'Quicksand',sans-serif; }
+#product-search-input::placeholder{ color:var(--gray); font-weight:700; }
 #sort-select{ padding:9px 14px; border-radius:20px; font-size:0.78rem; font-weight:700; border:1.5px solid var(--line); color:var(--gray); background:#fff; font-family:'Quicksand',sans-serif; cursor:pointer; }
 .in-stock-toggle{ display:flex; align-items:center; gap:7px; font-size:0.78rem; font-weight:700; color:var(--gray); cursor:pointer; white-space:nowrap; }
 .in-stock-toggle input{ cursor:pointer; }
@@ -260,6 +262,7 @@ body.gate-active{ overflow:hidden; }
 <div class="cat-tabs-row">
   <div class="cat-tabs" id="tabs"></div>
   <div class="shop-controls" id="shop-controls">
+    <input type="text" id="product-search-input" placeholder="Search products...">
     <label class="in-stock-toggle"><input type="checkbox" id="in-stock-only-checkbox"> In Stock Only</label>
     <select id="sort-select">
       <option value="az">Sort: A to Z</option>
@@ -338,6 +341,7 @@ let productGroupList = [];
 let currentCategoryFilter = 'all';
 let currentSortMode = 'az';
 let inStockOnlyFilter = false;
+let currentSearchQuery = '';
 let currentPage = 1;
 // Caches HEAD-check results per image URL so revisiting a page (or flipping
 // between category tabs) doesn't re-verify images already confirmed this
@@ -358,6 +362,7 @@ function saveShopState() {
     category: currentCategoryFilter,
     sort: currentSortMode,
     inStockOnly: inStockOnlyFilter,
+    search: currentSearchQuery,
     page: currentPage,
     scrollY: window.scrollY,
   }));
@@ -762,11 +767,14 @@ async function renderShopGrid() {
   currentCategoryFilter = savedCategoryValid ? savedShopState.category : 'all';
   currentSortMode = savedSortValid ? savedShopState.sort : 'az';
   inStockOnlyFilter = !!(savedShopState && savedShopState.inStockOnly);
+  currentSearchQuery = (savedShopState && savedShopState.search) || '';
   currentPage = (savedShopState && savedShopState.page) || 1;
   const sortSelectEl = document.getElementById('sort-select');
   if (sortSelectEl) sortSelectEl.value = currentSortMode;
   const inStockCheckboxEl = document.getElementById('in-stock-only-checkbox');
   if (inStockCheckboxEl) inStockCheckboxEl.checked = inStockOnlyFilter;
+  const searchInputEl = document.getElementById('product-search-input');
+  if (searchInputEl) searchInputEl.value = currentSearchQuery;
   renderProductsPage().then(() => {
     if (savedShopState && typeof savedShopState.scrollY === 'number') {
       window.scrollTo(0, savedShopState.scrollY);
@@ -829,6 +837,7 @@ async function renderProductsPage() {
     ? productGroupList
     : productGroupList.filter(g => g.category === currentCategoryFilter);
   if (inStockOnlyFilter) filtered = filtered.filter(g => g.inStock);
+  if (currentSearchQuery) filtered = filtered.filter(g => g.name.toLowerCase().includes(currentSearchQuery));
   filtered = sortGroupList(filtered, currentSortMode);
 
   const itemsPerPage = computeGridColumns() * 4;
@@ -876,7 +885,7 @@ async function renderProductsPage() {
 
   gridEl.innerHTML = verifiedPageItems.length
     ? verifiedPageItems.map(g => buildCardHtml(g)).join('')
-    : '<p style="padding:20px;color:#6b6b6b;">No products in this category.</p>';
+    : '<p style="padding:20px;color:#6b6b6b;">' + (currentSearchQuery ? 'No products match your search.' : 'No products in this category.') + '</p>';
 
   renderPaginationControls(totalPages, currentPage);
 }
@@ -941,6 +950,21 @@ document.getElementById('in-stock-only-checkbox').addEventListener('change', fun
   inStockOnlyFilter = this.checked;
   currentPage = 1;
   renderProductsPage();
+});
+
+// Debounced -- renderProductsPage() HEAD-checks every visible card's image
+// before rendering (see the image-verification block above), so firing it
+// on every raw keystroke would mean a burst of network requests per
+// character typed instead of one pass after the customer pauses.
+let productSearchDebounceTimer = null;
+document.getElementById('product-search-input').addEventListener('input', function() {
+  var value = this.value;
+  clearTimeout(productSearchDebounceTimer);
+  productSearchDebounceTimer = setTimeout(function() {
+    currentSearchQuery = value.trim().toLowerCase();
+    currentPage = 1;
+    renderProductsPage();
+  }, 200);
 });
 
 function saveCart() {
