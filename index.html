@@ -275,6 +275,16 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // so it can only be checked with a real request. The page stays hidden
   // (html:not(.gw-ready) above) until this resolves, so an unauthenticated
   // visitor never sees a flash of either step before we know which to show.
+  //
+  // Step 1 always shows first here, with no localStorage shortcut to jump
+  // straight to step 2 -- KEY is shared with home.html/shop.html's own
+  // (separate, pre-existing) age-gate modal, so most returning visitors
+  // already have it set to 'yes' from before this landing page existed.
+  // Reading it here to skip step 1 was skipping the age/RUO consent
+  // screen entirely for them, which must show every time, no exceptions.
+  // Accept still writes KEY (below) purely so home.html/shop.html's own
+  // fallback modal can skip itself on a later direct visit -- that's a
+  // separate, narrower use of the same flag.
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res){ return res.ok ? res.json() : null; })
     .then(function(customer){
@@ -283,11 +293,9 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
         return;
       }
       document.documentElement.classList.add('gw-ready');
-      if (localStorage.getItem(KEY) === 'yes') showStep('auth');
     })
     .catch(function(){
       document.documentElement.classList.add('gw-ready');
-      if (localStorage.getItem(KEY) === 'yes') showStep('auth');
     });
 })();
 </script>
