@@ -43,6 +43,11 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .coa-panel textarea{ width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical; min-height:80px; }
 .content-item{ padding-bottom:16px; margin-bottom:16px; border-bottom:1px solid var(--line); }
 .content-item:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
+.content-subtabs{ display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--line); }
+.content-subtab{ padding:8px 14px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; font-size:0.8rem; font-weight:700; color:var(--gray); cursor:pointer; }
+.content-subtab.active{ color:var(--navy); border-bottom-color:var(--navy); }
+.content-subview{ display:none; }
+.content-subview.active{ display:block; }
 .coa-fields{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-top:6px; padding-top:10px; border-top:1px solid var(--line); }
 .coa-extract-status{ font-size:0.8rem; color:var(--gray); margin-top:8px; }
 .coa-existing-list{ margin-top:16px; }
@@ -397,20 +402,23 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view coa-panel" id="view-content">
-    <div class="fulfillment-section">
-      <h3>About Us Sections</h3>
+    <div class="content-subtabs">
+      <button type="button" class="content-subtab active" id="content-subtab-about-us">About Us</button>
+      <button type="button" class="content-subtab" id="content-subtab-faq">FAQ</button>
+      <button type="button" class="content-subtab" id="content-subtab-disclaimer">Disclaimer</button>
+    </div>
+
+    <div class="content-subview active" id="content-subview-about-us">
       <p class="fulfillment-section-note">Edits the copy shown on the About Us page.</p>
       <div id="content-about-us-list"></div>
     </div>
 
-    <div class="fulfillment-section">
-      <h3>FAQ Items</h3>
-      <p class="fulfillment-section-note">Edits the accordion shown on the FAQs page.</p>
+    <div class="content-subview" id="content-subview-faq">
+      <p class="fulfillment-section-note">Edits the accordion shown on the FAQs page (and the teaser on the home page).</p>
       <div id="content-faq-list"></div>
     </div>
 
-    <div class="fulfillment-section">
-      <h3>Disclaimer</h3>
+    <div class="content-subview" id="content-subview-disclaimer">
       <p class="fulfillment-section-note">Shown on About Us, Contact, Terms, the RUO Agreement, and every product page.</p>
       <textarea id="content-disclaimer-textarea" style="width:100%; box-sizing:border-box; min-height:110px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;"></textarea>
       <button type="button" class="fulfillment-btn" id="content-disclaimer-save-btn">Save Disclaimer</button>
@@ -685,6 +693,21 @@ function loadContent() {
 function showContentTab() {
   showAdminTab('tab-content', 'view-content');
   loadContent();
+}
+
+// Sub-navigation within the Content tab -- one sub-tab per page this
+// content is shown on (About Us, FAQ, Disclaimer), same active/inactive
+// toggle pattern as showAdminTab() above, just scoped to the smaller
+// content-subtab/content-subview set instead of the top-level tabs.
+function showContentSubtab(subtabId, subviewId) {
+  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-disclaimer'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  ['content-subview-about-us', 'content-subview-faq', 'content-subview-disclaimer'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById(subtabId).classList.add('active');
+  document.getElementById(subviewId).classList.add('active');
 }
 
 function loadFulfillmentSchedule() {
@@ -998,6 +1021,16 @@ document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
 document.getElementById('tab-fulfillment').addEventListener('click', showFulfillmentTab);
 document.getElementById('tab-products').addEventListener('click', showProductsTab);
 document.getElementById('tab-content').addEventListener('click', showContentTab);
+
+document.getElementById('content-subtab-about-us').addEventListener('click', function() {
+  showContentSubtab('content-subtab-about-us', 'content-subview-about-us');
+});
+document.getElementById('content-subtab-faq').addEventListener('click', function() {
+  showContentSubtab('content-subtab-faq', 'content-subview-faq');
+});
+document.getElementById('content-subtab-disclaimer').addEventListener('click', function() {
+  showContentSubtab('content-subtab-disclaimer', 'content-subview-disclaimer');
+});
 
 document.getElementById('products-category-filter').addEventListener('change', renderProductsRows);
 
