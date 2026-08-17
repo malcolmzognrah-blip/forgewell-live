@@ -178,6 +178,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .product-save-status{ font-size:0.78rem; margin-left:10px; }
 .product-save-status.error{ color:#c0392b; }
 .product-save-status.success{ color:#1F7A34; }
+.product-create-form{ display:none; border:1.5px solid var(--line); border-radius:10px; padding:16px 20px; margin-bottom:16px; background:var(--panel); }
+.product-create-form.show{ display:block; }
+.product-create-form label{ display:block; font-size:0.72rem; font-weight:700; color:var(--gray); margin:14px 0 5px; text-transform:uppercase; letter-spacing:0.03em; }
+.product-create-form label:first-of-type{ margin-top:0; }
+.product-create-form input, .product-create-form select{ width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; background:#fff; }
 </style>
 </head>
 <body>
@@ -386,7 +391,39 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   <div class="admin-view products-panel" id="view-products">
     <div class="filters">
       <select id="products-category-filter"><option value="">All Categories</option></select>
+      <select id="products-single-select"><option value="">— View All Products —</option></select>
+      <button type="button" id="products-new-toggle-btn">+ New Product</button>
     </div>
+
+    <div class="product-create-form" id="product-create-form">
+      <label>Product ID</label>
+      <input type="text" id="new-product-id">
+      <label>Name</label>
+      <input type="text" id="new-product-name">
+      <label>Category</label>
+      <input type="text" id="new-product-category" list="new-product-category-options">
+      <datalist id="new-product-category-options">
+        <option value="peptide"></option>
+        <option value="kit"></option>
+        <option value="amino"></option>
+        <option value="essential"></option>
+      </datalist>
+      <label>Dosage <span style="font-weight:400; text-transform:none;">(optional)</span></label>
+      <input type="text" id="new-product-dosage">
+      <label>Price</label>
+      <input type="number" step="0.01" min="0" id="new-product-price">
+      <label>Stock Status</label>
+      <select id="new-product-stock-status">
+        <option value="in_stock">In Stock</option>
+        <option value="out_of_stock">Out of Stock</option>
+      </select>
+      <label>Image Path <span style="font-weight:400; text-transform:none;">(optional)</span></label>
+      <input type="text" id="new-product-image-path" placeholder="images/foo.png">
+      <p class="fulfillment-section-note">Leave blank, or point at a file that doesn't exist yet, and this product won't appear in the shop or home grids until a real image is in place — it'll still be reachable directly via its own product page.</p>
+      <button type="button" class="product-save-btn" id="new-product-save-btn">Create Product</button>
+      <span class="product-save-status" id="new-product-status"></span>
+    </div>
+
     <table class="products-table">
       <thead>
         <tr>
@@ -579,8 +616,10 @@ function renderProductsCategoryOptions() {
 
 function renderProductsRows() {
   var category = document.getElementById('products-category-filter').value;
+  var singleId = document.getElementById('products-single-select').value;
   var filtered = productsAllProducts
     .filter(function(p) { return !category || p.category === category; })
+    .filter(function(p) { return !singleId || p.id === singleId; })
     .slice()
     .sort(function(a, b) { return a.name.localeCompare(b.name); });
   var tbody = document.getElementById('products-tbody');
@@ -590,6 +629,10 @@ function renderProductsRows() {
   }
   tbody.innerHTML = filtered.map(function(p) {
     var bulletsText = Array.isArray(p.bullets) ? p.bullets.join('\n') : (p.bullets || '');
+    // Viewing exactly one product (via products-single-select) jumps
+    // straight to its detail panel already open -- the whole point of
+    // picking one out is to edit it, not to expand-then-click again.
+    var startExpanded = !!singleId && p.id === singleId;
     return '<tr data-product-id="' + p.id + '">' +
         '<td>' + escapeHtml(p.name) + (p.on_sale ? ' <span style="color:var(--green);font-weight:700;font-size:0.72rem;">ON SALE</span>' : '') + '</td>' +
         '<td><input type="number" step="0.01" min="0" class="product-row-price-input" value="' + p.price + '"></td>' +
@@ -598,9 +641,9 @@ function renderProductsRows() {
           '<option value="out_of_stock"' + (p.stock_status === 'out_of_stock' ? ' selected' : '') + '>Out of Stock</option>' +
         '</select></td>' +
         '<td style="text-align:center;"><input type="checkbox" class="product-row-onsale-checkbox"' + (p.on_sale ? ' checked' : '') + '></td>' +
-        '<td><button type="button" class="product-edit-toggle-btn" data-product-id="' + p.id + '">Edit Details</button></td>' +
+        '<td><button type="button" class="product-edit-toggle-btn" data-product-id="' + p.id + '">' + (startExpanded ? 'Hide Details' : 'Edit Details') + '</button></td>' +
       '</tr>' +
-      '<tr class="product-detail-row" data-product-id="' + p.id + '">' +
+      '<tr class="product-detail-row' + (startExpanded ? ' show' : '') + '" data-product-id="' + p.id + '">' +
         '<td colspan="5" class="product-detail-cell">' +
           '<div class="product-detail-grid">' +
             '<div>' +
@@ -625,6 +668,25 @@ function renderProductsRows() {
   }).join('');
 }
 
+// Same category-then-product two-step filter as the COA tab's picker
+// (renderCoaProductOptions() above) -- the single-product select only
+// offers products in the currently-chosen category.
+function renderProductsSingleSelectOptions() {
+  var category = document.getElementById('products-category-filter').value;
+  var select = document.getElementById('products-single-select');
+  var current = select.value;
+  var filtered = productsAllProducts
+    .filter(function(p) { return !category || p.category === category; })
+    .slice()
+    .sort(function(a, b) { return a.name.localeCompare(b.name); });
+  select.innerHTML = '<option value="">— View All Products —</option>' +
+    filtered.map(function(p) { return '<option value="' + p.id + '"' + (p.id === current ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>'; }).join('');
+  // The previously-selected product may not exist in the new category --
+  // if it's gone, fall back to "View All" rather than silently keeping a
+  // stale/invalid selection.
+  if (select.value !== current) select.value = '';
+}
+
 function loadProductsList() {
   if (productsLoaded) { renderProductsRows(); return; }
   fetch('/api/products', { credentials: 'include' })
@@ -633,6 +695,7 @@ function loadProductsList() {
       productsAllProducts = products;
       productsLoaded = true;
       renderProductsCategoryOptions();
+      renderProductsSingleSelectOptions();
       renderProductsRows();
     })
     .catch(function() {
@@ -1032,7 +1095,11 @@ document.getElementById('content-subtab-disclaimer').addEventListener('click', f
   showContentSubtab('content-subtab-disclaimer', 'content-subview-disclaimer');
 });
 
-document.getElementById('products-category-filter').addEventListener('change', renderProductsRows);
+document.getElementById('products-category-filter').addEventListener('change', function() {
+  renderProductsSingleSelectOptions();
+  renderProductsRows();
+});
+document.getElementById('products-single-select').addEventListener('change', renderProductsRows);
 
 // Delegated since #products-tbody is rebuilt by every renderProductsRows() call.
 document.getElementById('products-tbody').addEventListener('click', function(e) {
@@ -1101,6 +1168,90 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
     .catch(function() {
       saveBtn.disabled = false;
       statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// ---- New Product form ----
+
+document.getElementById('products-new-toggle-btn').addEventListener('click', function() {
+  document.getElementById('product-create-form').classList.toggle('show');
+});
+
+function slugify(s) {
+  return (s || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Auto-fills the ID from the Name field until the admin edits the ID
+// directly, then stops -- standard "auto-slug until manually overridden"
+// behavior, same idea as most CMS admin panels' slug fields.
+var newProductIdManuallyEdited = false;
+document.getElementById('new-product-id').addEventListener('input', function() {
+  newProductIdManuallyEdited = true;
+});
+document.getElementById('new-product-name').addEventListener('input', function() {
+  if (newProductIdManuallyEdited) return;
+  document.getElementById('new-product-id').value = slugify(this.value);
+});
+
+document.getElementById('new-product-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('new-product-status');
+  var body = {
+    id: document.getElementById('new-product-id').value.trim(),
+    name: document.getElementById('new-product-name').value.trim(),
+    category: document.getElementById('new-product-category').value.trim(),
+    dosage: document.getElementById('new-product-dosage').value.trim(),
+    price: document.getElementById('new-product-price').value,
+    stock_status: document.getElementById('new-product-stock-status').value,
+    image_path: document.getElementById('new-product-image-path').value.trim(),
+  };
+
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+
+  fetch('/api/admin/products', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not create product.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      // Add to the in-memory catalog (no full refetch needed), reset the
+      // form, collapse it, and land directly in the single-product view
+      // for the product just created -- ready to fill in bullets/
+      // description/sale info immediately via the existing edit panel.
+      productsAllProducts.push(r.d);
+      document.getElementById('new-product-id').value = '';
+      document.getElementById('new-product-name').value = '';
+      document.getElementById('new-product-category').value = '';
+      document.getElementById('new-product-dosage').value = '';
+      document.getElementById('new-product-price').value = '';
+      document.getElementById('new-product-stock-status').value = 'in_stock';
+      document.getElementById('new-product-image-path').value = '';
+      newProductIdManuallyEdited = false;
+      statusEl.textContent = '';
+      document.getElementById('product-create-form').classList.remove('show');
+
+      renderProductsCategoryOptions();
+      document.getElementById('products-category-filter').value = '';
+      renderProductsSingleSelectOptions();
+      document.getElementById('products-single-select').value = r.d.id;
+      renderProductsRows();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not create product.';
       statusEl.className = 'product-save-status error';
     });
 });
