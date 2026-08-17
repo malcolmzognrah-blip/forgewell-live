@@ -89,6 +89,10 @@
 .account-menu-wrap { position: relative; }
 .account-menu-arrow { display: none; }
 .account-menu-wrap.signed-in .account-menu-arrow { display: inline-block; }
+/* "Hi, <name>" already identifies the account -- the generic person icon
+   next to it is redundant once signed in, on both desktop and mobile (no
+   media query here, unlike the other rules in this block). */
+.account-menu-wrap.signed-in .login-icon-glyph { display: none; }
 .account-dropdown {
   display: none;
   position: absolute;
@@ -145,7 +149,7 @@
   <div class="menu-toggle">
     <div class="account-menu-wrap" id="account-menu-wrap">
       <a href="/login.html" class="login-icon" id="account-icon" title="Account">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <svg class="login-icon-glyph" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span class="login-icon-label">Sign In</span>
         <svg class="account-menu-arrow" id="account-menu-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </a>
