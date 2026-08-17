@@ -49,6 +49,50 @@
     vertical-align: middle;
   }
 }
+
+/* Amazon-style account dropdown (Account / Sign Out) under the signed-in
+   name, replacing the old direct "click the name to go straight to
+   Account" behavior and the separate standalone sign-out icon. Hover needs
+   no JS at all -- :hover on the wrapper (which contains both the trigger
+   and the panel, so moving the mouse from one to the other never closes
+   it) shows the panel directly. Click support (each host page's own
+   wireHeaderFooter() toggles .open, since -- as with the hamburger's
+   #nav-overlay -- interactive JS can't live in this injected fragment,
+   only CSS can) is layered on the same display rule, so either mechanism
+   alone is enough to show it. The arrow and dropdown both start hidden in
+   the static markup above and are only revealed once JS detects a signed-in
+   customer (adding .signed-in to #account-menu-wrap) -- a guest's "Sign In"
+   keeps behaving exactly as it always has, plain link, no menu. */
+.account-menu-wrap { position: relative; }
+.account-menu-arrow { display: none; }
+.account-menu-wrap.signed-in .account-menu-arrow { display: inline-block; }
+.account-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(18,48,86,0.16);
+  z-index: 9999;
+  min-width: 140px;
+  padding: 6px 0;
+}
+.account-menu-wrap.signed-in:hover .account-dropdown,
+.account-menu-wrap.signed-in.open .account-dropdown {
+  display: block;
+}
+.account-dropdown-item {
+  display: block;
+  color: var(--navy-dark);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  font-family: 'Quicksand', sans-serif;
+  padding: 11px 18px;
+}
+.account-dropdown-item:hover { background: var(--panel); }
 </style>
 <header>
   <a href="/home.html" class="logo-mark" style="text-decoration:none;">
@@ -76,13 +120,17 @@
     <button type="button" id="header-search-icon-btn" class="search-icon-btn" aria-label="Search"></button>
   </div>
   <div class="menu-toggle">
-    <a href="/login.html" class="login-icon" id="account-icon" title="Account">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span class="login-icon-label">Sign In</span>
-    </a>
-    <a href="#" class="logout-icon-btn" id="logout-icon-btn" title="Sign Out" style="display:none;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-    </a>
+    <div class="account-menu-wrap" id="account-menu-wrap">
+      <a href="/login.html" class="login-icon" id="account-icon" title="Account">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="login-icon-label">Sign In</span>
+        <svg class="account-menu-arrow" id="account-menu-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </a>
+      <div class="account-dropdown" id="account-dropdown">
+        <a href="/orders.html" class="account-dropdown-item">Account</a>
+        <a href="#" class="account-dropdown-item" id="account-dropdown-signout">Sign Out</a>
+      </div>
+    </div>
     <a href="/cart.html" class="cart-icon" title="Cart">
       <span class="cart-icon-inner">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>

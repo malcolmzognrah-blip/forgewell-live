@@ -47,8 +47,6 @@ header{
 .login-icon{ display:flex; align-items:center; gap:8px; color:var(--navy); cursor:pointer; padding:4px; }
 .login-icon:hover{ color:var(--green); }
 .login-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; white-space:nowrap; }
-.logout-icon-btn{ display:flex; align-items:center; color:var(--navy); cursor:pointer; padding:4px; }
-.logout-icon-btn:hover{ color:var(--green); }
 
 @media (max-width: 1150px){
   .header-nav-links{ display:none; }
@@ -377,6 +375,31 @@ function wireHeaderFooter() {
     });
   }
 
+  // Amazon-style Account/Sign Out dropdown under the account name (see
+  // #account-menu-wrap's CSS in header.html -- hover alone already shows it
+  // via pure CSS there; this wires click-to-toggle plus close-on-outside-
+  // click/Escape, same pattern as the hamburger/#nav-overlay above). Wired
+  // unconditionally (not inside the signed-in check below) so the listener
+  // exists regardless of session state, but it only intercepts the click
+  // once #account-menu-wrap carries .signed-in -- a guest's click still
+  // falls through to the plain /login.html link exactly as before.
+  var accountMenuWrap = document.getElementById('account-menu-wrap');
+  if (accountMenuWrap) {
+    document.getElementById('account-icon').addEventListener('click', function(e) {
+      if (!accountMenuWrap.classList.contains('signed-in')) return;
+      e.preventDefault();
+      accountMenuWrap.classList.toggle('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (accountMenuWrap.classList.contains('open') && !accountMenuWrap.contains(e.target)) {
+        accountMenuWrap.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') accountMenuWrap.classList.remove('open');
+    });
+  }
+
   // Checks whether the person is logged in and updates the header's account
   // icon accordingly -- shows "Hi, [name]" linking to order history if
   // logged in, "Sign In" linking to the login/signup page otherwise. Runs
@@ -401,16 +424,13 @@ function wireHeaderFooter() {
               .then(function() { window.location.href = '/shop.html'; });
           }
 
-          // Icon-only sign-out control next to the account icon -- only
-          // created/shown once logged in, so it adds no width to the
-          // header's tightly-tuned breakpoint math for the (far more
-          // common) logged-out state. Gives desktop-width visitors a
-          // direct sign-out path: today the hamburger dropdown below
-          // (the only other place "Log Out" lives) is hidden above 1150px.
-          var logoutIconBtn = document.getElementById('logout-icon-btn');
-          if (logoutIconBtn) {
-            logoutIconBtn.style.display = 'flex';
-            logoutIconBtn.addEventListener('click', function(e) {
+          // Reveals the arrow and enables the Account/Sign Out dropdown
+          // (see #account-menu-wrap's CSS in header.html) -- replaces the
+          // old standalone icon-only sign-out button.
+          if (accountMenuWrap) accountMenuWrap.classList.add('signed-in');
+          var signOutItem = document.getElementById('account-dropdown-signout');
+          if (signOutItem) {
+            signOutItem.addEventListener('click', function(e) {
               e.preventDefault();
               doLogout();
             });
