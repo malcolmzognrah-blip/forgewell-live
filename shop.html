@@ -105,6 +105,7 @@ header{
 .card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 14px 14px; position:relative; cursor:pointer; display:flex; flex-direction:column; }
 .badge{ position:absolute; top:10px; left:10px; background:#141414; color:#fff; font-size:0.55rem; font-weight:700; padding:3px 8px; border-radius:12px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
 .tag-pill{ position:absolute; top:10px; right:10px; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
+.sale-badge{ position:absolute; top:10px; left:10px; background:#c0392b; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
 .vial{ width:100%; aspect-ratio:1/1; border-radius:4px; background:#fff; margin-bottom:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid var(--line); }
 .vial img{ width:100%; height:100%; object-fit:contain; }
 .card h3{ font-weight:700; font-size:1rem; margin-bottom:4px; color:#141414; text-align:center; }
@@ -664,6 +665,7 @@ function buildCardHtml(group) {
   }
   return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
+    (group.onSale ? '<div class="sale-badge">Sale</div>' : '') +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +
     '<h3>' + group.name + '</h3>' +
     '<div class="price-row">' +
