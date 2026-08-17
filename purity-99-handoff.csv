@@ -1,0 +1,184 @@
+product_id,name,dosage_raw,dosage_used,old_purity,new_purity,current_image_path,generated_file,image_path_to_set
+bpc-157-kit-10mg-10-pack,BPC-157 Kit,10mg,10mg,00,99,images/bpc-157-kit-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-157-kit-10mg-tpl.webp,images/bpc-157-kit-10mg-tpl.png
+bpc-157-kit-10-pack,BPC-157 Kit,5mg,5mg,00,99,images/bpc-157-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-157-kit-5mg-tpl.webp,images/bpc-157-kit-5mg-tpl.png
+mots-c-low,MOTS-C,10mg,10mg,00,99,images/mots-c-low-tpl.png,/home/zmalcolm/forgewell-live/images/mots-c-10mg-tpl.webp,images/mots-c-10mg-tpl.png
+retatrutide-high,Retatrutide,100mg,100mg,00,99,images/retatrutide-high-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-100mg-tpl.webp,images/retatrutide-100mg-tpl.png
+bpc-tb-blend-kit-20mg-20mg-5-pack,BPC/TB Blend Kit,20mg/20mg,20mg/20mg,00,99,images/bpc-tb-blend-kit-20mg-20mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-blend-kit-20mg-20mg-tpl.webp,images/bpc-tb-blend-kit-20mg-20mg-tpl.png
+pancragen,Pancragen,15mg,15mg,00,99,images/pancragen-tpl.png,/home/zmalcolm/forgewell-live/images/pancragen-15mg-tpl.webp,images/pancragen-15mg-tpl.png
+pt-141-kit-5-pack,PT-141 Kit,10mg,10mg,00,99,images/pt-141-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/pt-141-kit-10mg-tpl.webp,images/pt-141-kit-10mg-tpl.png
+semaglutide-kit-5-pack,Semaglutide Kit,5mg,5mg,00,99,images/semaglutide-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/semaglutide-kit-5mg-tpl.webp,images/semaglutide-kit-5mg-tpl.png
+mots-c-kit-40mg-5-pack,MOTS-C Kit,40mg,40mg,00,99,images/mots-c-kit-40mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mots-c-kit-40mg-tpl.webp,images/mots-c-kit-40mg-tpl.png
+ss-31-kit-10-pack,SS-31 Kit,50mg,50mg,00,99,images/ss-31-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ss-31-kit-50mg-tpl.webp,images/ss-31-kit-50mg-tpl.png
+sermorelin-kit-10mg-5-pack,Sermorelin Kit,10mg,10mg,00,99,images/sermorelin-kit-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/sermorelin-kit-10mg-tpl.webp,images/sermorelin-kit-10mg-tpl.png
+tirzepatide-kit-30mg-10-pack,Tirzepatide Kit,30mg,30mg,00,99,images/tirzepatide-kit-30mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-30mg-tpl.webp,images/tirzepatide-kit-30mg-tpl.png
+ll-37,LL-37,5mg,5mg,00,99,images/ll-37-tpl.png,/home/zmalcolm/forgewell-live/images/ll-37-5mg-tpl.webp,images/ll-37-5mg-tpl.png
+sermorelin-kit-5mg-10-pack,Sermorelin Kit,5mg,5mg,00,99,images/sermorelin-kit-5mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/sermorelin-kit-5mg-tpl.webp,images/sermorelin-kit-5mg-tpl.png
+semaglutide-kit-10mg-10-pack,Semaglutide Kit,10mg,10mg,00,99,images/semaglutide-kit-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/semaglutide-kit-10mg-tpl.webp,images/semaglutide-kit-10mg-tpl.png
+dsip-high,DSIP,15mg,15mg,00,99,images/dsip-high-tpl.png,/home/zmalcolm/forgewell-live/images/dsip-15mg-tpl.webp,images/dsip-15mg-tpl.png
+l-carnitine-high,L-Carnitine,600mg,600mg,00,99,images/l-carnitine-high-tpl.png,/home/zmalcolm/forgewell-live/images/l-carnitine-600mg-tpl.webp,images/l-carnitine-600mg-tpl.png
+pt-141-kit-10-pack,PT-141 Kit,10mg,10mg,00,99,images/pt-141-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/pt-141-kit-10mg-tpl.webp,images/pt-141-kit-10mg-tpl.png
+tirzepatide-kit-10-pack,Tirzepatide Kit,10mg,10mg,00,99,images/tirzepatide-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-10mg-tpl.webp,images/tirzepatide-kit-10mg-tpl.png
+cagrilintide,Cagrilintide,10mg,10mg,00,99,images/cagrilintide-tpl.png,/home/zmalcolm/forgewell-live/images/cagrilintide-10mg-tpl.webp,images/cagrilintide-10mg-tpl.png
+retatrutide-kit-100mg-5-pack,Retatrutide Kit,100mg,100mg,00,99,images/retatrutide-kit-100mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-100mg-tpl.webp,images/retatrutide-kit-100mg-tpl.png
+mots-c-kit-40mg-10-pack,MOTS-C Kit,40mg,40mg,00,99,images/mots-c-kit-40mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mots-c-kit-40mg-tpl.webp,images/mots-c-kit-40mg-tpl.png
+tesamorelin-low,Tesamorelin,5mg,5mg,00,99,images/tesamorelin-low-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-5mg-tpl.webp,images/tesamorelin-5mg-tpl.png
+ipamorelin-high,Ipamorelin,10mg,10mg,00,99,images/ipamorelin-high-tpl.png,/home/zmalcolm/forgewell-live/images/ipamorelin-10mg-tpl.webp,images/ipamorelin-10mg-tpl.png
+5-amino-1mq,5-Amino-1MQ,50mg,50mg,00,99,images/5-amino-1mq-tpl.png,/home/zmalcolm/forgewell-live/images/5-amino-1mq-50mg-tpl.webp,images/5-amino-1mq-50mg-tpl.png
+bpc-tb-blend-kit-20mg-20mg-10-pack,BPC/TB Blend Kit,20mg/20mg,20mg/20mg,00,99,images/bpc-tb-blend-kit-20mg-20mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-blend-kit-20mg-20mg-tpl.webp,images/bpc-tb-blend-kit-20mg-20mg-tpl.png
+mt-2-kit-10-pack,MT-2 Kit,10mg,10mg,00,99,images/mt-2-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mt-2-kit-10mg-tpl.webp,images/mt-2-kit-10mg-tpl.png
+tirzepatide-high,Tirzepatide,60mg,60mg,00,99,images/tirzepatide-high-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-60mg-tpl.webp,images/tirzepatide-60mg-tpl.png
+klow,KLOW,80mg,80mg,00,99,images/klow-tpl.png,/home/zmalcolm/forgewell-live/images/klow-80mg-tpl.webp,images/klow-80mg-tpl.png
+tesamorelin-kit-5-pack,Tesamorelin Kit,5mg,5mg,00,99,images/tesamorelin-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-kit-5mg-tpl.webp,images/tesamorelin-kit-5mg-tpl.png
+pnc-27,PNC-27,5mg,5mg,00,99,images/pnc-27-tpl.png,/home/zmalcolm/forgewell-live/images/pnc-27-5mg-tpl.webp,images/pnc-27-5mg-tpl.png
+tb-500-kit-10mg-5-pack,TB-500 Kit,10mg,10mg,00,99,images/tb-500-kit-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tb-500-kit-10mg-tpl.webp,images/tb-500-kit-10mg-tpl.png
+tirzepatide-kit-5-pack,Tirzepatide Kit,10mg,10mg,00,99,images/tirzepatide-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-10mg-tpl.webp,images/tirzepatide-kit-10mg-tpl.png
+kpv-kit-10-pack,KPV Kit,10mg,10mg,00,99,images/kpv-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/kpv-kit-10mg-tpl.webp,images/kpv-kit-10mg-tpl.png
+ghk-cu-kit-10-pack,GHK-Cu Kit,50mg,50mg,00,99,images/ghk-cu-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-kit-50mg-tpl.webp,images/ghk-cu-kit-50mg-tpl.png
+retatrutide-kit-5-pack,Retatrutide Kit,10mg,10mg,00,99,images/retatrutide-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-10mg-tpl.webp,images/retatrutide-kit-10mg-tpl.png
+mt-2-kit-5-pack,MT-2 Kit,10mg,10mg,00,99,images/mt-2-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mt-2-kit-10mg-tpl.webp,images/mt-2-kit-10mg-tpl.png
+mt-2,MT-2,10mg,10mg,00,99,images/mt-2-tpl.png,/home/zmalcolm/forgewell-live/images/mt-2-10mg-tpl.webp,images/mt-2-10mg-tpl.png
+cagrilintide-kit-5-pack,Cagrilintide Kit,10mg,10mg,00,99,images/cagrilintide-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/cagrilintide-kit-10mg-tpl.webp,images/cagrilintide-kit-10mg-tpl.png
+bpc-tb500-mix-low,BPC/TB-500 Mix,5mg/5mg,5mg/5mg,00,99,images/bpc-tb-500-mix-low-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-500-mix-5mg-5mg-tpl.webp,images/bpc-tb-500-mix-5mg-5mg-tpl.png
+bpc-tb-blend-kit-10-pack,BPC/TB Blend Kit,5mg/5mg,5mg/5mg,00,99,images/bpc-tb-blend-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-blend-kit-5mg-5mg-tpl.webp,images/bpc-tb-blend-kit-5mg-5mg-tpl.png
+survodutide,Survodutide,10mg,10mg,00,99,images/survodutide-tpl.png,/home/zmalcolm/forgewell-live/images/survodutide-10mg-tpl.webp,images/survodutide-10mg-tpl.png
+dsip-low,DSIP,5mg,5mg,00,99,images/dsip-low-tpl.png,/home/zmalcolm/forgewell-live/images/dsip-5mg-tpl.webp,images/dsip-5mg-tpl.png
+cjc-1295-ipamorelin-high,CJC-1295/Ipamorelin,10mg/10mg,10mg/10mg,00,99,images/cjc-1295-ipamorelin-high-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-1295-ipamorelin-10mg-10mg-tpl.webp,images/cjc-1295-ipamorelin-10mg-10mg-tpl.png
+l-carnitine-low,L-Carnitine,200mg,200mg,00,99,images/l-carnitine-low-tpl.png,/home/zmalcolm/forgewell-live/images/l-carnitine-200mg-tpl.webp,images/l-carnitine-200mg-tpl.png
+testagen,Testagen,20mg,20mg,00,99,images/testagen-tpl.png,/home/zmalcolm/forgewell-live/images/testagen-20mg-tpl.webp,images/testagen-20mg-tpl.png
+tesamorelin-kit-20mg-10-pack,Tesamorelin Kit,20mg,20mg,00,99,images/tesamorelin-kit-20mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-kit-20mg-tpl.webp,images/tesamorelin-kit-20mg-tpl.png
+sermorelin-kit,Sermorelin Kit,5mg,5mg,00,99,images/sermorelin-kit-tpl.png,/home/zmalcolm/forgewell-live/images/sermorelin-kit-5mg-tpl.webp,images/sermorelin-kit-5mg-tpl.png
+tb-500,TB-500,5mg,5mg,00,99,images/tb-500-tpl.png,/home/zmalcolm/forgewell-live/images/tb-500-5mg-tpl.webp,images/tb-500-5mg-tpl.png
+prostamax,Prostamax,10mg,10mg,00,99,images/prostamax-tpl.png,/home/zmalcolm/forgewell-live/images/prostamax-10mg-tpl.webp,images/prostamax-10mg-tpl.png
+mt-1-kit-5-pack,MT-1 Kit,10mg,10mg,00,99,images/mt-1-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mt-1-kit-10mg-tpl.webp,images/mt-1-kit-10mg-tpl.png
+tb-500-kit-5mg-10-pack,TB-500 Kit,5mg,5mg,00,99,images/tb-500-kit-5mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tb-500-kit-5mg-tpl.webp,images/tb-500-kit-5mg-tpl.png
+retatrutide-kit-10-pack,Retatrutide Kit,10mg,10mg,00,99,images/retatrutide-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-10mg-tpl.webp,images/retatrutide-kit-10mg-tpl.png
+tirzepatide-low,Tirzepatide,10mg,10mg,00,99,images/tirzepatide-low-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-10mg-tpl.webp,images/tirzepatide-10mg-tpl.png
+vesugen,Vesugen,20mg,20mg,00,99,images/vesugen-tpl.png,/home/zmalcolm/forgewell-live/images/vesugen-20mg-tpl.webp,images/vesugen-20mg-tpl.png
+tirzepatide-kit-20mg-5-pack,Tirzepatide Kit,20mg,20mg,00,99,images/tirzepatide-kit-20mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-20mg-tpl.webp,images/tirzepatide-kit-20mg-tpl.png
+chonluten,Chonluten,10mg,10mg,00,99,images/chonluten-tpl.png,/home/zmalcolm/forgewell-live/images/chonluten-10mg-tpl.webp,images/chonluten-10mg-tpl.png
+ghk-cu-low,GHK-Cu,50mg,50mg,00,99,images/ghk-cu-low-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-50mg-tpl.webp,images/ghk-cu-50mg-tpl.png
+cjc-ipa-blend-kit-5-pack,CJC/IPA Blend Kit,5mg/5mg,5mg/5mg,00,99,images/cjc-ipa-blend-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-ipa-blend-kit-5mg-5mg-tpl.webp,images/cjc-ipa-blend-kit-5mg-5mg-tpl.png
+snap-8,SNAP-8,10mg,10mg,00,99,images/snap-8-tpl.png,/home/zmalcolm/forgewell-live/images/snap-8-10mg-tpl.webp,images/snap-8-10mg-tpl.png
+retatrutide-kit-100mg-10-pack,Retatrutide Kit,100mg,100mg,00,99,images/retatrutide-kit-100mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-100mg-tpl.webp,images/retatrutide-kit-100mg-tpl.png
+bpc-tb500-mix-10mg,BPC/TB-500 Mix,10mg/10mg,10mg/10mg,00,99,images/bpc-tb500-mix-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-500-mix-10mg-10mg-tpl.webp,images/bpc-tb-500-mix-10mg-10mg-tpl.png
+bpc-157-kit-10mg-5-pack,BPC-157 Kit,10mg,10mg,00,99,images/bpc-157-kit-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-157-kit-10mg-tpl.webp,images/bpc-157-kit-10mg-tpl.png
+cortagen,Cortagen,10mg,10mg,00,99,images/cortagen-tpl.png,/home/zmalcolm/forgewell-live/images/cortagen-10mg-tpl.webp,images/cortagen-10mg-tpl.png
+ghk-cu-kit-100mg-5-pack,GHK-Cu Kit,100mg,100mg,00,99,images/ghk-cu-kit-100mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-kit-100mg-tpl.webp,images/ghk-cu-kit-100mg-tpl.png
+adamax,Adamax,10mg,10mg,00,99,images/adamax-tpl.png,/home/zmalcolm/forgewell-live/images/adamax-10mg-tpl.webp,images/adamax-10mg-tpl.png
+retatrutide-kit-30mg-10-pack,Retatrutide Kit,30mg,30mg,00,99,images/retatrutide-kit-30mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-30mg-tpl.webp,images/retatrutide-kit-30mg-tpl.png
+semax-selank-high,Semax/Selank,10mg/10mg,10mg/10mg,00,99,images/semax-selank-high-tpl.png,/home/zmalcolm/forgewell-live/images/semax-selank-10mg-10mg-tpl.webp,images/semax-selank-10mg-10mg-tpl.png
+kpv-kit-5-pack,KPV Kit,10mg,10mg,00,99,images/kpv-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/kpv-kit-10mg-tpl.webp,images/kpv-kit-10mg-tpl.png
+epithalon,Epithalon,10mg,10mg,00,99,images/epithalon-tpl.png,/home/zmalcolm/forgewell-live/images/epithalon-10mg-tpl.webp,images/epithalon-10mg-tpl.png
+bpc-tb500-mix-high,BPC/TB-500 Mix,20mg/20mg,20mg/20mg,00,99,images/bpc-tb-500-mix-high-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-500-mix-20mg-20mg-tpl.webp,images/bpc-tb-500-mix-20mg-20mg-tpl.png
+sermorelin,Sermorelin,5mg,5mg,00,99,images/sermorelin-tpl.png,/home/zmalcolm/forgewell-live/images/sermorelin-5mg-tpl.webp,images/sermorelin-5mg-tpl.png
+ghk-cu-kit-5-pack,GHK-Cu Kit,50mg,50mg,00,99,images/ghk-cu-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-kit-50mg-tpl.webp,images/ghk-cu-kit-50mg-tpl.png
+mt-1,MT-1,10mg,10mg,00,99,images/mt-1-tpl.png,/home/zmalcolm/forgewell-live/images/mt-1-10mg-tpl.webp,images/mt-1-10mg-tpl.png
+tirzepatide-kit-60mg-10-pack,Tirzepatide Kit,60mg,60mg,00,99,images/tirzepatide-kit-60mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-60mg-tpl.webp,images/tirzepatide-kit-60mg-tpl.png
+ipamorelin-low,Ipamorelin,5mg,5mg,00,99,images/ipamorelin-low-tpl.png,/home/zmalcolm/forgewell-live/images/ipamorelin-5mg-tpl.webp,images/ipamorelin-5mg-tpl.png
+bpc-157-kit-5-pack,BPC-157 Kit,5mg,5mg,00,99,images/bpc-157-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-157-kit-5mg-tpl.webp,images/bpc-157-kit-5mg-tpl.png
+cjc-ipa-blend-kit-10mg-10mg-5-pack,CJC/IPA Blend Kit,10mg/10mg,10mg/10mg,00,99,images/cjc-ipa-blend-kit-10mg-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-ipa-blend-kit-10mg-10mg-tpl.webp,images/cjc-ipa-blend-kit-10mg-10mg-tpl.png
+bpc-tb-blend-kit-10mg-10mg-10-pack,BPC/TB Blend Kit,10mg/10mg,10mg/10mg,00,99,images/bpc-tb-blend-kit-10mg-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-blend-kit-10mg-10mg-tpl.webp,images/bpc-tb-blend-kit-10mg-10mg-tpl.png
+ghrp-2,GHRP-2,10mg,10mg,00,99,images/ghrp-2-tpl.png,/home/zmalcolm/forgewell-live/images/ghrp-2-10mg-tpl.webp,images/ghrp-2-10mg-tpl.png
+sermorelin-kit-10mg-10-pack,Sermorelin Kit,10mg,10mg,00,99,images/sermorelin-kit-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/sermorelin-kit-10mg-tpl.webp,images/sermorelin-kit-10mg-tpl.png
+tirzepatide-kit-60mg-5-pack,Tirzepatide Kit,60mg,60mg,00,99,images/tirzepatide-kit-60mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-60mg-tpl.webp,images/tirzepatide-kit-60mg-tpl.png
+glow-pro-blend,Glow Pro Blend,50mg/10mg/10mg,50mg/10mg/10mg,00,99,images/glow-pro-blend-tpl.png,/home/zmalcolm/forgewell-live/images/glow-pro-blend-50mg-10mg-10mg-tpl.webp,images/glow-pro-blend-50mg-10mg-10mg-tpl.png
+cartalax,Cartalax,20mg,20mg,00,99,images/cartalax-tpl.png,/home/zmalcolm/forgewell-live/images/cartalax-20mg-tpl.webp,images/cartalax-20mg-tpl.png
+retatrutide-kit-20mg-5-pack,Retatrutide Kit,20mg,20mg,00,99,images/retatrutide-kit-20mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-20mg-tpl.webp,images/retatrutide-kit-20mg-tpl.png
+livagen,Livagen,20mg,20mg,00,99,images/livagen-tpl.png,/home/zmalcolm/forgewell-live/images/livagen-20mg-tpl.webp,images/livagen-20mg-tpl.png
+kpv-low,KPV,10mg,10mg,00,99,images/kpv-low-tpl.png,/home/zmalcolm/forgewell-live/images/kpv-10mg-tpl.webp,images/kpv-10mg-tpl.png
+semax-selank-low,Semax/Selank,5mg/5mg,5mg/5mg,00,99,images/semax-selank-low-tpl.png,/home/zmalcolm/forgewell-live/images/semax-selank-5mg-5mg-tpl.webp,images/semax-selank-5mg-5mg-tpl.png
+igf1-lr3-kit-10-pack,IGF-1 LR3 Kit,1mg,1mg,00,99,images/igf1-lr3-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/igf-1-lr3-kit-1mg-tpl.webp,images/igf-1-lr3-kit-1mg-tpl.png
+ghk-cu-kit-200mg-10-pack,GHK-Cu Kit,200mg,200mg,00,99,images/ghk-cu-kit-200mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-kit-200mg-tpl.webp,images/ghk-cu-kit-200mg-tpl.png
+cagrilintide-kit-10-pack,Cagrilintide Kit,10mg,10mg,00,99,images/cagrilintide-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/cagrilintide-kit-10mg-tpl.webp,images/cagrilintide-kit-10mg-tpl.png
+ovagen,Ovagen,20mg,20mg,00,99,images/ovagen-tpl.png,/home/zmalcolm/forgewell-live/images/ovagen-20mg-tpl.webp,images/ovagen-20mg-tpl.png
+igf1-lr3-kit-5-pack,IGF-1 LR3 Kit,1mg,1mg,00,99,images/igf1-lr3-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/igf-1-lr3-kit-1mg-tpl.webp,images/igf-1-lr3-kit-1mg-tpl.png
+tb-500-kit-10mg-10-pack,TB-500 Kit,10mg,10mg,00,99,images/tb-500-kit-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tb-500-kit-10mg-tpl.webp,images/tb-500-kit-10mg-tpl.png
+ara-290,ARA-290,10mg,10mg,00,99,images/ara-290-tpl.png,/home/zmalcolm/forgewell-live/images/ara-290-10mg-tpl.webp,images/ara-290-10mg-tpl.png
+mots-c-high,MOTS-C,40mg,40mg,00,99,images/mots-c-high-tpl.png,/home/zmalcolm/forgewell-live/images/mots-c-40mg-tpl.webp,images/mots-c-40mg-tpl.png
+ss-31-kit-5-pack,SS-31 Kit,50mg,50mg,00,99,images/ss-31-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ss-31-kit-50mg-tpl.webp,images/ss-31-kit-50mg-tpl.png
+ghk-cu-kit-200mg-5-pack,GHK-Cu Kit,200mg,200mg,00,99,images/ghk-cu-kit-200mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-kit-200mg-tpl.webp,images/ghk-cu-kit-200mg-tpl.png
+pinealon,Pinealon,20mg,20mg,00,99,images/pinealon-tpl.png,/home/zmalcolm/forgewell-live/images/pinealon-20mg-tpl.webp,images/pinealon-20mg-tpl.png
+cjc-ipa-blend-kit-10-pack,CJC/IPA Blend Kit,5mg/5mg,5mg/5mg,00,99,images/cjc-ipa-blend-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-ipa-blend-kit-5mg-5mg-tpl.webp,images/cjc-ipa-blend-kit-5mg-5mg-tpl.png
+kisspeptin,Kisspeptin,10mg,10mg,00,99,images/kisspeptin-tpl.png,/home/zmalcolm/forgewell-live/images/kisspeptin-10mg-tpl.webp,images/kisspeptin-10mg-tpl.png
+tirzepatide-kit-20mg-10-pack,Tirzepatide Kit,20mg,20mg,00,99,images/tirzepatide-kit-20mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-20mg-tpl.webp,images/tirzepatide-kit-20mg-tpl.png
+tesamorelin-kit-20mg-5-pack,Tesamorelin Kit,20mg,20mg,00,99,images/tesamorelin-kit-20mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-kit-20mg-tpl.webp,images/tesamorelin-kit-20mg-tpl.png
+tesamorelin-high,Tesamorelin,20mg,20mg,00,99,images/tesamorelin-high-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-20mg-tpl.webp,images/tesamorelin-20mg-tpl.png
+bpc-tb-blend-kit-5-pack,BPC/TB Blend Kit,5mg/5mg,5mg/5mg,00,99,images/bpc-tb-blend-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-blend-kit-5mg-5mg-tpl.webp,images/bpc-tb-blend-kit-5mg-5mg-tpl.png
+tb-500-kit,TB-500 Kit,5mg,5mg,00,99,images/tb-500-kit-tpl.png,/home/zmalcolm/forgewell-live/images/tb-500-kit-5mg-tpl.webp,images/tb-500-kit-5mg-tpl.png
+thymalin,Thymalin,10mg,10mg,00,99,images/thymalin-tpl.png,/home/zmalcolm/forgewell-live/images/thymalin-10mg-tpl.webp,images/thymalin-10mg-tpl.png
+retatrutide-low,Retatrutide,10mg,10mg,00,99,images/retatrutide-low-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-10mg-tpl.webp,images/retatrutide-10mg-tpl.png
+mots-c-kit-10-pack,MOTS-C Kit,10mg,10mg,00,99,images/mots-c-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mots-c-kit-10mg-tpl.webp,images/mots-c-kit-10mg-tpl.png
+cjc-ipa-blend-kit-10mg-10mg-10-pack,CJC/IPA Blend Kit,10mg/10mg,10mg/10mg,00,99,images/cjc-ipa-blend-kit-10mg-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-ipa-blend-kit-10mg-10mg-tpl.webp,images/cjc-ipa-blend-kit-10mg-10mg-tpl.png
+ghk-cu-high,GHK-Cu,200mg,200mg,00,99,images/ghk-cu-high-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-200mg-tpl.webp,images/ghk-cu-200mg-tpl.png
+tesamorelin-kit-10mg-10-pack,Tesamorelin Kit,10mg,10mg,00,99,images/tesamorelin-kit-10mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-kit-10mg-tpl.webp,images/tesamorelin-kit-10mg-tpl.png
+bronchogen,Bronchogen,20mg,20mg,00,99,images/bronchogen-tpl.png,/home/zmalcolm/forgewell-live/images/bronchogen-20mg-tpl.webp,images/bronchogen-20mg-tpl.png
+pt-141,PT-141,10mg,10mg,00,99,images/pt-141-tpl.png,/home/zmalcolm/forgewell-live/images/pt-141-10mg-tpl.webp,images/pt-141-10mg-tpl.png
+mt-1-kit-10-pack,MT-1 Kit,10mg,10mg,00,99,images/mt-1-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mt-1-kit-10mg-tpl.webp,images/mt-1-kit-10mg-tpl.png
+tesamorelin-kit-10mg-5-pack,Tesamorelin Kit,10mg,10mg,00,99,images/tesamorelin-kit-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-kit-10mg-tpl.webp,images/tesamorelin-kit-10mg-tpl.png
+vip-high,VIP,10mg,10mg,00,99,images/vip-high-tpl.png,/home/zmalcolm/forgewell-live/images/vip-10mg-tpl.webp,images/vip-10mg-tpl.png
+mots-c-kit-5-pack,MOTS-C Kit,10mg,10mg,00,99,images/mots-c-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/mots-c-kit-10mg-tpl.webp,images/mots-c-kit-10mg-tpl.png
+crystagen,Crystagen,10mg,10mg,00,99,images/crystagen-tpl.png,/home/zmalcolm/forgewell-live/images/crystagen-10mg-tpl.webp,images/crystagen-10mg-tpl.png
+tesamorelin-kit-10-pack,Tesamorelin Kit,5mg,5mg,00,99,images/tesamorelin-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-kit-5mg-tpl.webp,images/tesamorelin-kit-5mg-tpl.png
+bpc-tb-blend-kit-10mg-10mg-5-pack,BPC/TB Blend Kit,10mg/10mg,10mg/10mg,00,99,images/bpc-tb-blend-kit-10mg-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-tb-blend-kit-10mg-10mg-tpl.webp,images/bpc-tb-blend-kit-10mg-10mg-tpl.png
+klow-kit-5-pack,KLOW Kit,80mg,80mg,00,99,images/klow-kit-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/klow-kit-80mg-tpl.webp,images/klow-kit-80mg-tpl.png
+cjc-1295-ipamorelin-low,CJC-1295/Ipamorelin,5mg/5mg,5mg/5mg,00,99,images/cjc-1295-ipamorelin-low-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-1295-ipamorelin-5mg-5mg-tpl.webp,images/cjc-1295-ipamorelin-5mg-5mg-tpl.png
+tirzepatide-kit-30mg-5-pack,Tirzepatide Kit,30mg,30mg,00,99,images/tirzepatide-kit-30mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-kit-30mg-tpl.webp,images/tirzepatide-kit-30mg-tpl.png
+retatrutide-kit-20mg-10-pack,Retatrutide Kit,20mg,20mg,00,99,images/retatrutide-kit-20mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-20mg-tpl.webp,images/retatrutide-kit-20mg-tpl.png
+retatrutide-kit-50mg-5-pack,Retatrutide Kit,50mg,50mg,00,99,images/retatrutide-kit-50mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-50mg-tpl.webp,images/retatrutide-kit-50mg-tpl.png
+vip-low,VIP,5mg,5mg,00,99,images/vip-low-tpl.png,/home/zmalcolm/forgewell-live/images/vip-5mg-tpl.webp,images/vip-5mg-tpl.png
+klow-kit-10-pack,KLOW Kit,80mg,80mg,00,99,images/klow-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/klow-kit-80mg-tpl.webp,images/klow-kit-80mg-tpl.png
+ghrp-6,GHRP-6,10mg,10mg,00,99,images/ghrp-6-tpl.png,/home/zmalcolm/forgewell-live/images/ghrp-6-10mg-tpl.webp,images/ghrp-6-10mg-tpl.png
+retatrutide-kit-50mg-10-pack,Retatrutide Kit,50mg,50mg,00,99,images/retatrutide-kit-50mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-50mg-tpl.webp,images/retatrutide-kit-50mg-tpl.png
+retatrutide-kit-30mg-5-pack,Retatrutide Kit,30mg,30mg,00,99,images/retatrutide-kit-30mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-kit-30mg-tpl.webp,images/retatrutide-kit-30mg-tpl.png
+igf1-lr3,IGF1-LR3,1mg,1mg,00,99,images/igf1-lr3-tpl.png,/home/zmalcolm/forgewell-live/images/igf1-lr3-1mg-tpl.webp,images/igf1-lr3-1mg-tpl.png
+ghk-cu-kit-100mg-10-pack,GHK-Cu Kit,100mg,100mg,00,99,images/ghk-cu-kit-100mg-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-kit-100mg-tpl.webp,images/ghk-cu-kit-100mg-tpl.png
+hexarelin,Hexarelin,5mg,5mg,00,99,images/hexarelin-tpl.png,/home/zmalcolm/forgewell-live/images/hexarelin-5mg-tpl.webp,images/hexarelin-5mg-tpl.png
+semaglutide-kit-10-pack,Semaglutide Kit,5mg,5mg,00,99,images/semaglutide-kit-10-pack-tpl.png,/home/zmalcolm/forgewell-live/images/semaglutide-kit-5mg-tpl.webp,images/semaglutide-kit-5mg-tpl.png
+semaglutide-kit-10mg-5-pack,Semaglutide Kit,10mg,10mg,00,99,images/semaglutide-kit-10mg-5-pack-tpl.png,/home/zmalcolm/forgewell-live/images/semaglutide-kit-10mg-tpl.webp,images/semaglutide-kit-10mg-tpl.png
+tirzepatide-30mg,Tirzepatide,30mg,30mg,00,99,images/tirzepatide-30mg-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-30mg-tpl.webp,images/tirzepatide-30mg-tpl.png
+morning-relax,Morning Relax,vial,,00,99,images/morning-relax-tpl.png,/home/zmalcolm/forgewell-live/images/morning-relax-tpl.webp,images/morning-relax-tpl.png
+glutathione,Glutathione,600mg,600mg,00,99,images/glutathione-600mg-tpl.png,/home/zmalcolm/forgewell-live/images/glutathione-600mg-tpl.webp,images/glutathione-600mg-tpl.png
+body-boost,Body Boost,vial,,00,99,images/body-boost-tpl.png,/home/zmalcolm/forgewell-live/images/body-boost-tpl.webp,images/body-boost-tpl.png
+l-carnitine-400mg,L-Carnitine,400mg,400mg,00,99,images/l-carnitine-400mg-tpl.png,/home/zmalcolm/forgewell-live/images/l-carnitine-400mg-tpl.webp,images/l-carnitine-400mg-tpl.png
+tesamorelin-10mg,Tesamorelin,10mg,10mg,00,99,images/tesamorelin-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/tesamorelin-10mg-tpl.webp,images/tesamorelin-10mg-tpl.png
+dsip-10mg,DSIP,10mg,10mg,00,99,images/dsip-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/dsip-10mg-tpl.webp,images/dsip-10mg-tpl.png
+ss-31-50mg,SS-31,50mg,50mg,00,99,images/ss-31-50mg-tpl.png,/home/zmalcolm/forgewell-live/images/ss-31-50mg-tpl.webp,images/ss-31-50mg-tpl.png
+tb-500-10mg,TB-500,10mg,10mg,00,99,images/tb-500-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/tb-500-10mg-tpl.webp,images/tb-500-10mg-tpl.png
+power-blitz,Power Blitz,vial,,00,99,images/power-blitz-tpl.png,/home/zmalcolm/forgewell-live/images/power-blitz-tpl.webp,images/power-blitz-tpl.png
+neuro-spark,Neuro Spark,vial,,00,99,images/neuro-spark-tpl.png,/home/zmalcolm/forgewell-live/images/neuro-spark-tpl.webp,images/neuro-spark-tpl.png
+acetyl-d-glucosamine,Acetyl D-Glucosamine,vial,,00,99,images/acetyl-d-glucosamine-tpl.png,/home/zmalcolm/forgewell-live/images/acetyl-d-glucosamine-tpl.webp,images/acetyl-d-glucosamine-tpl.png
+tirzepatide-20mg,Tirzepatide,20mg,20mg,00,99,images/tirzepatide-20mg-tpl.png,/home/zmalcolm/forgewell-live/images/tirzepatide-20mg-tpl.webp,images/tirzepatide-20mg-tpl.png
+tri-immune-blend,Tri Immune Blend,vial,,00,99,images/tri-immune-blend-tpl.png,/home/zmalcolm/forgewell-live/images/tri-immune-blend-tpl.webp,images/tri-immune-blend-tpl.png
+metabolic-fire,Metabolic Fire,vial,,00,99,images/metabolic-fire-tpl.png,/home/zmalcolm/forgewell-live/images/metabolic-fire-tpl.webp,images/metabolic-fire-tpl.png
+yohimbine-hcl,Yohimbine HCL,vial,,00,99,images/yohimbine-hcl-tpl.png,/home/zmalcolm/forgewell-live/images/yohimbine-hcl-tpl.webp,images/yohimbine-hcl-tpl.png
+semaglutide-10mg,Semaglutide,10mg,10mg,00,99,images/semaglutide-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/semaglutide-10mg-tpl.webp,images/semaglutide-10mg-tpl.png
+hair-skin-nails-blend,Hair Skin Nails Blend,vial,,00,99,images/hair-skin-nails-blend-tpl.png,/home/zmalcolm/forgewell-live/images/hair-skin-nails-blend-tpl.webp,images/hair-skin-nails-blend-tpl.png
+pump-xxl,Pump XXL,vial,,00,99,images/pump-xxl-tpl.png,/home/zmalcolm/forgewell-live/images/pump-xxl-tpl.webp,images/pump-xxl-tpl.png
+peak-performance,Peak Performance,vial,,00,99,images/peak-performance-tpl.png,/home/zmalcolm/forgewell-live/images/peak-performance-tpl.webp,images/peak-performance-tpl.png
+power-burn,Power Burn,vial,,00,99,images/power-burn-tpl.png,/home/zmalcolm/forgewell-live/images/power-burn-tpl.webp,images/power-burn-tpl.png
+sleep-mix,Sleep Mix,vial,,00,99,images/sleep-mix-tpl.png,/home/zmalcolm/forgewell-live/images/sleep-mix-tpl.webp,images/sleep-mix-tpl.png
+sermorelin-10mg,Sermorelin,10mg,10mg,00,99,images/sermorelin-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/sermorelin-10mg-tpl.webp,images/sermorelin-10mg-tpl.png
+vitality-vibe,Vitality Vibe,vial,,00,99,images/vitality-vibe-tpl.png,/home/zmalcolm/forgewell-live/images/vitality-vibe-tpl.webp,images/vitality-vibe-tpl.png
+ghk-cu-100mg,GHK-Cu,100mg,100mg,00,99,images/ghk-cu-100mg-tpl.png,/home/zmalcolm/forgewell-live/images/ghk-cu-100mg-tpl.webp,images/ghk-cu-100mg-tpl.png
+cjc-1295,CJC-1295,vial,,00,99,images/cjc-1295-tpl.png,/home/zmalcolm/forgewell-live/images/cjc-1295-tpl.webp,images/cjc-1295-tpl.png
+bpc-157-5mg,BPC-157,5mg,5mg,00,99,images/bpc-157-5mg-tpl.png,/home/zmalcolm/forgewell-live/images/bpc-157-5mg-tpl.webp,images/bpc-157-5mg-tpl.png
+selank,Selank,vial,,00,99,images/selank-tpl.png,/home/zmalcolm/forgewell-live/images/selank-tpl.webp,images/selank-tpl.png
+b6,B6,vial,,00,99,images/b6-tpl.png,/home/zmalcolm/forgewell-live/images/b6-tpl.webp,images/b6-tpl.png
+bcaa-211,BCAA 2:1:1,vial,,00,99,images/bcaa-2-1-1-tpl.png,/home/zmalcolm/forgewell-live/images/bcaa-2-1-1-tpl.webp,images/bcaa-2-1-1-tpl.png
+pump-xl,Pump XL,vial,,00,99,images/pump-xl-tpl.png,/home/zmalcolm/forgewell-live/images/pump-xl-tpl.webp,images/pump-xl-tpl.png
+nac,NAC,vial,,00,99,images/nac-tpl.png,/home/zmalcolm/forgewell-live/images/nac-tpl.webp,images/nac-tpl.png
+semaglutide-5mg,Semaglutide,5mg,5mg,00,99,images/semaglutide-5mg-tpl.png,/home/zmalcolm/forgewell-live/images/semaglutide-5mg-tpl.webp,images/semaglutide-5mg-tpl.png
+vitamin-c,Vitamin C,vial,,00,99,images/vitamin-c-tpl.png,/home/zmalcolm/forgewell-live/images/vitamin-c-tpl.webp,images/vitamin-c-tpl.png
+helios-extreme,Helios Extreme,vial,,00,99,images/helios-extreme-tpl.png,/home/zmalcolm/forgewell-live/images/helios-extreme-tpl.webp,images/helios-extreme-tpl.png
+retatrutide-30mg,Retatrutide,30mg,30mg,00,99,images/retatrutide-30mg-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-30mg-tpl.webp,images/retatrutide-30mg-tpl.png
+hmg,HMG,75iu,75iu,00,99,images/hmg-75iu-tpl.png,/home/zmalcolm/forgewell-live/images/hmg-75iu-tpl.webp,images/hmg-75iu-tpl.png
+energy-lipo-blend,Energy Lipo Blend,vial,,00,99,images/energy-lipo-blend-tpl.png,/home/zmalcolm/forgewell-live/images/energy-lipo-blend-tpl.webp,images/energy-lipo-blend-tpl.png
+ss-31-10mg,SS-31,10mg,10mg,00,99,images/ss-31-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/ss-31-10mg-tpl.webp,images/ss-31-10mg-tpl.png
+nad-plus,NAD+,500mg,500mg,00,99,images/nad-500mg-tpl.png,/home/zmalcolm/forgewell-live/images/nad-500mg-tpl.webp,images/nad-500mg-tpl.png
+retatrutide-50mg,Retatrutide,50mg,50mg,00,99,images/retatrutide-50mg-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-50mg-tpl.webp,images/retatrutide-50mg-tpl.png
+retatrutide-20mg,Retatrutide,20mg,20mg,00,99,images/retatrutide-20mg-tpl.png,/home/zmalcolm/forgewell-live/images/retatrutide-20mg-tpl.webp,images/retatrutide-20mg-tpl.png
+vilon-10mg,Vilon,10mg,10mg,00,99,images/vilon-10mg-tpl.png,/home/zmalcolm/forgewell-live/images/vilon-10mg-tpl.webp,images/vilon-10mg-tpl.png
+mic-blend,MIC Blend,vial,,00,99,images/mic-blend-tpl.png,/home/zmalcolm/forgewell-live/images/mic-blend-tpl.webp,images/mic-blend-tpl.png
+recovery-rush,Recovery Rush,vial,,00,99,images/recovery-rush-tpl.png,/home/zmalcolm/forgewell-live/images/recovery-rush-tpl.webp,images/recovery-rush-tpl.png
+b12,B12,vial,,00,99,images/b12-tpl.png,/home/zmalcolm/forgewell-live/images/b12-tpl.webp,images/b12-tpl.png
+semax,Semax,vial,,00,99,images/semax-tpl.png,/home/zmalcolm/forgewell-live/images/semax-tpl.webp,images/semax-tpl.png
