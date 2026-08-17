@@ -195,6 +195,13 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 .order-status.paid{ background:#DCF3E0; color:#1F7A34; }
 .order-status.pending_payment{ background:#FDECD2; color:#9A6B1E; }
 .order-status.other{ background:var(--line); color:var(--gray); }
+.order-status-badges{ display:flex; gap:8px; flex-wrap:wrap; }
+.fulfillment-status{ display:inline-block; padding:4px 10px; border-radius:20px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
+.fulfillment-status.pending{ background:var(--line); color:var(--gray); }
+.fulfillment-status.processing{ background:#DCEEFB; color:var(--navy); }
+.fulfillment-status.shipped{ background:#E7E0FA; color:#5B3FA3; }
+.fulfillment-status.delivered{ background:#DCF3E0; color:#1F7A34; }
+.order-tracking{ font-size:0.8rem; color:var(--gray); margin-bottom:10px; }
 .order-items{ font-size:0.85rem; line-height:1.7; margin-bottom:10px; }
 .order-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:0.9rem; border-top:1px solid var(--line); padding-top:10px; }
 .orders-empty, .orders-loading, .orders-error{ text-align:center; color:var(--gray); padding:60px 20px; }
@@ -548,6 +555,8 @@ function statusLabel(status) {
   return status;
 }
 
+var FULFILLMENT_LABELS = { pending: 'Pending', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered' };
+
 function renderOrders(orders) {
   var listEl = document.getElementById('orders-list');
   if (orders.length === 0) {
@@ -555,14 +564,31 @@ function renderOrders(orders) {
     return;
   }
   listEl.innerHTML = orders.map(function(order) {
+    // lineTotal is precomputed server-side at checkout time (routes/checkout.js)
+    // and already reflects whatever was actually charged for that line
+    // (sale price included, if one was active) -- unitPrice * qty would be
+    // a redundant recompute of the same number, so this reads it directly.
     var items = (order.line_items || []).map(function(item) {
-      return '<div>' + (item.name || item.productId) + ' x' + item.qty + ' — $' + Number(item.price * item.qty).toFixed(2) + '</div>';
+      return '<div>' + (item.name || item.productId) + ' x' + item.qty + ' — $' + Number(item.lineTotal).toFixed(2) + '</div>';
     }).join('');
+
+    var fulfillmentLabel = FULFILLMENT_LABELS[order.fulfillment_status];
+    var fulfillmentBadge = fulfillmentLabel
+      ? '<span class="fulfillment-status ' + order.fulfillment_status + '">' + fulfillmentLabel + '</span>'
+      : '';
+    var trackingRow = (order.fulfillment_status === 'shipped' && order.tracking_number)
+      ? '<div class="order-tracking">Tracking: ' + order.tracking_number + '</div>'
+      : '';
+
     return '<div class="order-card">' +
       '<div class="order-card-top">' +
         '<div><div class="order-id">Order ' + order.id + '</div><div class="order-date">' + formatDate(order.created_at) + '</div></div>' +
-        '<span class="order-status ' + statusClass(order.status) + '">' + statusLabel(order.status) + '</span>' +
+        '<div class="order-status-badges">' +
+          '<span class="order-status ' + statusClass(order.status) + '">' + statusLabel(order.status) + '</span>' +
+          fulfillmentBadge +
+        '</div>' +
       '</div>' +
+      trackingRow +
       '<div class="order-items">' + items + '</div>' +
       '<div class="order-total-row"><span>Total</span><span>$' + Number(order.total).toFixed(2) + '</span></div>' +
     '</div>';
