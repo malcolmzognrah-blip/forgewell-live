@@ -21,6 +21,34 @@
     align-items: center;
   }
 }
+
+/* A signed-in customer's account label reads "Hi, <name>" (or their email's
+   local-part if no name was set at signup -- see wireHeaderFooter() in every
+   host page) instead of the short, fixed "Sign In" -- unbounded length,
+   since it's the customer's own name/email. .menu-toggle (which contains
+   this label) is flex-shrink:0 in header{flex-wrap:nowrap}, same as the
+   logo -- only .header-search-row shrinks to compensate for its neighbors'
+   width, so a long name can squeeze/overlap the search box on mobile even
+   though a short "Sign In" never did. Truncating the label with an ellipsis
+   keeps .menu-toggle's footprint bounded regardless of name length. Scoped
+   to the same <=1150px tier as the focus-expand rule above -- desktop has
+   room to spare and keeps showing the full name; the label is already
+   hidden entirely below 420px (see each host page's own <style> block), so
+   this only matters in the 420-1150px window. header selector prefix (not
+   just .login-icon-label) gives this (0,1,1) specificity, beating the plain
+   .login-icon-label{...} rule (0,1,0) duplicated in every host page
+   regardless of script-load timing -- same reasoning as :focus-within
+   above, just via specificity instead of a pseudo-class. */
+@media (max-width: 1150px) {
+  header .login-icon-label {
+    display: inline-block;
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+}
 </style>
 <header>
   <a href="/home.html" class="logo-mark" style="text-decoration:none;">
