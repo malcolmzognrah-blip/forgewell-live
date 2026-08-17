@@ -2,6 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Account creation is now mandatory to browse (see index.html's landing
+     flow) -- this hides the real page and bounces straight to the landing
+     page's sign-in step for anyone without a session, so a direct/bookmarked
+     link here can't bypass it. Kept separate from the age-gate modal below,
+     which still runs unchanged for whoever does have a session but hasn't
+     seen it on this device. -->
+<style>html:not(.gw-auth-ok){ visibility:hidden; }</style>
+<script>
+fetch('/api/auth/me', { credentials: 'include' }).then(function(res){
+  if (!res.ok) { window.location.replace('/index.html'); return; }
+  document.documentElement.classList.add('gw-auth-ok');
+}).catch(function(){
+  window.location.replace('/index.html');
+});
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Research-Grade Peptides</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">

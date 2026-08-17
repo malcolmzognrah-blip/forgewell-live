@@ -2,11 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<script>
-if (localStorage.getItem('forgewell_age_verified') === 'yes') {
-  window.location.replace('/home.html');
-}
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Research Use Only</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -16,6 +11,11 @@ if (localStorage.getItem('forgewell_age_verified') === 'yes') {
 :root{ --navy:#1B4B8C; --navy-dark:#123056; --green:#3FA34D; --gray:#6b6b6b; --bg:#FFFFFF; --panel:#F7F8F6; --line:#E4E4E0; }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{ height:100%; }
+/* Hidden until the /api/auth/me check below resolves -- an already
+   authenticated visitor gets redirected to /home.html before ever seeing
+   this page paint; everyone else gets revealed once we know which step
+   (age gate vs. auth) to show. See the bottom script block. */
+html:not(.gw-ready){ visibility:hidden; }
 body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; font-weight:500; overflow:hidden; }
 
 .gate-page{ display:grid; grid-template-columns:1fr 1fr; height:100vh; }
@@ -85,6 +85,27 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 .gate-footer-links a{ color:var(--gray); text-decoration:none; }
 .gate-footer-links a:hover{ color:var(--navy); text-decoration:underline; }
 
+/* ---- step 2: auth (Log In / Sign Up) ---- */
+.gate-step2-exit{ text-align:right; margin-bottom:10px; }
+.gate-step2-exit a{ color:var(--gray); font-size:0.75rem; text-decoration:none; }
+.gate-step2-exit a:hover{ color:var(--navy); text-decoration:underline; }
+.auth-tabs{ display:flex; border-bottom:1.5px solid var(--line); margin-bottom:22px; }
+.auth-tab{ flex:1; text-align:center; padding:10px; font-weight:700; font-size:0.85rem; color:var(--gray); cursor:pointer; border-bottom:2.5px solid transparent; margin-bottom:-1.5px; }
+.auth-tab.active{ color:var(--navy); border-bottom-color:var(--navy); }
+.auth-form{ display:none; text-align:left; }
+.auth-form.active{ display:block; }
+.auth-field-label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px; }
+.auth-form input{ width:100%; box-sizing:border-box; padding:11px 12px; border:1.5px solid var(--line); border-radius:8px; font-size:0.88rem; font-family:'Quicksand',sans-serif; color:#333; }
+.auth-form input:focus{ outline:none; border-color:var(--navy); }
+.auth-submit-btn{ width:100%; padding:13px; margin-top:20px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.auth-submit-btn:disabled{ opacity:0.6; cursor:default; }
+.auth-error{ color:#c0392b; font-size:0.8rem; margin-top:10px; display:none; text-align:center; }
+.auth-error.show{ display:block; }
+.google-signin-btn{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; box-sizing:border-box; padding:12px; background:#fff; color:#3c4043; border:1.5px solid var(--line); border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Quicksand',sans-serif; text-decoration:none; }
+.google-signin-btn:hover{ background:var(--panel); }
+.auth-divider{ display:flex; align-items:center; gap:12px; margin:18px 0; color:var(--gray); font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
+.auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+
 @media (max-width: 900px){
   body{ overflow:auto; }
   .gate-page{ grid-template-columns:1fr; height:auto; min-height:100vh; }
@@ -113,33 +134,80 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       </div>
       <p class="gate-tagline">Research-Grade Peptides. Zero Guesswork.</p>
 
-      <h2>Research use only</h2>
-      <p class="gate-sub">To continue, please confirm you meet the minimum age requirement and accept the agreement below.</p>
+      <!-- Step 1: age / research-use consent -->
+      <div id="gate-step-age" class="gate-step">
+        <h2>Research use only</h2>
+        <p class="gate-sub">To continue, please confirm you meet the minimum age requirement and accept the agreement below.</p>
 
-      <div class="gate-check-box">
-        <label>
-          <input type="checkbox" id="gate-age-check">
-          <span><span class="gate-check-title">Age confirmation</span>I confirm I am 21+ years of age or older.</span>
-        </label>
+        <div class="gate-check-box">
+          <label>
+            <input type="checkbox" id="gate-age-check">
+            <span><span class="gate-check-title">Age confirmation</span>I confirm I am 21+ years of age or older.</span>
+          </label>
+        </div>
+
+        <div class="gate-check-box">
+          <label>
+            <input type="checkbox" id="gate-research-check">
+            <span><span class="gate-check-title">Research use agreement</span>I agree that products and information on this website are provided for laboratory research use only and are not intended for use in or on humans or animals. I will not use any products or information from this website for diagnosis, treatment, cure, or prevention of any condition. I agree to follow applicable laws and regulations, and I agree to the Terms of Service and Privacy Policy.</span>
+          </label>
+        </div>
+
+        <div class="gate-check-box">
+          <label>
+            <input type="checkbox" id="gate-remember-check" checked>
+            <span><span class="gate-check-title">Remember my choice</span>Don't ask me again on this device.</span>
+          </label>
+        </div>
+
+        <div class="gate-buttons">
+          <button id="gate-exit-btn">Exit</button>
+          <button id="gate-accept-btn">Accept</button>
+        </div>
       </div>
 
-      <div class="gate-check-box">
-        <label>
-          <input type="checkbox" id="gate-research-check">
-          <span><span class="gate-check-title">Research use agreement</span>I agree that products and information on this website are provided for laboratory research use only and are not intended for use in or on humans or animals. I will not use any products or information from this website for diagnosis, treatment, cure, or prevention of any condition. I agree to follow applicable laws and regulations, and I agree to the Terms of Service and Privacy Policy.</span>
-        </label>
-      </div>
+      <!-- Step 2: sign in / sign up (account required to browse) -->
+      <div id="gate-step-auth" class="gate-step" style="display:none;">
+        <div class="gate-step2-exit">
+          <a href="#" id="gate-exit-btn-2">Exit</a>
+        </div>
+        <h2 id="auth-heading">Welcome back</h2>
+        <p class="gate-sub" id="auth-sub">Sign in or create an account to continue to Forgewell.</p>
 
-      <div class="gate-check-box">
-        <label>
-          <input type="checkbox" id="gate-remember-check" checked>
-          <span><span class="gate-check-title">Remember my choice</span>Don't ask me again on this device.</span>
-        </label>
-      </div>
+        <p class="auth-error" id="google-auth-error">Something went wrong signing in with Google. Please try again.</p>
 
-      <div class="gate-buttons">
-        <button id="gate-exit-btn">Exit</button>
-        <button id="gate-accept-btn">Accept</button>
+        <div class="auth-tabs">
+          <div class="auth-tab active" id="tab-login">Log In</div>
+          <div class="auth-tab" id="tab-signup">Sign Up</div>
+        </div>
+
+        <form class="auth-form active" id="login-form">
+          <label class="auth-field-label" for="login-email">Email</label>
+          <input type="email" id="login-email" autocomplete="email" required>
+          <label class="auth-field-label" for="login-password">Password</label>
+          <input type="password" id="login-password" autocomplete="current-password" required>
+          <button type="submit" class="auth-submit-btn" id="login-submit-btn">Log In</button>
+          <p class="auth-error" id="login-error"></p>
+        </form>
+
+        <form class="auth-form" id="signup-form">
+          <label class="auth-field-label" for="signup-name">Name</label>
+          <input type="text" id="signup-name" autocomplete="name" required>
+          <label class="auth-field-label" for="signup-email">Email</label>
+          <input type="email" id="signup-email" autocomplete="email" required>
+          <label class="auth-field-label" for="signup-password">Password</label>
+          <input type="password" id="signup-password" autocomplete="new-password" required minlength="8">
+          <p style="font-size:0.72rem;color:var(--gray);margin:4px 0 0;">At least 8 characters.</p>
+          <button type="submit" class="auth-submit-btn" id="signup-submit-btn">Create Account</button>
+          <p class="auth-error" id="signup-error"></p>
+        </form>
+
+        <div class="auth-divider">or</div>
+
+        <a href="/api/auth/google" class="google-signin-btn" id="gate-google-btn">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+          Sign in with Google
+        </a>
       </div>
 
       <div class="trust-badges">
@@ -158,13 +226,22 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 </div>
 
 <script>
+// ---- Step switching, age-gate consent, exit, and the page-load auth gate ----
 (function(){
   var KEY = 'forgewell_age_verified';
+  var stepAge = document.getElementById('gate-step-age');
+  var stepAuth = document.getElementById('gate-step-auth');
   var ageCheck = document.getElementById('gate-age-check');
   var researchCheck = document.getElementById('gate-research-check');
   var rememberCheck = document.getElementById('gate-remember-check');
   var acceptBtn = document.getElementById('gate-accept-btn');
   var exitBtn = document.getElementById('gate-exit-btn');
+  var exitBtn2 = document.getElementById('gate-exit-btn-2');
+
+  function showStep(which){
+    stepAge.style.display = which === 'age' ? '' : 'none';
+    stepAuth.style.display = which === 'auth' ? '' : 'none';
+  }
 
   function updateAcceptState(){
     if (ageCheck.checked && researchCheck.checked) {
@@ -176,14 +253,160 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   ageCheck.addEventListener('change', updateAcceptState);
   researchCheck.addEventListener('change', updateAcceptState);
 
+  // Accept no longer leaves the page -- it just advances to the mandatory
+  // sign-in/sign-up step (see the plan this was built from: account
+  // creation is now required to browse, guest flows elsewhere are
+  // untouched in case that requirement is reversed later).
   acceptBtn.addEventListener('click', function(){
     if (!ageCheck.checked || !researchCheck.checked) return;
     if (rememberCheck.checked) localStorage.setItem(KEY, 'yes');
-    window.location.href = '/home.html';
+    showStep('auth');
   });
 
-  exitBtn.addEventListener('click', function(){
+  function exitSite(e){
+    if (e) e.preventDefault();
     window.location.href = 'https://www.google.com';
+  }
+  exitBtn.addEventListener('click', exitSite);
+  exitBtn2.addEventListener('click', exitSite);
+
+  // Being age-verified alone no longer reaches home.html -- an account is
+  // also required, and that's a cookie-backed session (not localStorage),
+  // so it can only be checked with a real request. The page stays hidden
+  // (html:not(.gw-ready) above) until this resolves, so an unauthenticated
+  // visitor never sees a flash of either step before we know which to show.
+  fetch('/api/auth/me', { credentials: 'include' })
+    .then(function(res){ return res.ok ? res.json() : null; })
+    .then(function(customer){
+      if (customer) {
+        window.location.replace('/home.html');
+        return;
+      }
+      document.documentElement.classList.add('gw-ready');
+      if (localStorage.getItem(KEY) === 'yes') showStep('auth');
+    })
+    .catch(function(){
+      document.documentElement.classList.add('gw-ready');
+      if (localStorage.getItem(KEY) === 'yes') showStep('auth');
+    });
+})();
+</script>
+
+<script>
+// ---- Step 2: Log In / Sign Up form handling ----
+(function(){
+  var tabLogin = document.getElementById('tab-login');
+  var tabSignup = document.getElementById('tab-signup');
+  var loginForm = document.getElementById('login-form');
+  var signupForm = document.getElementById('signup-form');
+  var heading = document.getElementById('auth-heading');
+  var sub = document.getElementById('auth-sub');
+
+  function showTab(which){
+    var isLogin = which === 'login';
+    tabLogin.classList.toggle('active', isLogin);
+    tabSignup.classList.toggle('active', !isLogin);
+    loginForm.classList.toggle('active', isLogin);
+    signupForm.classList.toggle('active', !isLogin);
+    heading.textContent = isLogin ? 'Welcome back' : 'Create your account';
+    sub.textContent = isLogin ? 'Sign in to continue to Forgewell.' : 'Create an account to continue to Forgewell.';
+  }
+  tabLogin.addEventListener('click', function(){ showTab('login'); });
+  tabSignup.addEventListener('click', function(){ showTab('signup'); });
+
+  // /api/auth/google/callback redirects failures back to /login.html?error=google
+  // (confirmed in login.html's own handling) -- included here too in case a
+  // future backend change ever routes the error back to the referring page
+  // instead. See gate-google-btn's click handler below for the success side
+  // of this (a sessionStorage flag login.html checks for on return).
+  if (new URLSearchParams(window.location.search).get('error') === 'google') {
+    document.getElementById('google-auth-error').classList.add('show');
+  }
+
+  // The OAuth round trip leaves this page entirely, so there's no callback
+  // we control here -- login.html is where /api/auth/google/callback is
+  // already known to land on failure, so it's the most likely landing spot
+  // on success too. This flag tells login.html to redirect straight to
+  // home.html instead of showing its own "you're logged in" panel.
+  document.getElementById('gate-google-btn').addEventListener('click', function(){
+    sessionStorage.setItem('forgewell_landing_auth_pending', '1');
+  });
+
+  function proceedToSite(){
+    window.location.href = '/home.html';
+  }
+
+  loginForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn = document.getElementById('login-submit-btn');
+    var errorEl = document.getElementById('login-error');
+    errorEl.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        email: document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value,
+      }),
+    })
+      .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
+      .then(function(result){
+        if (!result.ok) {
+          btn.disabled = false;
+          btn.textContent = 'Log In';
+          errorEl.textContent = result.data.error || 'Login failed.';
+          errorEl.classList.add('show');
+          return;
+        }
+        proceedToSite();
+      })
+      .catch(function(){
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+        errorEl.textContent = 'Something went wrong. Please try again.';
+        errorEl.classList.add('show');
+      });
+  });
+
+  signupForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn = document.getElementById('signup-submit-btn');
+    var errorEl = document.getElementById('signup-error');
+    errorEl.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+
+    fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        name: document.getElementById('signup-name').value,
+        email: document.getElementById('signup-email').value,
+        password: document.getElementById('signup-password').value,
+      }),
+    })
+      .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
+      .then(function(result){
+        if (!result.ok) {
+          btn.disabled = false;
+          btn.textContent = 'Create Account';
+          errorEl.textContent = result.data.error || 'Signup failed.';
+          errorEl.classList.add('show');
+          return;
+        }
+        proceedToSite();
+      })
+      .catch(function(){
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        errorEl.textContent = 'Something went wrong. Please try again.';
+        errorEl.classList.add('show');
+      });
   });
 })();
 </script>

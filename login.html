@@ -618,10 +618,25 @@ updateCartIcon();
     });
   }
 
-  // If already logged in, skip straight to the success state.
+  // If already logged in, skip straight to the success state -- unless we
+  // got here via the landing page's mandatory sign-in step (index.html sets
+  // this flag right before sending the visitor to /api/auth/google, since
+  // that OAuth round trip leaves index.html entirely and this is where its
+  // callback is already known to land on failure -- see index.html's own
+  // comment on the matching click handler). In that case, finish the
+  // landing flow by continuing on to home.html instead of showing this
+  // page's own success panel.
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res) { return res.ok ? res.json() : null; })
-    .then(function(customer) { if (customer) showSuccess(customer); })
+    .then(function(customer) {
+      if (!customer) return;
+      if (sessionStorage.getItem('forgewell_landing_auth_pending')) {
+        sessionStorage.removeItem('forgewell_landing_auth_pending');
+        window.location.href = '/home.html';
+        return;
+      }
+      showSuccess(customer);
+    })
     .catch(function() {});
 
   // /api/auth/google/callback redirects here with ?error=google on failure
