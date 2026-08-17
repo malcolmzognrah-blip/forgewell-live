@@ -30,6 +30,21 @@
   }
 }
 
+/* The only spacing between the search box and the account/cart/hamburger
+   group is header{gap}, which shrinks to 10px (<=1150px) and 6px (<=420px)
+   in each host page's own <style> block to make room as things get tighter
+   -- comfortable on desktop's 18px gap, but the search box and the sign-in
+   element read as touching on mobile. margin-right isn't set anywhere else
+   on .header-search-row (only margin-left:auto, for its own left-side
+   positioning), so this just adds spacing rather than overriding anything
+   -- no specificity fight needed the way the focus-expand/label-truncate
+   rules above needed one. */
+@media (max-width: 1150px) {
+  .header-search-row {
+    margin-right: 10px;
+  }
+}
+
 /* A signed-in customer's account label reads "Hi, <name>" (or their email's
    local-part if no name was set at signup -- see wireHeaderFooter() in every
    host page) instead of the short, fixed "Sign In" -- unbounded length,
