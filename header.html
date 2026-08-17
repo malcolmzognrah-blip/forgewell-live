@@ -1,3 +1,27 @@
+<style>
+/* Expands the search box on focus at narrow widths, where it's otherwise
+   squeezed down to 200px/160px (see each host page's own <style> block --
+   header.html has no CSS of its own besides this, so this is the one place
+   a header-only rule can live without duplicating it across all 16 pages).
+   :focus-within's specificity (0,2,0) beats those plain-class max-width
+   rules (0,1,0) regardless of load order, so no !important is needed.
+   Pulled out of flex flow via position:absolute instead of grown in place,
+   since header{flex-wrap:nowrap} has no room to give -- every sibling
+   (logo/nav/menu-toggle) is flex-shrink:0, so growing in place would just
+   overflow or shove them. header's own position:sticky already establishes
+   the positioning context, so inset:0 exactly covers its padding box. */
+@media (max-width: 1150px) {
+  .header-search-row:focus-within {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    max-width: none;
+    background: #fff;
+    display: flex;
+    align-items: center;
+  }
+}
+</style>
 <header>
   <a href="/home.html" class="logo-mark" style="text-decoration:none;">
     <svg width="29" height="29" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
