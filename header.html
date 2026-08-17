@@ -9,14 +9,22 @@
    since header{flex-wrap:nowrap} has no room to give -- every sibling
    (logo/nav/menu-toggle) is flex-shrink:0, so growing in place would just
    overflow or shove them. header's own position:sticky already establishes
-   the positioning context, so inset:0 exactly covers its padding box. */
+   the positioning context. top:100% + left/right:0 opens a new full-width
+   strip directly below the header's own padding box -- NOT inset:0, which
+   would size this to the header's own box and, being opaque, visually paint
+   over the logo/nav/account/cart/hamburger instead of just the search
+   input, making the whole header look like it disappeared while focused. */
 @media (max-width: 1150px) {
   .header-search-row:focus-within {
     position: absolute;
-    inset: 0;
+    top: 100%;
+    left: 0;
+    right: 0;
     z-index: 20;
     max-width: none;
     background: #fff;
+    box-shadow: 0 8px 16px rgba(18,48,86,0.12);
+    padding: 10px 16px;
     display: flex;
     align-items: center;
   }
