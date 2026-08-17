@@ -259,6 +259,69 @@ async function catalogSearchJump(query) {
   }
 }
 
+// Updates the header's account icon to reflect a signed-in customer -- shows
+// "Hi, [name]" linking to order history instead of "Sign In". Declared at
+// top level (not nested inside wireHeaderFooter()) so it's callable both
+// from there (page-load check) and from showSuccess() -- in a separate
+// closure further down this script -- right after a login/signup POST
+// resolves. Without that second call site, the header only picked up a new
+// session on the *next* page load, since wireHeaderFooter()'s own
+// /api/auth/me check runs once, before the customer has actually logged in
+// on this page.
+function updateAccountIcon(customer) {
+  var loginIcon = document.getElementById('account-icon');
+  if (!loginIcon || !customer) return;
+
+  loginIcon.href = '/orders.html';
+  loginIcon.title = 'My Account (' + customer.email + ')';
+  // Name wasn't always required at signup -- older accounts can still have
+  // a null name, so fall back to the email's local-part rather than
+  // showing a blank/broken greeting.
+  var displayName = customer.name || customer.email.split('@')[0];
+  var labelEl = loginIcon.querySelector('.login-icon-label');
+  if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
+
+  function doLogout() {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      .then(function() { window.location.href = '/shop.html'; });
+  }
+
+  // Icon-only sign-out control next to the account icon -- only
+  // created/shown once logged in, so it adds no width to the header's
+  // tightly-tuned breakpoint math for the (far more common) logged-out
+  // state. Gives desktop-width visitors a direct sign-out path: today the
+  // hamburger dropdown below (the only other place "Log Out" lives) is
+  // hidden above 1150px.
+  var logoutIconBtn = document.getElementById('logout-icon-btn');
+  if (logoutIconBtn) {
+    logoutIconBtn.style.display = 'flex';
+    // This can now run twice on login.html (once from wireHeaderFooter()'s
+    // page-load check, once from showSuccess() if a customer who was
+    // already logged in lands here) -- guard against binding the click
+    // handler twice, which would fire doLogout() twice per click.
+    if (!logoutIconBtn.dataset.wired) {
+      logoutIconBtn.dataset.wired = 'true';
+      logoutIconBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        doLogout();
+      });
+    }
+  }
+
+  var navInner = document.querySelector('.nav-overlay-inner');
+  if (navInner && !document.getElementById('nav-logout-link')) {
+    var logoutLink = document.createElement('a');
+    logoutLink.href = '#';
+    logoutLink.id = 'nav-logout-link';
+    logoutLink.textContent = 'Log Out';
+    logoutLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      doLogout();
+    });
+    navInner.appendChild(logoutLink);
+  }
+}
+
 // Wires up all header/footer interactivity. Runs only after header.html and
 // footer.html have been fetched and injected below -- their elements don't
 // exist in the DOM before then.
@@ -313,58 +376,15 @@ function wireHeaderFooter() {
   }
 
   // Checks whether the person is logged in and updates the header's account
-  // icon accordingly -- shows "Hi, [name]" linking to order history if
-  // logged in, "Sign In" linking to the login/signup page otherwise. Runs
-  // on every page that shares this header.
+  // icon accordingly on page load. Runs on every page that shares this
+  // header. updateAccountIcon() itself is declared at top level (below)
+  // rather than nested here, since showSuccess() -- in a separate closure
+  // further down this script -- needs to call it too.
   var loginIcon = document.getElementById('account-icon');
   if (loginIcon) {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(function(res) { return res.ok ? res.json() : null; })
-      .then(function(customer) {
-        if (customer) {
-          loginIcon.href = '/orders.html';
-          loginIcon.title = 'My Account (' + customer.email + ')';
-          // Name wasn't always required at signup -- older accounts can
-          // still have a null name, so fall back to the email's local-part
-          // rather than showing a blank/broken greeting.
-          var displayName = customer.name || customer.email.split('@')[0];
-          var labelEl = loginIcon.querySelector('.login-icon-label');
-          if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
-
-          function doLogout() {
-            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-              .then(function() { window.location.href = '/shop.html'; });
-          }
-
-          // Icon-only sign-out control next to the account icon -- only
-          // created/shown once logged in, so it adds no width to the
-          // header's tightly-tuned breakpoint math for the (far more
-          // common) logged-out state. Gives desktop-width visitors a
-          // direct sign-out path: today the hamburger dropdown below
-          // (the only other place "Log Out" lives) is hidden above 1150px.
-          var logoutIconBtn = document.getElementById('logout-icon-btn');
-          if (logoutIconBtn) {
-            logoutIconBtn.style.display = 'flex';
-            logoutIconBtn.addEventListener('click', function(e) {
-              e.preventDefault();
-              doLogout();
-            });
-          }
-
-          var navInner = document.querySelector('.nav-overlay-inner');
-          if (navInner && !document.getElementById('nav-logout-link')) {
-            var logoutLink = document.createElement('a');
-            logoutLink.href = '#';
-            logoutLink.id = 'nav-logout-link';
-            logoutLink.textContent = 'Log Out';
-            logoutLink.addEventListener('click', function(e) {
-              e.preventDefault();
-              doLogout();
-            });
-            navInner.appendChild(logoutLink);
-          }
-        }
-      })
+      .then(function(customer) { if (customer) updateAccountIcon(customer); })
       .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
   }
 
@@ -542,6 +562,13 @@ updateCartIcon();
   tabSignup.addEventListener('click', function() { showTab('signup'); });
 
   function showSuccess(customer) {
+    // Updates the header's account icon (Sign In -> Hi, [name]) immediately
+    // rather than leaving it stale until the next page load/navigation --
+    // see updateAccountIcon()'s own comment above for why this needs a
+    // separate call site rather than relying on wireHeaderFooter()'s
+    // page-load check alone.
+    updateAccountIcon(customer);
+
     document.querySelector('.auth-tabs').style.display = 'none';
     loginForm.style.display = 'none';
     signupForm.style.display = 'none';
