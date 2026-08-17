@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forgewell — My Account</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" href="/favicon.png">
+<style>
+@font-face { font-family:'Quicksand'; src:url('/fonts/quicksand-variable.woff2') format('woff2'); font-weight:300 700; font-display:swap; }
+:root{ --navy:#1B4B8C; --navy-dark:#123056; --green:#3FA34D; --gray:#6b6b6b; --bg:#FFFFFF; --panel:#F7F8F6; --line:#E4E4E0; }
+*{box-sizing:border-box;}
+body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; font-weight:500; margin:0; }
+a{color:inherit;}
+
+/* ---- header (single-row, matches header.html) ---- */
+header{
+  display:flex; align-items:center; flex-wrap:nowrap; gap:18px;
+  padding:12px 20px; max-width:1200px; margin:0 auto;
+  position:sticky; top:0; z-index:10;
+  background:#fff; border-bottom:1px solid var(--line);
+}
+.logo-mark{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.logo-word{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:1.2rem; color:var(--navy); white-space:nowrap; }
+.logo-word .well{ color:var(--green); }
+.header-nav-links{ display:flex; align-items:center; gap:22px; flex-shrink:0; margin-left:16px; }
+.header-nav-link{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; color:var(--navy); text-decoration:none; white-space:nowrap; }
+.header-nav-link:hover{ color:var(--green); }
+.header-search-row{ position:relative; flex:0 1 240px; min-width:0; max-width:240px; margin-left:auto; }
+.header-search-row input{ width:100%; box-sizing:border-box; min-width:0; padding:11px 16px 11px 40px; border-radius:6px; border:1.5px solid var(--line); background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 14px center/16px 16px; color:#333; font-size:0.95rem; font-family:'Quicksand',sans-serif; }
+.header-search-row input:focus{ outline:none; border-color:var(--navy); }
+.search-icon-btn{ position:absolute; top:50%; transform:translateY(-50%); padding:0; margin:0; border:none; background:transparent; cursor:pointer; }
+.header-search-row .search-icon-btn{ left:14px; width:16px; height:16px; }
+.menu-toggle{ display:flex; align-items:center; gap:22px; flex-shrink:0; position:relative; }
+.hamburger{ display:none; flex-direction:column; gap:4px; cursor:pointer; padding:4px; }
+.hamburger span{ display:block; width:22px; height:2.5px; background:var(--navy); border-radius:2px; }
+.nav-overlay{ display:none; position:absolute; top:calc(100% + 12px); right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(18,48,86,0.16); z-index:9999; min-width:170px; padding:6px 0; }
+.nav-overlay.open{ display:block; }
+.nav-overlay-inner{ display:flex; flex-direction:column; }
+.nav-overlay-inner a{ color:var(--navy-dark); font-size:0.9rem; font-weight:700; text-decoration:none; font-family:'Quicksand',sans-serif; padding:11px 18px; }
+.nav-overlay-inner a:hover{ background:var(--panel); }
+.cart-icon{ display:flex; align-items:center; gap:8px; color:var(--navy); cursor:pointer; padding:4px; text-decoration:none; }
+.cart-icon:hover{ color:var(--green); }
+.cart-icon-inner{ display:flex; align-items:center; position:relative; }
+.cart-count{ position:absolute; top:-2px; right:-4px; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:var(--navy); color:#fff; font-size:0.6rem; font-weight:700; line-height:15px; text-align:center; display:none; font-family:'Quicksand',sans-serif; box-sizing:border-box; }
+.cart-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; white-space:nowrap; }
+.login-icon{ display:flex; align-items:center; gap:8px; color:var(--navy); cursor:pointer; padding:4px; }
+.login-icon:hover{ color:var(--green); }
+.login-icon-label{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.95rem; white-space:nowrap; }
+
+@media (max-width: 1150px){
+  .header-nav-links{ display:none; }
+  .hamburger{ display:flex; }
+  header{ gap:10px; padding:10px 14px; }
+  .header-search-row{ max-width:200px; }
+  .logo-word{ font-size:0.95rem; }
+}
+@media (max-width: 420px){
+  header{ gap:6px; padding:8px 10px; }
+  .header-search-row{ max-width:160px; }
+  .header-search-row input{ padding:10px 12px 10px 34px; font-size:0.8rem; }
+  .header-search-row .search-icon-btn{ left:11px; width:14px; height:14px; }
+  .menu-toggle{ gap:10px; }
+  .cart-icon svg{ width:18px; height:18px; }
+  .cart-count{ font-size:0.55rem; min-width:13px; height:13px; line-height:13px; }
+  .cart-icon-label{ display:none; }
+  .logo-word{ font-size:0.85rem; }
+  .login-icon svg{ width:18px; height:18px; }
+  .login-icon-label{ display:none; }
+}
+
+/* ---- footer (matches shop.html) ---- */
+footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--navy-dark); border-top:1px solid var(--line); font-family:'Quicksand',sans-serif;}
+.footer-grid{max-width:1200px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:28px; margin-bottom:28px;}
+.footer-col{ text-align:left; }
+.footer-col h4{color:rgba(255,255,255,0.45); font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 14px;}
+.footer-col a{display:block; color:rgba(255,255,255,0.75); text-decoration:none; font-size:0.85rem; margin-bottom:8px; overflow-wrap:break-word;}
+.footer-col a:hover{ color:var(--green); }
+.footer-col p{ color:rgba(255,255,255,0.6); font-size:0.82rem; line-height:1.6; margin:0 0 6px; overflow-wrap:break-word; }
+.footer-social{display:flex; gap:10px;}
+.footer-social a{background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; margin:0;}
+.footer-signup-input{width:100%;padding:9px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:6px;font-family:'Quicksand',sans-serif;font-size:0.78rem;margin-bottom:8px;box-sizing:border-box;background:rgba(255,255,255,0.08);color:#fff;}
+.footer-signup-input::placeholder{ color:rgba(255,255,255,0.4); }
+.footer-signup-btn{width:100%;padding:9px;background:var(--green);color:#fff;border:none;border-radius:6px;font-family:'Quicksand',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;}
+.footer-signup-btn:hover{ background:#358f41; }
+.footer-signup-msg{font-size:0.75rem; margin-top:6px; color:var(--green);}
+.footer-legal{max-width:1200px; margin:24px auto 0; font-size:0.7rem; color:rgba(255,255,255,0.5); line-height:1.5; border-top:1px solid rgba(255,255,255,0.15); padding-top:16px;}
+.footer-legal a{ color:rgba(255,255,255,0.75); text-decoration:underline; }
+.footer-legal a:hover{ color:#fff; }
+.footer-info-row{ position:relative; display:flex; align-items:center; min-height:34px; max-width:1200px; margin:0 auto 20px; }
+.footer-info-brand{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.footer-logo-mark{ flex-shrink:0; }
+.footer-flag-icon{ flex-shrink:0; border-radius:2px; overflow:hidden; margin-left:16px; }
+.footer-brand-name{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.8rem; white-space:nowrap; }
+.footer-brand-name .forge{ color:#fff; }
+.footer-brand-name .well{ color:var(--green); }
+.footer-country-label{ font-size:0.72rem; color:rgba(255,255,255,0.6); white-space:nowrap; }
+.footer-info-row .footer-catalog-search{ margin-left:auto; }
+.footer-catalog-search{ max-width:220px; width:100%; position:relative; }
+.footer-catalog-search .search-icon-btn{ left:10px; width:14px; height:14px; }
+.footer-catalog-search input{ width:100%; box-sizing:border-box; padding:9px 10px 9px 32px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.05) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' opacity='0.6'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 10px center/14px 14px; color:#fff; font-size:0.8rem; }
+.footer-catalog-search input::placeholder{ color:rgba(255,255,255,0.45); }
+.footer-bottom{max-width:1200px; margin:16px auto 0; text-align:center;}
+.footer-copyright{font-size:0.75rem; color:rgba(255,255,255,0.5); margin:0 0 12px;}
+.footer-legal-links{display:flex; flex-wrap:wrap; justify-content:center; gap:14px;}
+.footer-legal-links a{color:rgba(255,255,255,0.75); text-decoration:none; font-size:0.75rem;}
+.footer-legal-links a:hover{ color:#fff; text-decoration:underline; }
+@media (max-width: 600px) {
+  .footer-info-row{ flex-direction:column; align-items:center; gap:14px; min-height:0; }
+  .footer-info-brand{ position:static; transform:none; }
+  .footer-info-row .footer-catalog-search{ margin-left:0; }
+}
+</style>
+<style>
+.account-wrap{ max-width:900px; margin:40px auto 80px; padding:0 24px; }
+@media (max-width:600px){ .account-wrap{ padding-left:16px; padding-right:16px; } }
+.account-wrap h1{ color:var(--navy-dark); font-size:1.4rem; margin-bottom:4px; }
+.account-wrap p.sub{ color:var(--gray); font-size:0.85rem; margin:0 0 8px; }
+
+.account-tabs{ display:flex; gap:4px; margin:20px 0 28px; border-bottom:1.5px solid var(--line); overflow-x:auto; }
+.account-tab{ padding:10px 16px; background:none; border:none; border-bottom:2.5px solid transparent; margin-bottom:-1.5px; font-size:0.82rem; font-weight:700; color:var(--gray); cursor:pointer; white-space:nowrap; font-family:'Quicksand',sans-serif; }
+.account-tab.active{ color:var(--navy); border-bottom-color:var(--navy); }
+.account-view{ display:none; }
+.account-view.active{ display:block; }
+
+.tab-loading, .tab-error, .tab-empty{ text-align:center; color:var(--gray); padding:40px 20px; font-size:0.88rem; }
+.tab-empty a{ color:var(--navy); font-weight:700; text-decoration:none; }
+
+/* ---- Addresses ---- */
+.address-add-btn{ padding:10px 18px; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius:6px; font-weight:700; font-size:0.82rem; cursor:pointer; font-family:'Quicksand',sans-serif; margin-bottom:18px; }
+.address-card{ border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:14px; background:var(--panel); }
+.address-card-label-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+.address-card-label{ font-weight:700; color:var(--navy-dark); font-size:0.88rem; }
+.address-default-badge{ background:var(--green); color:#fff; font-size:0.62rem; font-weight:700; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.03em; }
+.address-card-lines{ font-size:0.85rem; color:#333; line-height:1.6; margin-bottom:12px; }
+.address-card-actions{ display:flex; gap:14px; flex-wrap:wrap; }
+.address-action-btn{ background:none; border:none; color:var(--navy); font-weight:700; font-size:0.78rem; cursor:pointer; padding:0; font-family:'Quicksand',sans-serif; }
+.address-action-btn:hover{ text-decoration:underline; }
+.address-action-btn.danger{ color:#c0392b; }
+.address-form{ display:none; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:18px; background:#fff; }
+.address-form.show{ display:block; }
+.address-form h3{ font-size:0.9rem; color:var(--navy-dark); margin:0 0 4px; }
+.address-form label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:12px 0 4px; }
+.address-form label:first-of-type{ margin-top:12px; }
+.address-form input[type=text]{ width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:'Quicksand',sans-serif; }
+.address-form-row{ display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
+.address-form-check{ display:flex; align-items:center; gap:8px; margin-top:14px; font-size:0.82rem; color:#333; }
+.address-form-check input{ width:16px; height:16px; accent-color:var(--navy); }
+.address-form-actions{ display:flex; gap:10px; margin-top:16px; }
+.address-save-btn{ padding:10px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:0.82rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.address-save-btn:disabled{ opacity:0.6; cursor:default; }
+.address-cancel-btn{ padding:10px 20px; background:#fff; color:var(--gray); border:1.5px solid var(--line); border-radius:6px; font-weight:700; font-size:0.82rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.address-form-status{ font-size:0.8rem; margin-top:10px; display:none; }
+.address-form-status.show{ display:block; }
+.address-form-status.error{ color:#c0392b; }
+
+/* ---- Account Details / Security ---- */
+.security-block{ border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:18px; background:var(--panel); }
+.security-block h3{ font-size:0.85rem; color:var(--navy-dark); margin:0 0 4px; }
+.security-block p.note{ font-size:0.78rem; color:var(--gray); margin:0 0 14px; }
+.security-block label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:12px 0 4px; }
+.security-block label:first-of-type{ margin-top:0; }
+.security-block input{ width:100%; max-width:340px; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:'Quicksand',sans-serif; background:#fff; }
+.security-save-btn{ margin-top:16px; padding:10px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:0.82rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.security-save-btn:disabled{ opacity:0.6; cursor:default; }
+.security-status{ font-size:0.8rem; margin-top:10px; display:none; }
+.security-status.show{ display:block; }
+.security-status.error{ color:#c0392b; }
+.security-status.success{ color:#1F7A34; }
+.google-linked-badge{ display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--gray); }
+
+/* ---- Coupons ---- */
+.coupon-card{ display:flex; justify-content:space-between; align-items:center; gap:14px; border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin-bottom:12px; background:var(--panel); flex-wrap:wrap; }
+.coupon-card-main{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.coupon-code{ font-family:monospace; font-weight:700; font-size:0.95rem; color:var(--navy-dark); background:#fff; border:1px dashed var(--line); border-radius:6px; padding:4px 10px; }
+.coupon-desc{ font-size:0.82rem; color:#444; }
+.coupon-expiry{ font-size:0.72rem; color:var(--gray); }
+.coupon-status{ padding:4px 10px; border-radius:20px; font-size:0.68rem; font-weight:700; text-transform:uppercase; }
+.coupon-status.available{ background:#DCF3E0; color:#1F7A34; }
+.coupon-status.redeemed{ background:var(--line); color:var(--gray); }
+
+/* ---- Orders (reused card style) ---- */
+.order-card{ border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:16px; background:var(--panel); }
+.order-card-top{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+.order-id{ font-family:monospace; font-size:0.78rem; color:var(--gray); }
+.order-date{ font-size:0.78rem; color:var(--gray); }
+.order-status{ display:inline-block; padding:4px 10px; border-radius:20px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
+.order-status.paid{ background:#DCF3E0; color:#1F7A34; }
+.order-status.pending_payment{ background:#FDECD2; color:#9A6B1E; }
+.order-status.other{ background:var(--line); color:var(--gray); }
+.order-status-badges{ display:flex; gap:8px; flex-wrap:wrap; }
+.fulfillment-status{ display:inline-block; padding:4px 10px; border-radius:20px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
+.fulfillment-status.pending{ background:var(--line); color:var(--gray); }
+.fulfillment-status.processing{ background:#DCEEFB; color:var(--navy); }
+.fulfillment-status.shipped{ background:#E7E0FA; color:#5B3FA3; }
+.fulfillment-status.delivered{ background:#DCF3E0; color:#1F7A34; }
+.order-tracking{ font-size:0.8rem; color:var(--gray); margin-bottom:10px; }
+.order-items{ font-size:0.85rem; line-height:1.7; margin-bottom:10px; }
+.order-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:0.9rem; border-top:1px solid var(--line); padding-top:10px; }
+
+/* ---- Payments (fallback: status only, see account.html's own comment) ---- */
+.payments-note{ font-size:0.78rem; color:var(--gray); margin-bottom:18px; padding:12px 14px; background:var(--panel); border-radius:8px; border:1px solid var(--line); line-height:1.5; }
+.payment-row{ display:flex; justify-content:space-between; align-items:center; border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin-bottom:10px; background:var(--panel); flex-wrap:wrap; gap:10px; }
+.payment-row-main{ display:flex; flex-direction:column; gap:2px; }
+.payment-row-id{ font-family:monospace; font-size:0.78rem; color:var(--gray); }
+.payment-row-date{ font-size:0.78rem; color:var(--gray); }
+.payment-row-total{ font-weight:700; color:var(--navy-dark); font-size:0.9rem; }
+
+/* ---- Store Credit ---- */
+.credit-balance-card{ background:var(--navy); color:#fff; border-radius:12px; padding:26px; text-align:center; margin-bottom:24px; }
+.credit-balance-amount{ font-size:2rem; font-weight:700; }
+.credit-balance-label{ font-size:0.8rem; opacity:0.85; margin-top:4px; }
+.credit-txn-row{ display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding:12px 0; font-size:0.85rem; gap:10px; }
+.credit-txn-row:last-child{ border-bottom:none; }
+.credit-txn-main{ display:flex; flex-direction:column; gap:2px; }
+.credit-txn-desc{ color:#333; }
+.credit-txn-date{ color:var(--gray); font-size:0.75rem; }
+.credit-txn-amount.positive{ color:#1F7A34; font-weight:700; }
+.credit-txn-amount.negative{ color:#c0392b; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div id="header-placeholder"></div>
+
+<div class="account-wrap">
+  <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
+    <h1>My Account</h1>
+    <a href="#" id="account-logout-link" style="color:var(--navy); font-weight:700; font-size:0.82rem; text-decoration:none;">Log Out</a>
+  </div>
+  <p class="sub" id="account-email-display">&nbsp;</p>
+
+  <div class="account-tabs">
+    <button type="button" class="account-tab" id="tab-addresses">Addresses</button>
+    <button type="button" class="account-tab" id="tab-security">Account Details</button>
+    <button type="button" class="account-tab" id="tab-coupons">Coupons</button>
+    <button type="button" class="account-tab" id="tab-orders">Orders</button>
+    <button type="button" class="account-tab" id="tab-payments">Payments</button>
+    <button type="button" class="account-tab" id="tab-credit">Store Credit</button>
+  </div>
+
+  <!-- ==================== Addresses ==================== -->
+  <div class="account-view" id="view-addresses">
+    <button type="button" class="address-add-btn" id="address-add-toggle-btn">+ Add Address</button>
+
+    <div class="address-form" id="address-form">
+      <h3 id="address-form-title">Add Address</h3>
+      <label for="address-form-label">Label <span style="font-weight:400; text-transform:none;">(e.g. Home, Work — optional)</span></label>
+      <input type="text" id="address-form-label" placeholder="Home">
+      <label for="address-form-name">Full Name</label>
+      <input type="text" id="address-form-name">
+      <label for="address-form-line1">Address</label>
+      <input type="text" id="address-form-line1" placeholder="123 Main St">
+      <label for="address-form-line2">Apt / Suite <span style="font-weight:400; text-transform:none;">(optional)</span></label>
+      <input type="text" id="address-form-line2" placeholder="Apt 4B">
+      <div class="address-form-row">
+        <div><label for="address-form-city">City</label><input type="text" id="address-form-city"></div>
+        <div><label for="address-form-state">State</label><input type="text" id="address-form-state"></div>
+      </div>
+      <div class="address-form-row">
+        <div><label for="address-form-zip">ZIP</label><input type="text" id="address-form-zip"></div>
+        <div><label for="address-form-country">Country</label><input type="text" id="address-form-country" value="US"></div>
+      </div>
+      <label class="address-form-check" style="text-transform:none;">
+        <input type="checkbox" id="address-form-default">
+        Set as default address
+      </label>
+      <div class="address-form-actions">
+        <button type="button" class="address-save-btn" id="address-form-save-btn">Save Address</button>
+        <button type="button" class="address-cancel-btn" id="address-form-cancel-btn">Cancel</button>
+      </div>
+      <p class="address-form-status" id="address-form-status"></p>
+    </div>
+
+    <div id="addresses-list"><div class="tab-loading">Loading your addresses...</div></div>
+  </div>
+
+  <!-- ==================== Account Details / Security ==================== -->
+  <div class="account-view" id="view-security">
+    <div class="security-block">
+      <h3>Profile</h3>
+      <p class="note">Update the name and email associated with your account.</p>
+      <label for="security-name">Name</label>
+      <input type="text" id="security-name">
+      <label for="security-email">Email</label>
+      <input type="email" id="security-email">
+      <button type="button" class="security-save-btn" id="security-profile-save-btn">Save Changes</button>
+      <p class="security-status" id="security-profile-status"></p>
+    </div>
+
+    <div class="security-block" id="security-password-block">
+      <!-- Filled in by JS: password-change form for password accounts, or
+           a "set a password" prompt for Google-linked accounts with none.
+           See renderPasswordSection() -- depends on /api/auth/me returning
+           a hasPassword field the backend doesn't provide yet (see the
+           handoff spec); defaults to treating the account as password-based
+           if that field is absent, so this degrades to today's behavior
+           until the backend adds it. -->
+      <div class="tab-loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ==================== Coupons ==================== -->
+  <div class="account-view" id="view-coupons">
+    <p class="sub" style="margin-bottom:18px;">Discount codes available to your account. Apply one at checkout.</p>
+    <div id="coupons-list"><div class="tab-loading">Loading your coupons...</div></div>
+  </div>
+
+  <!-- ==================== Orders ==================== -->
+  <div class="account-view" id="view-orders">
+    <p class="sub" style="margin-bottom:18px;">Order history for your account.</p>
+    <div id="orders-list"><div class="tab-loading">Loading your orders...</div></div>
+  </div>
+
+  <!-- ==================== Payments ==================== -->
+  <div class="account-view" id="view-payments">
+    <p class="payments-note">This shows the payment status of each order. Forgewell's payment provider doesn't currently give us a masked reference (like a card's last 4 digits) to display here.</p>
+    <div id="payments-list"><div class="tab-loading">Loading...</div></div>
+  </div>
+
+  <!-- ==================== Store Credit ==================== -->
+  <div class="account-view" id="view-credit">
+    <div class="credit-balance-card">
+      <div class="credit-balance-amount" id="credit-balance-amount">$0.00</div>
+      <div class="credit-balance-label">Available store credit</div>
+    </div>
+    <div id="credit-history"><div class="tab-loading">Loading...</div></div>
+  </div>
+</div>
+
+<div id="footer-placeholder"></div>
+
+<script>
+let allProducts = [];
+let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
+
+async function catalogSearchJump(query) {
+  query = query.trim().toLowerCase();
+  if (!query) return;
+  await productsReady;
+  const match = allProducts.find(p => {
+    const base = (p.name || '').replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)\)?\s*$/i, '').trim().toLowerCase();
+    return base === query || base.indexOf(query) !== -1;
+  });
+  if (match) {
+    window.location.href = '/product.html?id=' + encodeURIComponent(match.id);
+  } else {
+    window.location.href = '/shop.html#tabs';
+  }
+}
+
+// Wires up all header/footer interactivity. Runs only after header.html and
+// footer.html have been fetched and injected below -- their elements don't
+// exist in the DOM before then.
+function wireHeaderFooter() {
+  var footerSearchInput = document.getElementById('footer-catalog-search-input');
+  if (footerSearchInput) {
+    footerSearchInput.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter') return;
+      catalogSearchJump(footerSearchInput.value);
+    });
+  }
+  var footerSearchIconBtn = document.getElementById('footer-search-icon-btn');
+  if (footerSearchIconBtn && footerSearchInput) {
+    footerSearchIconBtn.addEventListener('click', function() {
+      catalogSearchJump(footerSearchInput.value);
+    });
+  }
+  var headerSearchInput = document.getElementById('header-catalog-search-input');
+  if (headerSearchInput) {
+    headerSearchInput.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter') return;
+      catalogSearchJump(headerSearchInput.value);
+    });
+  }
+  var headerSearchIconBtn = document.getElementById('header-search-icon-btn');
+  if (headerSearchIconBtn && headerSearchInput) {
+    headerSearchIconBtn.addEventListener('click', function() {
+      catalogSearchJump(headerSearchInput.value);
+    });
+  }
+
+  var hamBtn = document.getElementById('hamburger-btn');
+  var overlay = document.getElementById('nav-overlay');
+  if (hamBtn && overlay) {
+    hamBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      overlay.classList.toggle('open');
+    });
+  }
+  if (overlay) {
+    overlay.addEventListener('click', function(e) {
+      if (e.target.closest('a')) overlay.classList.remove('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (overlay.classList.contains('open') && !overlay.contains(e.target)) {
+        overlay.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') overlay.classList.remove('open');
+    });
+  }
+
+  var accountMenuWrap = document.getElementById('account-menu-wrap');
+  if (accountMenuWrap) {
+    document.getElementById('account-icon').addEventListener('click', function(e) {
+      if (!accountMenuWrap.classList.contains('signed-in')) return;
+      e.preventDefault();
+      accountMenuWrap.classList.toggle('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (accountMenuWrap.classList.contains('open') && !accountMenuWrap.contains(e.target)) {
+        accountMenuWrap.classList.remove('open');
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') accountMenuWrap.classList.remove('open');
+    });
+  }
+
+  var loginIcon = document.getElementById('account-icon');
+  if (loginIcon) {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : null; })
+      .then(function(customer) {
+        if (customer) {
+          loginIcon.href = '/account.html#orders';
+          loginIcon.title = 'My Account (' + customer.email + ')';
+          var displayName = customer.name || customer.email.split('@')[0];
+          var labelEl = loginIcon.querySelector('.login-icon-label');
+          if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
+
+          function doLogout() {
+            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+              .then(function() { window.location.href = '/shop.html'; });
+          }
+
+          if (accountMenuWrap) accountMenuWrap.classList.add('signed-in');
+          var signOutItem = document.getElementById('account-dropdown-signout');
+          if (signOutItem) {
+            signOutItem.addEventListener('click', function(e) {
+              e.preventDefault();
+              doLogout();
+            });
+          }
+
+          var navInner = document.querySelector('.nav-overlay-inner');
+          if (navInner && !document.getElementById('nav-logout-link')) {
+            var logoutLink = document.createElement('a');
+            logoutLink.href = '#';
+            logoutLink.id = 'nav-logout-link';
+            logoutLink.textContent = 'Log Out';
+            logoutLink.addEventListener('click', function(e) {
+              e.preventDefault();
+              doLogout();
+            });
+            navInner.appendChild(logoutLink);
+          }
+        }
+      })
+      .catch(function() {});
+  }
+
+  var signupBtn = document.getElementById('footer-signup-btn');
+  if (signupBtn) {
+    signupBtn.addEventListener('click', async () => {
+      const input = document.getElementById('footer-email-input');
+      const msg = document.getElementById('footer-signup-msg');
+      const email = input.value.trim();
+      if (!email || email.indexOf('@') === -1) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Please enter a valid email.';
+        return;
+      }
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({email: email})
+        });
+        const data = await res.json();
+        msg.style.color = '#3FA34D';
+        msg.textContent = data.alreadySubscribed
+          ? 'Already signed up — code: ' + data.discountCode
+          : 'Success! Your code: ' + data.discountCode;
+        input.value = '';
+      } catch (err) {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Something went wrong. Please try again.';
+      }
+    });
+  }
+
+  updateCartIcon();
+}
+
+Promise.all([
+  fetch('/header.html').then(function(r) { return r.text(); }).then(function(html) {
+    document.getElementById('header-placeholder').innerHTML = html;
+  }),
+  fetch('/footer.html').then(function(r) { return r.text(); }).then(function(html) {
+    document.getElementById('footer-placeholder').innerHTML = html;
+  })
+]).then(wireHeaderFooter).catch(function(err) {
+  console.error('Failed to load shared header/footer', err);
+});
+
+async function loadProducts() {
+  try {
+    const res = await fetch('/api/products');
+    allProducts = await res.json();
+  } catch (err) {
+    console.error('Failed to load products from backend:', err);
+  }
+}
+let productsReady = loadProducts();
+
+function updateCartIcon() {
+  const count = cart.reduce((sum, item) => sum + item.qty, 0);
+  const badge = document.getElementById('cart-count');
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'block' : 'none';
+  }
+}
+updateCartIcon();
+</script>
+
+<script>
+// ============================================================
+// Account page: tabs, auth gate, and all six tab panels.
+// ============================================================
+(function(){
+  var TAB_IDS = ['addresses', 'security', 'coupons', 'orders', 'payments', 'credit'];
+
+  function showAccountTab(name) {
+    TAB_IDS.forEach(function(t) {
+      document.getElementById('tab-' + t).classList.toggle('active', t === name);
+      document.getElementById('view-' + t).classList.toggle('active', t === name);
+    });
+  }
+  function tabFromHash() {
+    var h = window.location.hash.replace('#', '');
+    return TAB_IDS.indexOf(h) !== -1 ? h : 'orders';
+  }
+  TAB_IDS.forEach(function(t) {
+    document.getElementById('tab-' + t).addEventListener('click', function() {
+      window.location.hash = t;
+    });
+  });
+  window.addEventListener('hashchange', function() { showAccountTab(tabFromHash()); });
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+  function formatDate(iso) {
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  function formatCents(cents) {
+    return '$' + (Number(cents || 0) / 100).toFixed(2);
+  }
+
+  document.getElementById('account-logout-link').addEventListener('click', function(e) {
+    e.preventDefault();
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      .then(function() { window.location.href = '/shop.html'; });
+  });
+
+  // ============================================================
+  // Addresses
+  // ============================================================
+  var addressForm = document.getElementById('address-form');
+  var addressFormTitle = document.getElementById('address-form-title');
+  var addressFormStatus = document.getElementById('address-form-status');
+  var addressFields = {
+    label: document.getElementById('address-form-label'),
+    name: document.getElementById('address-form-name'),
+    line1: document.getElementById('address-form-line1'),
+    line2: document.getElementById('address-form-line2'),
+    city: document.getElementById('address-form-city'),
+    state: document.getElementById('address-form-state'),
+    zip: document.getElementById('address-form-zip'),
+    country: document.getElementById('address-form-country'),
+  };
+  var addressDefaultCheckbox = document.getElementById('address-form-default');
+  var editingAddressId = null; // null = adding a new address
+
+  function resetAddressForm() {
+    editingAddressId = null;
+    addressFormTitle.textContent = 'Add Address';
+    Object.keys(addressFields).forEach(function(k) { addressFields[k].value = ''; });
+    addressFields.country.value = 'US';
+    addressDefaultCheckbox.checked = false;
+    addressFormStatus.classList.remove('show', 'error');
+    addressFormStatus.textContent = '';
+  }
+
+  function openAddressForm(address) {
+    if (address) {
+      editingAddressId = address.id;
+      addressFormTitle.textContent = 'Edit Address';
+      Object.keys(addressFields).forEach(function(k) { addressFields[k].value = address[k] || ''; });
+      addressDefaultCheckbox.checked = !!address.is_default;
+    } else {
+      resetAddressForm();
+    }
+    addressForm.classList.add('show');
+    addressForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.getElementById('address-add-toggle-btn').addEventListener('click', function() {
+    openAddressForm(null);
+  });
+  document.getElementById('address-form-cancel-btn').addEventListener('click', function() {
+    addressForm.classList.remove('show');
+    resetAddressForm();
+  });
+
+  function renderAddresses(addresses) {
+    var listEl = document.getElementById('addresses-list');
+    if (!addresses.length) {
+      listEl.innerHTML = '<div class="tab-empty">You don\'t have any saved addresses yet.</div>';
+      return;
+    }
+    listEl.innerHTML = addresses.map(function(a) {
+      var label = (a.label && a.label.trim()) || 'Address';
+      return '<div class="address-card" data-address-id="' + escapeHtml(a.id) + '">' +
+        '<div class="address-card-label-row">' +
+          '<span class="address-card-label">' + escapeHtml(label) + '</span>' +
+          (a.is_default ? '<span class="address-default-badge">Default</span>' : '') +
+        '</div>' +
+        '<div class="address-card-lines">' +
+          escapeHtml(a.name) + '<br>' +
+          escapeHtml(a.line1) + (a.line2 ? ', ' + escapeHtml(a.line2) : '') + '<br>' +
+          escapeHtml(a.city) + ', ' + escapeHtml(a.state) + ' ' + escapeHtml(a.zip) + '<br>' +
+          escapeHtml(a.country) +
+        '</div>' +
+        '<div class="address-card-actions">' +
+          '<button type="button" class="address-action-btn" data-action="edit">Edit</button>' +
+          (a.is_default ? '' : '<button type="button" class="address-action-btn" data-action="default">Set as Default</button>') +
+          '<button type="button" class="address-action-btn danger" data-action="delete">Delete</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  var currentAddresses = [];
+  function loadAddresses() {
+    fetch('/api/addresses', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : []; })
+      .then(function(addresses) {
+        currentAddresses = Array.isArray(addresses) ? addresses : [];
+        renderAddresses(currentAddresses);
+      })
+      .catch(function() {
+        document.getElementById('addresses-list').innerHTML = '<div class="tab-error">Could not load your addresses right now.</div>';
+      });
+  }
+
+  // Delegated -- the list is fully rebuilt on every render.
+  document.getElementById('addresses-list').addEventListener('click', function(e) {
+    var btn = e.target.closest('.address-action-btn');
+    if (!btn) return;
+    var card = btn.closest('.address-card');
+    var id = card.getAttribute('data-address-id');
+    var address = currentAddresses.find(function(a) { return a.id === id; });
+    var action = btn.getAttribute('data-action');
+
+    if (action === 'edit') {
+      openAddressForm(address);
+      return;
+    }
+    if (action === 'delete') {
+      if (!window.confirm('Delete this saved address?')) return;
+      fetch('/api/addresses/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+        .then(function() { loadAddresses(); });
+      return;
+    }
+    if (action === 'default') {
+      // NEW endpoint -- see the backend handoff spec. Sends is_default:true
+      // via the same PUT used for edits; the backend is expected to clear
+      // the flag on every other address for this customer.
+      fetch('/api/addresses/' + encodeURIComponent(id), {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({}, address, { is_default: true })),
+      }).then(function() { loadAddresses(); });
+      return;
+    }
+  });
+
+  document.getElementById('address-form-save-btn').addEventListener('click', function() {
+    var btn = this;
+    var body = {
+      label: addressFields.label.value.trim(),
+      name: addressFields.name.value.trim(),
+      line1: addressFields.line1.value.trim(),
+      line2: addressFields.line2.value.trim(),
+      city: addressFields.city.value.trim(),
+      state: addressFields.state.value.trim(),
+      zip: addressFields.zip.value.trim(),
+      country: addressFields.country.value.trim(),
+      is_default: addressDefaultCheckbox.checked,
+    };
+    if (!body.name || !body.line1 || !body.city || !body.state || !body.zip || !body.country) {
+      addressFormStatus.textContent = 'Please fill in all required fields.';
+      addressFormStatus.classList.add('show', 'error');
+      return;
+    }
+    addressFormStatus.classList.remove('show', 'error');
+    btn.disabled = true;
+
+    // Editing an existing address needs PUT /api/addresses/:id, which
+    // (like the "set default" action above) doesn't exist yet -- see the
+    // backend handoff spec. Adding a new one uses the existing POST.
+    var request = editingAddressId
+      ? fetch('/api/addresses/' + encodeURIComponent(editingAddressId), {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        })
+      : fetch('/api/addresses', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+
+    request
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        btn.disabled = false;
+        if (!r.ok) {
+          addressFormStatus.textContent = r.d.error || 'Could not save address.';
+          addressFormStatus.classList.add('show', 'error');
+          return;
+        }
+        addressForm.classList.remove('show');
+        resetAddressForm();
+        loadAddresses();
+      })
+      .catch(function() {
+        btn.disabled = false;
+        addressFormStatus.textContent = 'Something went wrong. Please try again.';
+        addressFormStatus.classList.add('show', 'error');
+      });
+  });
+
+  // ============================================================
+  // Account Details / Security
+  // ============================================================
+  function renderPasswordSection(customer) {
+    var block = document.getElementById('security-password-block');
+    // hasPassword isn't returned by /api/auth/me today -- see the handoff
+    // spec. Defaults to true (password-based) when absent, which matches
+    // current real-world behavior (Google sign-in is the only passwordless
+    // path, and this field is exactly how that case will be detected once
+    // the backend adds it).
+    var hasPassword = customer.hasPassword !== false;
+
+    if (hasPassword) {
+      block.innerHTML =
+        '<h3>Password</h3>' +
+        '<p class="note">Change your account password.</p>' +
+        '<label for="security-current-password">Current Password</label>' +
+        '<input type="password" id="security-current-password" autocomplete="current-password">' +
+        '<label for="security-new-password">New Password</label>' +
+        '<input type="password" id="security-new-password" autocomplete="new-password" minlength="8">' +
+        '<label for="security-confirm-password">Confirm New Password</label>' +
+        '<input type="password" id="security-confirm-password" autocomplete="new-password" minlength="8">' +
+        '<button type="button" class="security-save-btn" id="security-password-save-btn">Update Password</button>' +
+        '<p class="security-status" id="security-password-status"></p>';
+      wirePasswordChangeForm();
+    } else {
+      block.innerHTML =
+        '<h3>Password</h3>' +
+        '<p class="note google-linked-badge">Your account uses Google Sign-In and has no password set.</p>' +
+        '<button type="button" class="security-save-btn" id="security-set-password-btn">Set a Password</button>' +
+        '<div id="security-set-password-form" style="display:none; margin-top:14px;">' +
+          '<label for="security-new-password">New Password</label>' +
+          '<input type="password" id="security-new-password" autocomplete="new-password" minlength="8">' +
+          '<label for="security-confirm-password">Confirm New Password</label>' +
+          '<input type="password" id="security-confirm-password" autocomplete="new-password" minlength="8">' +
+          '<button type="button" class="security-save-btn" id="security-password-save-btn">Set Password</button>' +
+        '</div>' +
+        '<p class="security-status" id="security-password-status"></p>';
+      document.getElementById('security-set-password-btn').addEventListener('click', function() {
+        document.getElementById('security-set-password-form').style.display = 'block';
+        this.style.display = 'none';
+      });
+      wirePasswordChangeForm(true);
+    }
+  }
+
+  function wirePasswordChangeForm(isSettingNew) {
+    var saveBtn = document.getElementById('security-password-save-btn');
+    var statusEl = document.getElementById('security-password-status');
+    saveBtn.addEventListener('click', function() {
+      var newPw = document.getElementById('security-new-password').value;
+      var confirmPw = document.getElementById('security-confirm-password').value;
+      statusEl.classList.remove('show', 'error', 'success');
+
+      if (newPw.length < 8) {
+        statusEl.textContent = 'Password must be at least 8 characters.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      if (newPw !== confirmPw) {
+        statusEl.textContent = 'Passwords do not match.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+
+      var body = { newPassword: newPw };
+      var url = '/api/auth/change-password';
+      if (isSettingNew) {
+        url = '/api/auth/set-password';
+      } else {
+        body.currentPassword = document.getElementById('security-current-password').value;
+      }
+
+      saveBtn.disabled = true;
+      // Both endpoints are NEW -- see the backend handoff spec.
+      fetch(url, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+        .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+        .then(function(r) {
+          saveBtn.disabled = false;
+          if (!r.ok) {
+            statusEl.textContent = r.d.error || 'Could not update password.';
+            statusEl.classList.add('show', 'error');
+            return;
+          }
+          statusEl.textContent = 'Password updated.';
+          statusEl.classList.add('show', 'success');
+          if (!isSettingNew) document.getElementById('security-current-password').value = '';
+          document.getElementById('security-new-password').value = '';
+          document.getElementById('security-confirm-password').value = '';
+        })
+        .catch(function() {
+          saveBtn.disabled = false;
+          statusEl.textContent = 'Something went wrong. Please try again.';
+          statusEl.classList.add('show', 'error');
+        });
+    });
+  }
+
+  function initSecurityTab(customer) {
+    document.getElementById('security-name').value = customer.name || '';
+    document.getElementById('security-email').value = customer.email || '';
+    renderPasswordSection(customer);
+
+    document.getElementById('security-profile-save-btn').addEventListener('click', function() {
+      var btn = this;
+      var statusEl = document.getElementById('security-profile-status');
+      var body = {
+        name: document.getElementById('security-name').value.trim(),
+        email: document.getElementById('security-email').value.trim(),
+      };
+      statusEl.classList.remove('show', 'error', 'success');
+      btn.disabled = true;
+      // NEW endpoint -- see the backend handoff spec.
+      fetch('/api/auth/me', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+        .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+        .then(function(r) {
+          btn.disabled = false;
+          if (!r.ok) {
+            statusEl.textContent = r.d.error || 'Could not save changes.';
+            statusEl.classList.add('show', 'error');
+            return;
+          }
+          statusEl.textContent = 'Saved.';
+          statusEl.classList.add('show', 'success');
+        })
+        .catch(function() {
+          btn.disabled = false;
+          statusEl.textContent = 'Something went wrong. Please try again.';
+          statusEl.classList.add('show', 'error');
+        });
+    });
+  }
+
+  // ============================================================
+  // Coupons
+  // ============================================================
+  function renderCoupons(coupons) {
+    var listEl = document.getElementById('coupons-list');
+    if (!coupons.length) {
+      listEl.innerHTML = '<div class="tab-empty">No coupons available right now.</div>';
+      return;
+    }
+    listEl.innerHTML = coupons.map(function(c) {
+      var desc = c.discountType === 'percent'
+        ? Number(c.discountValue) + '% off'
+        : '$' + Number(c.discountValue).toFixed(2) + ' off';
+      var expiry = c.expiresAt ? '<div class="coupon-expiry">Expires ' + formatDate(c.expiresAt) + '</div>' : '';
+      var statusLabel = c.status === 'redeemed' ? 'Redeemed' : 'Available';
+      return '<div class="coupon-card">' +
+        '<div class="coupon-card-main">' +
+          '<span class="coupon-code">' + escapeHtml(c.code) + '</span>' +
+          '<div><div class="coupon-desc">' + escapeHtml(desc) + '</div>' + expiry + '</div>' +
+        '</div>' +
+        '<span class="coupon-status ' + escapeHtml(c.status) + '">' + statusLabel + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadCoupons() {
+    // NEW endpoint -- see the backend handoff spec.
+    fetch('/api/coupons/mine', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : []; })
+      .then(function(coupons) { renderCoupons(Array.isArray(coupons) ? coupons : []); })
+      .catch(function() {
+        document.getElementById('coupons-list').innerHTML = '<div class="tab-error">Could not load your coupons right now.</div>';
+      });
+  }
+
+  // ============================================================
+  // Orders + Payments (share one fetch of /api/orders/mine, which
+  // already exists and already carries everything both tabs need)
+  // ============================================================
+  function statusClass(status) {
+    if (status === 'paid') return 'paid';
+    if (status === 'pending_payment') return 'pending_payment';
+    return 'other';
+  }
+  function statusLabel(status) {
+    if (status === 'paid') return 'Paid';
+    if (status === 'pending_payment') return 'Pending Payment';
+    return status;
+  }
+  var FULFILLMENT_LABELS = { pending: 'Pending', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered' };
+
+  function renderOrders(orders) {
+    var listEl = document.getElementById('orders-list');
+    if (orders.length === 0) {
+      listEl.innerHTML = '<div class="tab-empty">You haven\'t placed any orders yet.<br><br><a href="/shop.html">Browse the shop &rarr;</a></div>';
+      return;
+    }
+    listEl.innerHTML = orders.map(function(order) {
+      var items = (order.line_items || []).map(function(item) {
+        return '<div>' + escapeHtml(item.name || item.productId) + ' x' + item.qty + ' — $' + Number(item.lineTotal).toFixed(2) + '</div>';
+      }).join('');
+
+      var fulfillmentLabel = FULFILLMENT_LABELS[order.fulfillment_status];
+      var fulfillmentBadge = fulfillmentLabel
+        ? '<span class="fulfillment-status ' + order.fulfillment_status + '">' + fulfillmentLabel + '</span>'
+        : '';
+      var trackingRow = (order.fulfillment_status === 'shipped' && order.tracking_number)
+        ? '<div class="order-tracking">Tracking: ' + escapeHtml(order.tracking_number) + '</div>'
+        : '';
+
+      return '<div class="order-card">' +
+        '<div class="order-card-top">' +
+          '<div><div class="order-id">Order ' + escapeHtml(order.id) + '</div><div class="order-date">' + formatDate(order.created_at) + '</div></div>' +
+          '<div class="order-status-badges">' +
+            '<span class="order-status ' + statusClass(order.status) + '">' + statusLabel(order.status) + '</span>' +
+            fulfillmentBadge +
+          '</div>' +
+        '</div>' +
+        trackingRow +
+        '<div class="order-items">' + items + '</div>' +
+        '<div class="order-total-row"><span>Total</span><span>$' + Number(order.total).toFixed(2) + '</span></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderPayments(orders) {
+    var listEl = document.getElementById('payments-list');
+    if (orders.length === 0) {
+      listEl.innerHTML = '<div class="tab-empty">No payment history yet.</div>';
+      return;
+    }
+    listEl.innerHTML = orders.map(function(order) {
+      return '<div class="payment-row">' +
+        '<div class="payment-row-main">' +
+          '<span class="payment-row-id">Order ' + escapeHtml(order.id) + '</span>' +
+          '<span class="payment-row-date">' + formatDate(order.created_at) + '</span>' +
+        '</div>' +
+        '<span class="payment-row-total">$' + Number(order.total).toFixed(2) + '</span>' +
+        '<span class="order-status ' + statusClass(order.status) + '">' + statusLabel(order.status) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadOrdersAndPayments() {
+    fetch('/api/orders/mine', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : []; })
+      .then(function(orders) {
+        orders = Array.isArray(orders) ? orders : [];
+        renderOrders(orders);
+        renderPayments(orders);
+      })
+      .catch(function() {
+        document.getElementById('orders-list').innerHTML = '<div class="tab-error">Could not load your orders right now. Please try again later.</div>';
+        document.getElementById('payments-list').innerHTML = '<div class="tab-error">Could not load your payment history right now.</div>';
+      });
+  }
+
+  // ============================================================
+  // Store Credit
+  // ============================================================
+  function renderStoreCredit(data) {
+    document.getElementById('credit-balance-amount').textContent = formatCents(data.balanceCents);
+    var historyEl = document.getElementById('credit-history');
+    var txns = data.transactions || [];
+    if (!txns.length) {
+      historyEl.innerHTML = '<div class="tab-empty">You don\'t have any store credit history yet.</div>';
+      return;
+    }
+    historyEl.innerHTML = txns.map(function(t) {
+      var isPositive = t.type === 'issued';
+      var sign = isPositive ? '+' : '-';
+      return '<div class="credit-txn-row">' +
+        '<div class="credit-txn-main">' +
+          '<span class="credit-txn-desc">' + escapeHtml(t.reason || (isPositive ? 'Credit issued' : 'Applied at checkout')) + '</span>' +
+          '<span class="credit-txn-date">' + formatDate(t.createdAt) + '</span>' +
+        '</div>' +
+        '<span class="credit-txn-amount ' + (isPositive ? 'positive' : 'negative') + '">' + sign + formatCents(Math.abs(t.amountCents)) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadStoreCredit() {
+    // NEW endpoint -- see the backend handoff spec.
+    fetch('/api/store-credit/mine', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : { balanceCents: 0, transactions: [] }; })
+      .then(renderStoreCredit)
+      .catch(function() {
+        document.getElementById('credit-history').innerHTML = '<div class="tab-error">Could not load your store credit right now.</div>';
+      });
+  }
+
+  // ============================================================
+  // Bootstrap: auth gate, then load every tab's data up front so
+  // switching tabs is instant (same pattern checkout.html uses for
+  // its own /api/auth/me-gated address section).
+  // ============================================================
+  fetch('/api/auth/me', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) {
+        window.location.href = '/login.html';
+        return null;
+      }
+      return res.json();
+    })
+    .then(function(customer) {
+      if (!customer) return;
+      document.getElementById('account-email-display').textContent = customer.email;
+      showAccountTab(tabFromHash());
+      initSecurityTab(customer);
+      loadAddresses();
+      loadCoupons();
+      loadOrdersAndPayments();
+      loadStoreCredit();
+    })
+    .catch(function() {
+      document.getElementById('account-email-display').textContent = '';
+      document.getElementById('addresses-list').innerHTML = '<div class="tab-error">Could not load your account right now. Please try again later.</div>';
+    });
+})();
+</script>
+
+</body>
+</html>

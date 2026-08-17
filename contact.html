@@ -262,7 +262,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
   </div>
 
   <h2>Order Questions</h2>
-  <p>If your question is about an existing order, include your order confirmation email so we can look it up quickly. You can also check <a href="/orders.html">your order history</a> if you're signed in.</p>
+  <p>If your question is about an existing order, include your order confirmation email so we can look it up quickly. You can also check <a href="/account.html#orders">your order history</a> if you're signed in.</p>
 
   <h2>Shipping &amp; Policies</h2>
   <p>For shipping timelines and rates, see our <a href="/shipping.html">Shipping Policy</a>. For terms and research-use requirements, see our <a href="/terms.html">Terms</a> and <a href="/ruo-agreement.html">RUO Agreement</a>.</p>
@@ -378,7 +378,7 @@ function wireHeaderFooter() {
       .then(function(res) { return res.ok ? res.json() : null; })
       .then(function(customer) {
         if (customer) {
-          loginIcon.href = '/orders.html';
+          loginIcon.href = '/account.html#orders';
           loginIcon.title = 'My Account (' + customer.email + ')';
           // Name wasn't always required at signup -- older accounts can
           // still have a null name, so fall back to the email's local-part

@@ -183,6 +183,36 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .product-create-form label{ display:block; font-size:0.72rem; font-weight:700; color:var(--gray); margin:14px 0 5px; text-transform:uppercase; letter-spacing:0.03em; }
 .product-create-form label:first-of-type{ margin-top:0; }
 .product-create-form input, .product-create-form select{ width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; background:#fff; }
+
+.coupons-panel{ max-width:900px; }
+.coupon-status-pill{ display:inline-block; padding:3px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
+.coupon-status-pill.active{ background:#DCF3E0; color:#1F7A34; }
+.coupon-status-pill.inactive{ background:var(--line); color:var(--gray); }
+.coupon-row-checkbox{ width:16px; height:16px; }
+
+.credit-panel{ max-width:900px; }
+.credit-search-row{ display:flex; gap:10px; margin-bottom:16px; }
+.credit-search-row input{ flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
+.credit-search-row button{ padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+.credit-search-results{ margin-bottom:20px; }
+.credit-customer-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; font-size:0.82rem; cursor:pointer; }
+.credit-customer-row:hover{ background:var(--panel); }
+.credit-selected-customer{ border:1.5px solid var(--line); border-radius:10px; padding:16px 20px; background:var(--panel); }
+.credit-selected-customer h3{ font-size:0.9rem; color:var(--navy-dark); margin:0 0 4px; }
+.credit-selected-balance{ font-size:1.3rem; font-weight:700; color:var(--navy); margin-bottom:14px; }
+.credit-issue-row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; }
+.credit-issue-row div{ display:flex; flex-direction:column; }
+.credit-issue-row label{ font-size:0.72rem; font-weight:700; color:var(--gray); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.03em; }
+.credit-issue-row input{ padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
+.credit-issue-row input[type="number"]{ width:110px; }
+.credit-issue-row input[type="text"]{ width:220px; }
+.credit-issue-row button{ padding:10px 18px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.82rem; }
+.credit-issue-status{ font-size:0.8rem; margin-top:8px; }
+.credit-issue-status.error{ color:#c0392b; }
+.credit-issue-status.success{ color:#1F7A34; }
+.credit-history-table{ width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:6px; }
+.credit-history-table th{ text-align:left; padding:8px; background:#fff; border-bottom:2px solid var(--line); color:var(--navy-dark); }
+.credit-history-table td{ padding:8px; border-bottom:1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -208,6 +238,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-fulfillment">Fulfillment Report</button>
     <button type="button" class="admin-tab" id="tab-products">Products</button>
     <button type="button" class="admin-tab" id="tab-content">Content</button>
+    <button type="button" class="admin-tab" id="tab-coupons">Coupons</button>
+    <button type="button" class="admin-tab" id="tab-credit">Store Credit</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -462,6 +494,76 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <span class="product-save-status" id="content-disclaimer-status"></span>
     </div>
   </div>
+
+  <div class="admin-view coupons-panel" id="view-coupons">
+    <div class="filters">
+      <button type="button" id="coupons-new-toggle-btn">+ New Coupon</button>
+    </div>
+
+    <div class="product-create-form" id="coupon-create-form">
+      <label>Code</label>
+      <input type="text" id="new-coupon-code" placeholder="FORGE15" style="text-transform:uppercase;">
+      <label>Discount Type</label>
+      <select id="new-coupon-type">
+        <option value="percent">Percent off</option>
+        <option value="fixed">Fixed amount off</option>
+      </select>
+      <label>Discount Value <span style="font-weight:400; text-transform:none;">(e.g. 15 for 15%, or 10 for $10)</span></label>
+      <input type="number" step="0.01" min="0" id="new-coupon-value">
+      <label>Expires <span style="font-weight:400; text-transform:none;">(optional)</span></label>
+      <input type="date" id="new-coupon-expires">
+      <label>Per-Customer Redemption Limit <span style="font-weight:400; text-transform:none;">(optional, default 1)</span></label>
+      <input type="number" step="1" min="1" id="new-coupon-limit" placeholder="1">
+      <button type="button" class="product-save-btn" id="new-coupon-save-btn">Create Coupon</button>
+      <span class="product-save-status" id="new-coupon-status"></span>
+    </div>
+
+    <table class="products-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Discount</th>
+          <th>Status</th>
+          <th>Redemptions</th>
+          <th>Expires</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="coupons-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="admin-view credit-panel" id="view-credit">
+    <p class="fulfillment-section-note">Search for a customer by email to view their store credit balance and issue new credit.</p>
+    <div class="credit-search-row">
+      <input type="text" id="credit-customer-search-input" placeholder="Customer email...">
+      <button type="button" id="credit-customer-search-btn">Search</button>
+    </div>
+    <div class="credit-search-results" id="credit-search-results"></div>
+
+    <div class="credit-selected-customer" id="credit-selected-customer" style="display:none;">
+      <h3 id="credit-selected-customer-email"></h3>
+      <div class="credit-selected-balance" id="credit-selected-balance">$0.00</div>
+
+      <div class="credit-issue-row">
+        <div>
+          <label>Amount (USD)</label>
+          <input type="number" step="0.01" min="0.01" id="credit-issue-amount">
+        </div>
+        <div>
+          <label>Reason</label>
+          <input type="text" id="credit-issue-reason" placeholder="Refund for order #...">
+        </div>
+        <button type="button" id="credit-issue-btn">Issue Credit</button>
+      </div>
+      <p class="credit-issue-status" id="credit-issue-status"></p>
+
+      <table class="credit-history-table">
+        <thead><tr><th>Date</th><th>Reason</th><th>Amount</th></tr></thead>
+        <tbody id="credit-history-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -531,10 +633,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content'].forEach(function(id) {
+  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-coupons', 'tab-credit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content'].forEach(function(id) {
+  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-coupons', 'view-credit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -554,6 +656,15 @@ function showPromoTab() {
   showAdminTab('tab-promo', 'view-promo');
   loadPromoSubscriberCount();
   loadScheduledPromos();
+}
+
+function showCouponsTab() {
+  showAdminTab('tab-coupons', 'view-coupons');
+  loadCoupons();
+}
+
+function showCreditTab() {
+  showAdminTab('tab-credit', 'view-credit');
 }
 
 // ============================================================
@@ -1049,6 +1160,227 @@ function loadScheduledPromos() {
     });
 }
 
+// ============================================================
+// Coupons
+// ============================================================
+var couponsAll = [];
+
+function couponDiscountLabel(c) {
+  return c.discount_type === 'percent'
+    ? Number(c.discount_value) + '% off'
+    : '$' + Number(c.discount_value).toFixed(2) + ' off';
+}
+
+function renderCoupons() {
+  document.getElementById('coupons-tbody').innerHTML = couponsAll.map(function(c) {
+    return '<tr data-coupon-code="' + c.code + '">' +
+      '<td><code>' + c.code + '</code></td>' +
+      '<td>' + couponDiscountLabel(c) + '</td>' +
+      '<td><span class="coupon-status-pill ' + (c.active ? 'active' : 'inactive') + '">' + (c.active ? 'Active' : 'Inactive') + '</span></td>' +
+      '<td>' + (c.redemption_count != null ? c.redemption_count : '—') + '</td>' +
+      '<td>' + (c.expires_at ? formatDate(c.expires_at) : '—') + '</td>' +
+      '<td><button type="button" class="product-edit-toggle-btn coupon-toggle-active-btn" data-code="' + c.code + '">' + (c.active ? 'Deactivate' : 'Activate') + '</button></td>' +
+    '</tr>';
+  }).join('');
+}
+
+// NEW endpoint -- see the backend handoff spec (no coupons table exists
+// today; this replaces the single hardcoded FORGE15 check).
+function loadCoupons() {
+  fetch('/api/admin/coupons', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json();
+    })
+    .then(function(coupons) {
+      if (!coupons) return;
+      couponsAll = coupons;
+      renderCoupons();
+    })
+    .catch(function() {
+      document.getElementById('coupons-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">Could not load coupons.</td></tr>';
+    });
+}
+
+document.getElementById('coupons-new-toggle-btn').addEventListener('click', function() {
+  document.getElementById('coupon-create-form').classList.toggle('show');
+});
+
+document.getElementById('new-coupon-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('new-coupon-status');
+  var body = {
+    code: document.getElementById('new-coupon-code').value.trim().toUpperCase(),
+    discount_type: document.getElementById('new-coupon-type').value,
+    discount_value: document.getElementById('new-coupon-value').value,
+    expires_at: document.getElementById('new-coupon-expires').value || null,
+    per_customer_limit: document.getElementById('new-coupon-limit').value || 1,
+  };
+  if (!body.code || !body.discount_value) {
+    statusEl.textContent = 'Code and discount value are required.';
+    statusEl.className = 'product-save-status error';
+    return;
+  }
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+
+  fetch('/api/admin/coupons', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not create coupon.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      document.getElementById('new-coupon-code').value = '';
+      document.getElementById('new-coupon-value').value = '';
+      document.getElementById('new-coupon-expires').value = '';
+      document.getElementById('new-coupon-limit').value = '';
+      document.getElementById('coupon-create-form').classList.remove('show');
+      loadCoupons();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not create coupon.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// Delegated -- #coupons-tbody is fully rebuilt by every renderCoupons() call.
+document.getElementById('coupons-tbody').addEventListener('click', function(e) {
+  var btn = e.target.closest('.coupon-toggle-active-btn');
+  if (!btn) return;
+  var code = btn.getAttribute('data-code');
+  var coupon = couponsAll.find(function(c) { return c.code === code; });
+  btn.disabled = true;
+  fetch('/api/admin/coupons/' + encodeURIComponent(code), {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active: !coupon.active }),
+  })
+    .then(function() { loadCoupons(); })
+    .catch(function() { btn.disabled = false; });
+});
+
+// ============================================================
+// Store Credit
+// ============================================================
+var creditSelectedCustomerId = null;
+
+function formatCents(cents) {
+  return '$' + (Number(cents || 0) / 100).toFixed(2);
+}
+
+// NEW endpoint -- admin.html has no customer list/search anywhere today.
+// See the backend handoff spec.
+function searchCreditCustomers() {
+  var query = document.getElementById('credit-customer-search-input').value.trim();
+  var resultsEl = document.getElementById('credit-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+  resultsEl.innerHTML = '<p style="color:var(--gray);font-size:0.82rem;">Searching...</p>';
+  fetch('/api/admin/customers?search=' + encodeURIComponent(query), { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(customers) {
+      if (!customers.length) {
+        resultsEl.innerHTML = '<p style="color:var(--gray);font-size:0.82rem;">No customers found.</p>';
+        return;
+      }
+      resultsEl.innerHTML = customers.map(function(c) {
+        return '<div class="credit-customer-row" data-customer-id="' + c.id + '" data-customer-email="' + c.email + '">' +
+          '<span>' + c.email + (c.name ? ' — ' + c.name : '') + '</span>' +
+          '<span style="color:var(--gray);">Select &rarr;</span>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<p style="color:var(--gray);font-size:0.82rem;">Could not search customers.</p>';
+    });
+}
+document.getElementById('credit-customer-search-btn').addEventListener('click', searchCreditCustomers);
+document.getElementById('credit-customer-search-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') searchCreditCustomers();
+});
+
+document.getElementById('credit-search-results').addEventListener('click', function(e) {
+  var row = e.target.closest('.credit-customer-row');
+  if (!row) return;
+  creditSelectedCustomerId = row.getAttribute('data-customer-id');
+  document.getElementById('credit-selected-customer-email').textContent = row.getAttribute('data-customer-email');
+  document.getElementById('credit-selected-customer').style.display = 'block';
+  loadCreditForSelectedCustomer();
+});
+
+// NEW endpoint -- see the backend handoff spec.
+function loadCreditForSelectedCustomer() {
+  fetch('/api/admin/store-credit/' + encodeURIComponent(creditSelectedCustomerId), { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : { balanceCents: 0, transactions: [] }; })
+    .then(function(data) {
+      document.getElementById('credit-selected-balance').textContent = formatCents(data.balanceCents);
+      document.getElementById('credit-history-tbody').innerHTML = (data.transactions || []).map(function(t) {
+        var isPositive = t.type === 'issued';
+        return '<tr>' +
+          '<td>' + formatDate(t.createdAt) + '</td>' +
+          '<td>' + (t.reason || '—') + '</td>' +
+          '<td style="color:' + (isPositive ? '#1F7A34' : '#c0392b') + '; font-weight:700;">' +
+            (isPositive ? '+' : '-') + formatCents(Math.abs(t.amountCents)) +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    })
+    .catch(function() {
+      document.getElementById('credit-history-tbody').innerHTML = '<tr><td colspan="3" style="color:var(--gray);">Could not load credit history.</td></tr>';
+    });
+}
+
+document.getElementById('credit-issue-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('credit-issue-status');
+  var amount = parseFloat(document.getElementById('credit-issue-amount').value);
+  var reason = document.getElementById('credit-issue-reason').value.trim();
+  statusEl.className = 'credit-issue-status';
+  statusEl.textContent = '';
+  if (!amount || amount <= 0) {
+    statusEl.textContent = 'Enter a valid amount.';
+    statusEl.className = 'credit-issue-status error';
+    return;
+  }
+  btn.disabled = true;
+  // NEW endpoint -- see the backend handoff spec.
+  fetch('/api/admin/store-credit/issue', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customerId: creditSelectedCustomerId,
+      amountCents: Math.round(amount * 100),
+      reason: reason,
+    }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not issue credit.';
+        statusEl.className = 'credit-issue-status error';
+        return;
+      }
+      document.getElementById('credit-issue-amount').value = '';
+      document.getElementById('credit-issue-reason').value = '';
+      statusEl.textContent = 'Credit issued.';
+      statusEl.className = 'credit-issue-status success';
+      loadCreditForSelectedCustomer();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not issue credit.';
+      statusEl.className = 'credit-issue-status error';
+    });
+});
+
 document.getElementById('admin-login-btn').addEventListener('click', function() {
   var pw = document.getElementById('admin-password-input').value;
   var errorEl = document.getElementById('admin-login-error');
@@ -1084,6 +1416,8 @@ document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
 document.getElementById('tab-fulfillment').addEventListener('click', showFulfillmentTab);
 document.getElementById('tab-products').addEventListener('click', showProductsTab);
 document.getElementById('tab-content').addEventListener('click', showContentTab);
+document.getElementById('tab-coupons').addEventListener('click', showCouponsTab);
+document.getElementById('tab-credit').addEventListener('click', showCreditTab);
 
 document.getElementById('content-subtab-about-us').addEventListener('click', function() {
   showContentSubtab('content-subtab-about-us', 'content-subview-about-us');

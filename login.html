@@ -243,7 +243,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
   <div class="auth-success" id="auth-success" style="display:none;">
     <h1>You're logged in</h1>
     <p class="sub" id="auth-success-msg"></p>
-    <a href="/orders.html" class="back-link">View my orders &rarr;</a><br>
+    <a href="/account.html#orders" class="back-link">View my orders &rarr;</a><br>
     <a href="/shop.html" class="back-link">&larr; Back to Shop</a><br>
     <a href="#" id="login-page-logout-link" class="back-link" style="color:#c0392b;">Log Out</a>
   </div>
@@ -283,7 +283,7 @@ function updateAccountIcon(customer) {
   var loginIcon = document.getElementById('account-icon');
   if (!loginIcon || !customer) return;
 
-  loginIcon.href = '/orders.html';
+  loginIcon.href = '/account.html#orders';
   loginIcon.title = 'My Account (' + customer.email + ')';
   // Name wasn't always required at signup -- older accounts can still have
   // a null name, so fall back to the email's local-part rather than

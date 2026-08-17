@@ -589,7 +589,7 @@ function wireHeaderFooter() {
       .then(function(res) { return res.ok ? res.json() : null; })
       .then(function(customer) {
         if (customer) {
-          loginIcon.href = '/orders.html';
+          loginIcon.href = '/account.html#orders';
           loginIcon.title = 'My Account (' + customer.email + ')';
           // Name wasn't always required at signup -- older accounts can
           // still have a null name, so fall back to the email's local-part

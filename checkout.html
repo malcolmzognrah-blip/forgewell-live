@@ -181,6 +181,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-promo-row button:hover{ background:var(--navy); color:#fff; }
 .checkout-promo-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; margin-bottom:10px; }
 .checkout-promo-msg.error{ color:#c0392b; }
+.checkout-store-credit-block{ margin-bottom:10px; }
+.checkout-store-credit-row{ display:flex; align-items:center; gap:8px; font-size:0.82rem; color:#444; cursor:pointer; }
+.checkout-store-credit-row input{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
 .checkout-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .checkout-place-order-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .checkout-place-order-btn:hover{ background:var(--navy-dark); }
@@ -284,6 +287,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <button type="button" id="checkout-promo-btn">Apply</button>
         </div>
         <div id="checkout-promo-msg" class="checkout-promo-msg"></div>
+        <div class="checkout-store-credit-block" id="checkout-store-credit-block" style="display:none;">
+          <label class="checkout-store-credit-row">
+            <input type="checkbox" id="checkout-store-credit-checkbox">
+            <span id="checkout-store-credit-label">Apply store credit</span>
+          </label>
+        </div>
         <div class="checkout-total-row">
           <span>Order Total</span>
           <span id="checkout-total">$0.00</span>
@@ -410,7 +419,7 @@ function wireHeaderFooter() {
       .then(function(res) { return res.ok ? res.json() : null; })
       .then(function(customer) {
         if (customer) {
-          loginIcon.href = '/orders.html';
+          loginIcon.href = '/account.html#orders';
           loginIcon.title = 'My Account (' + customer.email + ')';
           // Name wasn't always required at signup -- older accounts can
           // still have a null name, so fall back to the email's local-part
@@ -585,15 +594,27 @@ function getSelectedShippingMethod() {
   return SHIPPING_METHODS.find(function(m) { return m.id === (checked && checked.value); }) || SHIPPING_METHODS[0];
 }
 
+// storeCreditBalanceCents is populated by loadStoreCreditBalance() below
+// (signed-in customers only) -- 0 until then, so this is a no-op for guests
+// and before that fetch resolves.
+let storeCreditBalanceCents = 0;
+
 // NOTE: like the discount preview above, this total is a client-side
 // preview only. Today's /api/checkout payload doesn't carry a shipping
 // method at all (kept unchanged, per the "reuse the payment flow as-is"
 // requirement), so there's no guarantee the amount shown here matches
-// whatever the external backend actually charges.
+// whatever the external backend actually charges. Same caveat applies to
+// the store-credit line -- the real deduction/cap happens server-side (see
+// the backend handoff spec), this just previews it the same way.
 function renderOrderSummary() {
   const { subtotal, total, discountApplied, savings } = calculateCartDiscount(cart);
   const shippingMethod = getSelectedShippingMethod();
-  const grandTotal = total + shippingMethod.cost;
+  const preCreditTotal = total + shippingMethod.cost;
+
+  const creditCheckbox = document.getElementById('checkout-store-credit-checkbox');
+  const applyCredit = !!(creditCheckbox && creditCheckbox.checked);
+  const creditToApply = applyCredit ? Math.min(storeCreditBalanceCents / 100, preCreditTotal) : 0;
+  const grandTotal = preCreditTotal - creditToApply;
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
   let html = '<div class="checkout-summary-line"><span>Subtotal (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')</span><span>$' + subtotal.toFixed(2) + '</span></div>';
@@ -601,8 +622,27 @@ function renderOrderSummary() {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Discount</span><span>-$' + savings.toFixed(2) + '</span></div>';
   }
   html += '<div class="checkout-summary-line"><span>Shipping</span><span>$' + shippingMethod.cost.toFixed(2) + '</span></div>';
+  if (creditToApply > 0) {
+    html += '<div class="checkout-summary-line checkout-summary-discount"><span>Store Credit</span><span>-$' + creditToApply.toFixed(2) + '</span></div>';
+  }
   document.getElementById('checkout-summary-lines').innerHTML = html;
   document.getElementById('checkout-total').textContent = '$' + grandTotal.toFixed(2);
+}
+
+// NEW endpoint -- see the backend handoff spec.
+function loadStoreCreditBalance() {
+  return fetch('/api/store-credit/mine', { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : { balanceCents: 0 }; })
+    .then(function(data) {
+      storeCreditBalanceCents = data.balanceCents || 0;
+      if (storeCreditBalanceCents > 0) {
+        document.getElementById('checkout-store-credit-block').style.display = 'block';
+        document.getElementById('checkout-store-credit-label').textContent =
+          'Apply available store credit ($' + (storeCreditBalanceCents / 100).toFixed(2) + ')';
+      }
+      renderOrderSummary();
+    })
+    .catch(function() {});
 }
 
 if (cart.length === 0) {
@@ -680,6 +720,7 @@ if (cart.length === 0) {
       if (!isSignedIn) return;
       saveAddressBlock.classList.add('show');
       loadSavedAddresses();
+      loadStoreCreditBalance();
     })
     .catch(function() {});
 
@@ -732,6 +773,7 @@ if (cart.length === 0) {
   renderShippingMethods();
   renderOrderSummary();
   document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
+  document.getElementById('checkout-store-credit-checkbox').addEventListener('change', renderOrderSummary);
 
   document.getElementById('checkout-place-order-btn').addEventListener('click', async function() {
     const email = emailInput.value.trim();
@@ -766,14 +808,25 @@ if (cart.length === 0) {
     promoMsg.classList.remove('error');
 
     try {
+      const creditCheckbox = document.getElementById('checkout-store-credit-checkbox');
+      const applyStoreCredit = isSignedIn && creditCheckbox && creditCheckbox.checked && storeCreditBalanceCents > 0;
+
       const res = await fetch('/api/checkout', {
         method: 'POST',
+        // credentials:'include' added here (wasn't sent before) -- applying
+        // store credit needs the backend to identify the real signed-in
+        // customer from the session cookie, not just trust customerEmail
+        // from the request body. See the backend handoff spec: it must cap
+        // storeCreditCents to that customer's real balance and this order's
+        // total, and only deduct what it actually applied.
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
           customerEmail: email,
           shippingAddress: shippingAddress,
-          discountCode: promoCode || undefined
+          discountCode: promoCode || undefined,
+          storeCreditCents: applyStoreCredit ? storeCreditBalanceCents : undefined
         })
       });
       const data = await res.json();
