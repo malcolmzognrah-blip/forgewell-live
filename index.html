@@ -229,6 +229,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 // ---- Step switching, age-gate consent, exit, and the page-load auth gate ----
 (function(){
   var KEY = 'forgewell_age_verified';
+  // Deliberately separate from KEY above. KEY is shared with home.html/
+  // shop.html's own pre-existing age-gate modal, which is exactly what
+  // caused visitors to skip this page's Step 1 the first time this landing
+  // flow shipped (see the fix for that). This flag is only ever written by
+  // a real Accept click on THIS page's Step 1 (below) -- never inherited
+  // from the old modal -- so it's safe to read on load to skip Step 1 for
+  // a genuinely-returning visitor.
+  var LANDING_CONSENT_KEY = 'forgewell_landing_consent_accepted';
   var stepAge = document.getElementById('gate-step-age');
   var stepAuth = document.getElementById('gate-step-auth');
   var ageCheck = document.getElementById('gate-age-check');
@@ -259,7 +267,10 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // untouched in case that requirement is reversed later).
   acceptBtn.addEventListener('click', function(){
     if (!ageCheck.checked || !researchCheck.checked) return;
-    if (rememberCheck.checked) localStorage.setItem(KEY, 'yes');
+    if (rememberCheck.checked) {
+      localStorage.setItem(KEY, 'yes');
+      localStorage.setItem(LANDING_CONSENT_KEY, 'yes');
+    }
     showStep('auth');
   });
 
@@ -276,15 +287,12 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // (html:not(.gw-ready) above) until this resolves, so an unauthenticated
   // visitor never sees a flash of either step before we know which to show.
   //
-  // Step 1 always shows first here, with no localStorage shortcut to jump
-  // straight to step 2 -- KEY is shared with home.html/shop.html's own
-  // (separate, pre-existing) age-gate modal, so most returning visitors
-  // already have it set to 'yes' from before this landing page existed.
-  // Reading it here to skip step 1 was skipping the age/RUO consent
-  // screen entirely for them, which must show every time, no exceptions.
-  // Accept still writes KEY (below) purely so home.html/shop.html's own
-  // fallback modal can skip itself on a later direct visit -- that's a
-  // separate, narrower use of the same flag.
+  // A returning visitor who has genuinely completed Step 1 on THIS page
+  // before (LANDING_CONSENT_KEY, set only by the Accept handler above)
+  // skips straight to step 2. Deliberately NOT keyed off KEY (the old,
+  // shared age-gate flag) -- that was the bug where visitors who'd only
+  // ever clicked through home.html/shop.html's separate modal skipped
+  // Step 1 here entirely on their very first visit to this page.
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res){ return res.ok ? res.json() : null; })
     .then(function(customer){
@@ -293,9 +301,11 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
         return;
       }
       document.documentElement.classList.add('gw-ready');
+      if (localStorage.getItem(LANDING_CONSENT_KEY) === 'yes') showStep('auth');
     })
     .catch(function(){
       document.documentElement.classList.add('gw-ready');
+      if (localStorage.getItem(LANDING_CONSENT_KEY) === 'yes') showStep('auth');
     });
 })();
 </script>
