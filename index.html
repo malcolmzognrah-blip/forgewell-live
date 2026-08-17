@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>
+if (localStorage.getItem('forgewell_age_verified') === 'yes') {
+  window.location.replace('/home.html');
+}
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forgewell — Research Use Only</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" href="/favicon.png">
+<style>
+@font-face { font-family:'Quicksand'; src:url('/fonts/quicksand-variable.woff2') format('woff2'); font-weight:300 700; font-display:swap; }
+:root{ --navy:#1B4B8C; --navy-dark:#123056; --green:#3FA34D; --gray:#6b6b6b; --bg:#FFFFFF; --panel:#F7F8F6; --line:#E4E4E0; }
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{ height:100%; }
+body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; font-weight:500; overflow:hidden; }
+
+.gate-page{ display:grid; grid-template-columns:1fr 1fr; height:100vh; }
+
+.gate-hero{
+  background-image:url('/images/landing-hero.jpg');
+  background-size:cover; background-position:center;
+}
+
+.gate-panel{
+  overflow-y:auto; height:100vh;
+  display:flex; flex-direction:column; align-items:center;
+  padding:40px 32px; text-align:center;
+}
+.gate-panel-inner{ width:100%; max-width:400px; margin:auto; }
+
+.gate-wordmark{ display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:6px; }
+.gate-wordmark .logo-word{ font-family:'Quicksand',sans-serif; font-weight:700; font-size:1.3rem; color:var(--navy); letter-spacing:0.02em; }
+.gate-wordmark .logo-word .well{ color:var(--green); }
+
+.gate-tagline{ color:var(--gray); font-size:0.85rem; margin:6px 0 28px; }
+
+.gate-panel h2{
+  color:var(--navy-dark); font-size:1.3rem; font-weight:700;
+  margin:0 0 8px;
+}
+.gate-sub{
+  color:var(--gray); font-size:0.85rem; margin:0 0 20px;
+}
+.gate-check-box{
+  border:1px solid var(--line); border-radius:8px; padding:14px;
+  margin-bottom:14px; background:var(--panel); text-align:left;
+}
+.gate-check-box label{
+  display:flex; align-items:flex-start; gap:10px; cursor:pointer;
+  font-size:0.8rem; color:#333; line-height:1.5;
+}
+.gate-check-box input[type=checkbox]{
+  margin-top:3px; width:16px; height:16px; flex-shrink:0; accent-color:var(--navy);
+}
+.gate-check-title{
+  font-weight:700; color:var(--navy-dark); font-size:0.75rem;
+  text-transform:uppercase; letter-spacing:0.03em; display:block; margin-bottom:4px;
+}
+.gate-buttons{ display:flex; gap:10px; margin-top:18px; }
+.gate-buttons button{
+  flex:1; padding:12px; border-radius:6px; font-weight:700; font-size:0.85rem;
+  cursor:pointer; border:1.5px solid var(--navy); font-family:'Quicksand',sans-serif;
+}
+#gate-exit-btn{ background:#fff; color:var(--navy); }
+#gate-accept-btn{
+  background:var(--navy); color:#fff;
+  opacity:0.5; pointer-events:none; transition:opacity 0.15s;
+}
+#gate-accept-btn.enabled{ opacity:1; pointer-events:auto; }
+
+.trust-badges{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:10px 18px;
+  margin-top:26px; padding-top:20px; border-top:1px solid var(--line);
+}
+.trust-badge{ display:flex; align-items:center; gap:6px; font-size:0.7rem; color:var(--gray); }
+
+.gate-footer-links{
+  display:flex; justify-content:center; gap:16px;
+  margin-top:20px; font-size:0.7rem;
+}
+.gate-footer-links a{ color:var(--gray); text-decoration:none; }
+.gate-footer-links a:hover{ color:var(--navy); text-decoration:underline; }
+
+@media (max-width: 900px){
+  body{ overflow:auto; }
+  .gate-page{ grid-template-columns:1fr; height:auto; min-height:100vh; }
+  .gate-hero{ height:30vh; }
+  .gate-panel{ height:auto; overflow-y:visible; padding:32px 24px; }
+}
+</style>
+</head>
+<body>
+
+<div class="gate-page">
+  <div class="gate-hero"></div>
+
+  <div class="gate-panel">
+    <div class="gate-panel-inner">
+      <div class="gate-wordmark">
+        <svg width="40" height="40" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 60 C20 45 35 35 55 35 L105 35 C125 35 138 45 138 58 L138 68 L20 68 Z" fill="#1B4B8C"/>
+          <path d="M132 42 L158 36 L158 52 L138 58 Z" fill="#1B4B8C"/>
+          <rect x="65" y="68" width="20" height="16" fill="#1B4B8C"/>
+          <rect x="45" y="84" width="60" height="8" rx="1.5" fill="#123056"/>
+          <path d="M75 -20 C90 -10 60 5 75 15 C90 25 60 35 75 45" stroke="#3FA34D" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <path d="M75 -20 C60 -10 90 5 75 15 C60 25 90 35 75 45" stroke="#1B4B8C" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.55"/>
+        </svg>
+        <span class="logo-word"><span class="forge">FORGE</span><span class="well">WELL</span></span>
+      </div>
+      <p class="gate-tagline">Research-Grade Peptides. Zero Guesswork.</p>
+
+      <h2>Research use only</h2>
+      <p class="gate-sub">To continue, please confirm you meet the minimum age requirement and accept the agreement below.</p>
+
+      <div class="gate-check-box">
+        <label>
+          <input type="checkbox" id="gate-age-check">
+          <span><span class="gate-check-title">Age confirmation</span>I confirm I am 21+ years of age or older.</span>
+        </label>
+      </div>
+
+      <div class="gate-check-box">
+        <label>
+          <input type="checkbox" id="gate-research-check">
+          <span><span class="gate-check-title">Research use agreement</span>I agree that products and information on this website are provided for laboratory research use only and are not intended for use in or on humans or animals. I will not use any products or information from this website for diagnosis, treatment, cure, or prevention of any condition. I agree to follow applicable laws and regulations, and I agree to the Terms of Service and Privacy Policy.</span>
+        </label>
+      </div>
+
+      <div class="gate-check-box">
+        <label>
+          <input type="checkbox" id="gate-remember-check" checked>
+          <span><span class="gate-check-title">Remember my choice</span>Don't ask me again on this device.</span>
+        </label>
+      </div>
+
+      <div class="gate-buttons">
+        <button id="gate-exit-btn">Exit</button>
+        <button id="gate-accept-btn">Accept</button>
+      </div>
+
+      <div class="trust-badges">
+        <div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg><span>Third-Party Tested</span></div>
+        <div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Batch &amp; Lot Tracking</span></div>
+        <div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secure Ordering</span></div>
+      </div>
+
+      <div class="gate-footer-links">
+        <a href="/privacy.html">Privacy Policy</a>
+        <a href="/about-us.html">About</a>
+        <a href="/terms.html">Terms</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'forgewell_age_verified';
+  var ageCheck = document.getElementById('gate-age-check');
+  var researchCheck = document.getElementById('gate-research-check');
+  var rememberCheck = document.getElementById('gate-remember-check');
+  var acceptBtn = document.getElementById('gate-accept-btn');
+  var exitBtn = document.getElementById('gate-exit-btn');
+
+  function updateAcceptState(){
+    if (ageCheck.checked && researchCheck.checked) {
+      acceptBtn.classList.add('enabled');
+    } else {
+      acceptBtn.classList.remove('enabled');
+    }
+  }
+  ageCheck.addEventListener('change', updateAcceptState);
+  researchCheck.addEventListener('change', updateAcceptState);
+
+  acceptBtn.addEventListener('click', function(){
+    if (!ageCheck.checked || !researchCheck.checked) return;
+    if (rememberCheck.checked) localStorage.setItem(KEY, 'yes');
+    window.location.href = '/home.html';
+  });
+
+  exitBtn.addEventListener('click', function(){
+    window.location.href = 'https://www.google.com';
+  });
+})();
+</script>
+
+</body>
+</html>
