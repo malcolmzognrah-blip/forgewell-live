@@ -216,7 +216,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
 .product-section{max-width:1200px; margin:36px auto 0; padding:0 24px;}
 @media (max-width:600px){ .product-section{ padding-left:16px; padding-right:16px; } }
-.product-section h2{font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;}
+.product-section h2, .ingredient-profile-col h2{font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;}
+/* Lives inside .gallery-col (see renderProduct), not a full-width
+   .product-section like the rest of the page's sections -- no max-width/
+   auto-margin/horizontal padding needed since the grid column already
+   constrains its width. */
+.ingredient-profile-col{margin-top:24px;}
 .product-section h3{font-size:0.95rem; color:var(--navy-dark); margin:22px 0 10px;}
 .product-section h3:first-of-type{margin-top:0;}
 .research-text{font-size:0.88rem; line-height:1.7; color:#333;}
@@ -958,16 +963,24 @@ function renderProduct(product, siblings) {
     }
   }
 
-  // Same table styling/markup convention as the Quality & Testing section
-  // below (.tech-table -- bordered, alternating row shading) so it reads
-  // as part of the same visual family, not a one-off.
+  // Same table styling convention as the Quality & Testing section below
+  // (.tech-table -- bordered, alternating row shading) so it reads as part
+  // of the same visual family, not a one-off. Rendered into .gallery-col
+  // (see below), NOT .buy-col -- Add to Cart/Buy Now live in .buy-col (the
+  // right column; confirmed against both .product-main's CSS and a
+  // rendered screenshot, not assumed), and .buy-col's height is capped to
+  // .gallery-col's via syncColumnHeights() with overflow-y:auto scrolling
+  // anything taller -- stacking a multi-row table into .buy-col would bury
+  // most of it behind that scroll clip. .gallery-col has no such cap, so
+  // content added there just grows the column naturally (and
+  // syncColumnHeights() grows .buy-col's max-height to match).
   var ingredientProfileHtml = '';
   if (hasIngredients) {
     var ingredientRows = product.ingredients.map(function(i) {
       return '<tr><th>' + i.ingredient_name + '</th><td>' + i.concentration + '</td></tr>';
     }).join('');
     ingredientProfileHtml =
-      '<div class="product-section"><h2>Ingredient Profile</h2>' +
+      '<div class="ingredient-profile-col"><h2>Ingredient Profile</h2>' +
         '<table class="tech-table">' + ingredientRows + '</table>' +
       '</div>';
   }
@@ -1082,6 +1095,7 @@ function renderProduct(product, siblings) {
         '<div class="gallery-col">' +
           '<div class="gallery-main"><img id="gallery-main-img" src="' + imgUrl + '" alt="' + product.name + '" onerror="this.closest(\'.product-wrap\').innerHTML=\'<div class=&quot;error-state&quot;><h2>Product image not available.</h2></div>\'"></div>' +
           '<div class="gallery-thumbs" id="gallery-thumbs" style="display:none;"></div>' +
+          ingredientProfileHtml +
         '</div>' +
         '<div class="buy-col">' +
           '<span class="purity-badge">Research Use Only</span>' +
@@ -1127,14 +1141,6 @@ function renderProduct(product, siblings) {
         '</div>' +
       '</div>' +
     '</div>' +
-
-    // Directly below the Add to Cart / Buy Now buttons -- those live inside
-    // .product-main's two-column grid (in .buy-col), and .product-section
-    // is the full-width block convention used for everything that follows
-    // it, so putting this first (ahead of Suggested Essentials) puts it
-    // immediately after the buttons in the rendered page, not nested
-    // inside the narrower buy-col itself.
-    ingredientProfileHtml +
 
     suggestedEssentialsHtml +
 
