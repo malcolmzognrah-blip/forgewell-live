@@ -701,6 +701,19 @@ function buildBreadcrumbHtml(product, trailIds, products) {
 // anything uncategorized) don't get an essentials upsell.
 var ESSENTIAL_TRIGGER_CATEGORIES = ['peptide', 'amino', 'kit'];
 var SUGGESTED_ESSENTIAL_NAMES = ['Acetic Acid Water', 'Bacteriostatic Water', 'Insulin Needles', 'Peptide Carrier'];
+// Every category='amino' product (blends like Body Boost/Energy Lipo Blend
+// AND single-actives like NAC/B12/Vitamin C -- see product-ingredients-seed*
+// .sql's dosage values, all "...20mL Vial") ships pre-mixed and ready to use,
+// unlike peptides, so it's never reconstituted with bacteriostatic/acetic
+// acid water -- those two don't belong in an amino page's Suggested
+// Essentials. Insulin Needles and Peptide Carrier still apply and keep the
+// section non-empty: confirmed against the live catalog (GET /api/products)
+// that both Insulin Needles pack sizes and Peptide Carrier are real,
+// in-stock, image-backed products, so no amino product page loses its
+// Suggested Essentials section entirely from this change.
+var AMINO_SUGGESTED_ESSENTIAL_NAMES = SUGGESTED_ESSENTIAL_NAMES.filter(function(n) {
+  return n !== 'Acetic Acid Water' && n !== 'Bacteriostatic Water';
+});
 
 // baseLabel() above only strips *numeric* dosage/size tokens (mg/mcg/iu/ml) --
 // confirmed it leaves non-numeric variant suffixes like "(Large Pack)" /
@@ -721,7 +734,8 @@ function stripTrailingAnnotation(name) {
 // (unlike parseDosageValue()'s mg/mcg/iu/ml sizes).
 function findSuggestedEssentials(product, products) {
   if (ESSENTIAL_TRIGGER_CATEGORIES.indexOf(product.category) === -1) return [];
-  var namesLower = SUGGESTED_ESSENTIAL_NAMES.map(function(n) { return n.toLowerCase(); });
+  var essentialNames = product.category === 'amino' ? AMINO_SUGGESTED_ESSENTIAL_NAMES : SUGGESTED_ESSENTIAL_NAMES;
+  var namesLower = essentialNames.map(function(n) { return n.toLowerCase(); });
   var matches = products.filter(function(p) {
     if (p.id === product.id) return false;
     if (!resolveImagePath(p.image_path)) return false; // no image, no listing
