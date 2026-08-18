@@ -1160,14 +1160,38 @@ updateCartIcon();
 <script>
 (function(){
   var POPUP_KEY = 'forgewell_email_popup_shown';
+  // Matches the code shown in #email-popup-code below. If this popup ever
+  // offers more than one code, update this to look up whichever code is
+  // actually being offered -- suppressing on THIS code's redemption status
+  // only, not "any coupon redeemed", is the intended behavior.
+  var PROMO_CODE = 'FORGE15';
+
+  // Signed-in customers who've already redeemed this code shouldn't be
+  // prompted for it again. /api/coupons/mine is cookie-gated (same session
+  // as /api/auth/me) and 401s for a signed-out visitor -- caught below and
+  // treated as "can't tell, so behave as before" rather than suppressing,
+  // since a signed-out visitor has no redemption history to check yet.
+  function isPromoAlreadyRedeemed(cb){
+    fetch('/api/coupons/mine', { credentials: 'include' })
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(coupons){
+        var mine = Array.isArray(coupons) && coupons.find(function(c){ return c.code === PROMO_CODE; });
+        cb(!!mine && mine.status === 'redeemed');
+      })
+      .catch(function(){ cb(false); });
+  }
 
   function waitForGateThenShow(){
     if (localStorage.getItem(POPUP_KEY)) return;
     if (!document.body.classList.contains('gate-active')) {
       setTimeout(function(){
         if (localStorage.getItem(POPUP_KEY)) return;
-        localStorage.setItem(POPUP_KEY, 'yes');
-        document.getElementById('email-popup-overlay').classList.add('popup-active');
+        isPromoAlreadyRedeemed(function(alreadyRedeemed){
+          if (localStorage.getItem(POPUP_KEY)) return;
+          localStorage.setItem(POPUP_KEY, 'yes');
+          if (alreadyRedeemed) return;
+          document.getElementById('email-popup-overlay').classList.add('popup-active');
+        });
       }, 3000);
     } else {
       setTimeout(waitForGateThenShow, 300);
