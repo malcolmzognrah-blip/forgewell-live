@@ -1053,6 +1053,17 @@ updateCartIcon();
     })
     .then(function(customer) {
       if (!customer) return;
+      // index.html's mandatory landing flow sets this right before sending
+      // the visitor to /api/auth/google, expecting the OAuth round trip to
+      // land back on login.html (see login.html's matching check) -- but
+      // the backend's success redirect can land here instead, and without
+      // this check the flag is never consumed and the visitor is stuck on
+      // the account page instead of being sent on to home.html.
+      if (sessionStorage.getItem('forgewell_landing_auth_pending')) {
+        sessionStorage.removeItem('forgewell_landing_auth_pending');
+        window.location.href = '/home.html';
+        return;
+      }
       document.getElementById('account-email-display').textContent = customer.email;
       showAccountTab(tabFromHash());
       initSecurityTab(customer);
