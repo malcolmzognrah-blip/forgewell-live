@@ -942,7 +942,13 @@ function renderProduct(product, siblings) {
 
   var sizeOptionsHtml = '';
   if (hasIngredients) {
-    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="volume-spec-value">' + (product.dosage || '') + '</div></div>';
+    // Every amino blend with real product_ingredients rows ships as a
+    // 20mL vial -- restricted to that literal display rather than echoing
+    // product.dosage, since that field's raw text varies per product
+    // ("20mL Vial", "2:1:1 Ratio 20mL Vial", etc.) and there's nothing to
+    // actually select here (this was never a real multi-option selector,
+    // just a static spec line).
+    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="volume-spec-value">20mL</div></div>';
   } else {
     if (dosageValues.length >= 1) {
       sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
@@ -1122,6 +1128,14 @@ function renderProduct(product, siblings) {
       '</div>' +
     '</div>' +
 
+    // Directly below the Add to Cart / Buy Now buttons -- those live inside
+    // .product-main's two-column grid (in .buy-col), and .product-section
+    // is the full-width block convention used for everything that follows
+    // it, so putting this first (ahead of Suggested Essentials) puts it
+    // immediately after the buttons in the rendered page, not nested
+    // inside the narrower buy-col itself.
+    ingredientProfileHtml +
+
     suggestedEssentialsHtml +
 
     '<div class="product-section">' +
@@ -1129,8 +1143,6 @@ function renderProduct(product, siblings) {
     '</div>' +
 
     descriptionHtml +
-
-    ingredientProfileHtml +
 
     // spec_has_coa reflects whether product_specs.source_coa_id is actually
     // set -- i.e. a real COA upload produced this row -- rather than
