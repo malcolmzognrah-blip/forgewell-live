@@ -166,6 +166,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .size-option{padding:9px 16px; border:1.5px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:'Quicksand',sans-serif; background:#fff;}
 .size-option.active{border-color:var(--navy); background:var(--navy); color:#fff;}
 .size-option.disabled{opacity:0.45; cursor:not-allowed; pointer-events:none;}
+.volume-spec-value{font-size:0.95rem; font-weight:700; color:#1a1a1a;}
 
 .qty-row{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
 .qty-stepper{display:flex; align-items:center; border:1.5px solid var(--line); border-radius:6px; overflow:hidden;}
@@ -931,12 +932,38 @@ function renderProduct(product, siblings) {
       }).join('') + '</div></div>';
   }
 
+  // Amino blends (Power Blitz, MIC Blend, etc.) have no dosage tiers to
+  // pick between -- one vial, several ingredients -- so they get a plain
+  // "Volume: X" spec line instead of the SELECT MG/PACK SIZE selector.
+  // Gated on category AND real product_ingredients rows, not category
+  // alone: several amino products (L-Carnitine tiers, NAC, Vitality Vibe,
+  // etc.) are single-ingredient and keep the normal selector.
+  var hasIngredients = product.category === 'amino' && Array.isArray(product.ingredients) && product.ingredients.length > 0;
+
   var sizeOptionsHtml = '';
-  if (dosageValues.length >= 1) {
-    sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
+  if (hasIngredients) {
+    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="volume-spec-value">' + (product.dosage || '') + '</div></div>';
+  } else {
+    if (dosageValues.length >= 1) {
+      sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
+    }
+    if (packSizeValues.length >= 1) {
+      sizeOptionsHtml += buildSelectorHtml('SELECT PACK SIZE', 'pack-options', packSizeValues, product.pack_size, product.dosage, true);
+    }
   }
-  if (packSizeValues.length >= 1) {
-    sizeOptionsHtml += buildSelectorHtml('SELECT PACK SIZE', 'pack-options', packSizeValues, product.pack_size, product.dosage, true);
+
+  // Same table styling/markup convention as the Quality & Testing section
+  // below (.tech-table -- bordered, alternating row shading) so it reads
+  // as part of the same visual family, not a one-off.
+  var ingredientProfileHtml = '';
+  if (hasIngredients) {
+    var ingredientRows = product.ingredients.map(function(i) {
+      return '<tr><th>' + i.ingredient_name + '</th><td>' + i.concentration + '</td></tr>';
+    }).join('');
+    ingredientProfileHtml =
+      '<div class="product-section"><h2>Ingredient Profile</h2>' +
+        '<table class="tech-table">' + ingredientRows + '</table>' +
+      '</div>';
   }
 
   // A kit never gets its own COA upload -- it's just a discounted bundle of
@@ -1102,6 +1129,8 @@ function renderProduct(product, siblings) {
     '</div>' +
 
     descriptionHtml +
+
+    ingredientProfileHtml +
 
     // spec_has_coa reflects whether product_specs.source_coa_id is actually
     // set -- i.e. a real COA upload produced this row -- rather than
