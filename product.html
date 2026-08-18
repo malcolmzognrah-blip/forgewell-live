@@ -166,7 +166,6 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .size-option{padding:9px 16px; border:1.5px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:'Quicksand',sans-serif; background:#fff;}
 .size-option.active{border-color:var(--navy); background:var(--navy); color:#fff;}
 .size-option.disabled{opacity:0.45; cursor:not-allowed; pointer-events:none;}
-.volume-spec-value{font-size:0.95rem; font-weight:700; color:#1a1a1a;}
 
 .qty-row{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
 .qty-stepper{display:flex; align-items:center; border:1.5px solid var(--line); border-radius:6px; overflow:hidden;}
@@ -217,11 +216,11 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .product-section{max-width:1200px; margin:36px auto 0; padding:0 24px;}
 @media (max-width:600px){ .product-section{ padding-left:16px; padding-right:16px; } }
 .product-section h2, .ingredient-profile-col h2{font-size:1.1rem; color:var(--navy-dark); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;}
-/* Lives inside .gallery-col (see renderProduct), not a full-width
-   .product-section like the rest of the page's sections -- no max-width/
-   auto-margin/horizontal padding needed since the grid column already
-   constrains its width. */
-.ingredient-profile-col{margin-top:24px;}
+/* Lives inside .buy-col, right after .buy-buttons (see renderProduct) --
+   same "titled sub-block inside the buy column" convention as
+   .buy-col-kits (same margin-top), not a full-width .product-section like
+   the rest of the page's sections. */
+.ingredient-profile-col{margin-top:20px;}
 .product-section h3{font-size:0.95rem; color:var(--navy-dark); margin:22px 0 10px;}
 .product-section h3:first-of-type{margin-top:0;}
 .research-text{font-size:0.88rem; line-height:1.7; color:#333;}
@@ -950,10 +949,14 @@ function renderProduct(product, siblings) {
     // Every amino blend with real product_ingredients rows ships as a
     // 20mL vial -- restricted to that literal display rather than echoing
     // product.dosage, since that field's raw text varies per product
-    // ("20mL Vial", "2:1:1 Ratio 20mL Vial", etc.) and there's nothing to
-    // actually select here (this was never a real multi-option selector,
-    // just a static spec line).
-    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="volume-spec-value">20mL</div></div>';
+    // ("20mL Vial", "2:1:1 Ratio 20mL Vial", etc.). Reuses the exact same
+    // .size-selector/.size-options/.size-option markup as SELECT MG below
+    // (buildSelectorHtml) so it's visually the same pill component as the
+    // peptide dosage selector, just with a single, permanently-active
+    // "20mL" option -- there's nothing else to pick, so no id/click wiring
+    // is attached to it (wireProductInteractions only wires #mg-options
+    // and #pack-options by id).
+    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="size-options"><div class="size-option active" data-value="20mL">20mL</div></div></div>';
   } else {
     if (dosageValues.length >= 1) {
       sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
@@ -965,15 +968,14 @@ function renderProduct(product, siblings) {
 
   // Same table styling convention as the Quality & Testing section below
   // (.tech-table -- bordered, alternating row shading) so it reads as part
-  // of the same visual family, not a one-off. Rendered into .gallery-col
-  // (see below), NOT .buy-col -- Add to Cart/Buy Now live in .buy-col (the
-  // right column; confirmed against both .product-main's CSS and a
-  // rendered screenshot, not assumed), and .buy-col's height is capped to
-  // .gallery-col's via syncColumnHeights() with overflow-y:auto scrolling
-  // anything taller -- stacking a multi-row table into .buy-col would bury
-  // most of it behind that scroll clip. .gallery-col has no such cap, so
-  // content added there just grows the column naturally (and
-  // syncColumnHeights() grows .buy-col's max-height to match).
+  // of the same visual family, not a one-off. Rendered into .buy-col (see
+  // below), right after the buy-buttons -- .buy-col is the right column
+  // (confirmed against .product-main's CSS and a rendered screenshot, not
+  // assumed) and is the same scrollable column the peptide layout's
+  // dosage selector/Add to Cart/Buy Now already live in, via its own
+  // overflow-y:auto (already in the CSS, unchanged here) -- a long
+  // ingredient table just makes that column scroll further, same as Kits
+  // Available (.buy-col-kits) already can.
   var ingredientProfileHtml = '';
   if (hasIngredients) {
     var ingredientRows = product.ingredients.map(function(i) {
@@ -1095,7 +1097,6 @@ function renderProduct(product, siblings) {
         '<div class="gallery-col">' +
           '<div class="gallery-main"><img id="gallery-main-img" src="' + imgUrl + '" alt="' + product.name + '" onerror="this.closest(\'.product-wrap\').innerHTML=\'<div class=&quot;error-state&quot;><h2>Product image not available.</h2></div>\'"></div>' +
           '<div class="gallery-thumbs" id="gallery-thumbs" style="display:none;"></div>' +
-          ingredientProfileHtml +
         '</div>' +
         '<div class="buy-col">' +
           '<span class="purity-badge">Research Use Only</span>' +
@@ -1114,6 +1115,7 @@ function renderProduct(product, siblings) {
             '<button class="btn-add" id="add-to-cart-btn"' + (isOutOfStock ? ' disabled' : '') + '>' + (isOutOfStock ? 'Out of Stock' : 'Add to Cart') + '</button>' +
             '<button class="btn-buy" id="buy-now-btn">' + (isOutOfStock ? 'Notify When In Stock' : 'Buy Now') + '</button>' +
           '</div>' +
+          ingredientProfileHtml +
           notifyModalHtml +
           kitsAvailableHtml +
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
