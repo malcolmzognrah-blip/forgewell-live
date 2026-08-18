@@ -335,6 +335,8 @@ body.gate-active{ overflow:hidden; }
 .faq-item.open .faq-icon{transform:rotate(45deg);}
 .faq-answer{max-height:0;overflow:hidden;transition:max-height 0.25s ease;}
 .faq-answer p{padding:0 4px 16px;font-size:0.82rem;color:#444;line-height:1.6;margin:0;}
+.faq-view-all{display:block;width:max-content;margin:24px auto 0;padding:11px 24px;background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:6px;font-weight:700;font-size:0.85rem;text-decoration:none;text-align:center;}
+.faq-view-all:hover{background:var(--panel);}
 @media (max-width: 600px) {
   .faq-section{padding:28px 16px;}
   .faq-section h2{font-size:1.15rem;}
@@ -347,6 +349,7 @@ body.gate-active{ overflow:hidden; }
   <h2>Frequently Asked Questions</h2>
 
   <div id="faq-items"></div>
+  <a href="/faqs.html" class="faq-view-all">View all FAQs</a>
 </section>
 
 <script>
@@ -378,9 +381,19 @@ document.getElementById('faq-items').addEventListener('click', function(e) {
   }
 });
 
+// Condensed teaser for the homepage -- full list lives on faqs.html
+// (linked via .faq-view-all below), which fetches the same endpoint
+// unsliced. There's no "featured" flag on the API response ({id,
+// sort_order, question, answer}), so this takes the first 5 by
+// sort_order (the order the API already returns them in): the general
+// orientation questions (Research Use Only, ordering, payment, shipping,
+// discounts) rather than the order-troubleshooting ones (wrong item,
+// wrong address, undelivered package, refunds) or narrow product-detail
+// ones (vial size, storage temps) that came later and read as
+// full-FAQ-page material, not homepage teaser material.
 fetch('/api/content/faq').then(function(r) { return r.json(); })
   .then(function(items) {
-    document.getElementById('faq-items').innerHTML = items.map(function(f) {
+    document.getElementById('faq-items').innerHTML = items.slice(0, 5).map(function(f) {
       return '<div class="faq-item">' +
         '<button class="faq-question" type="button">' +
           '<span>' + f.question + '</span>' +
