@@ -79,7 +79,20 @@ coupon_redemptions
 - `POST /api/checkout`'s existing `discountCode` validation (already returns a 400 with an
   error message containing "promo code" on failure — `checkout.html` already special-cases that
   string match) needs to move from the current hardcoded check to querying `coupons` +
-  `coupon_redemptions`. On a successful order, insert a `coupon_redemptions` row.
+  `coupon_redemptions`.
+- **Redemption timing (superseded from an earlier version of this spec):** the `coupon_redemptions`
+  row is inserted only once payment actually succeeds (the webhook handler, on the same
+  `status = 'FILLED' | 'OVER_FILLED'` path that flips `orders.status` to `'paid'`) — not at order
+  creation. `POST /api/checkout` just decides which coupon (if any) wins against the bulk discount
+  and stores its code on the new `orders.coupon_code` column (see
+  `coupon-redemption-on-payment-migration.sql`); the earlier version of this spec had the insert
+  happening inside the order-creation transaction, which meant merely applying a coupon at checkout
+  burned the customer's single use of it even if they abandoned the cart or payment failed.
+  `coupon_redemptions`' own `UNIQUE(email, code)` constraint is what stops the same code from ever
+  being credited to more than one order, including the case where two never-completed orders both
+  had it applied and both later happen to get paid — whichever webhook lands first wins the
+  redemption row; the second is caught (Postgres error `23505`) and logged, not thrown, so that
+  order still correctly ends up `paid` either way.
 
 ## 4. Store Credit (new system)
 
