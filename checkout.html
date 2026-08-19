@@ -113,7 +113,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
 /* ---- Checkout page: contact/shipping form, shipping method, order summary ---- */
 .checkout-page-wrap{ max-width:1200px; margin:32px auto 80px; padding:0 24px; }
-.checkout-page-wrap h1{ color:var(--navy-dark); font-size:1.6rem; margin-bottom:24px; }
+.checkout-page-header{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px; margin-bottom:24px; }
+.checkout-page-wrap h1{ color:var(--navy-dark); font-size:1.6rem; margin:0; }
+.checkout-continue-shopping-link{ color:var(--navy); font-weight:700; font-size:0.82rem; text-decoration:none; }
+.checkout-continue-shopping-link:hover{ text-decoration:underline; }
 .checkout-page-grid{ display:grid; grid-template-columns:1fr 340px; gap:32px; align-items:start; }
 
 .checkout-section{ border:1px solid var(--line); border-radius:10px; padding:20px 24px; margin-bottom:24px; }
@@ -211,7 +214,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
 
 <div class="checkout-page-wrap">
-  <h1>Checkout</h1>
+  <div class="checkout-page-header">
+    <h1>Checkout</h1>
+    <a href="/shop.html" class="checkout-continue-shopping-link">&larr; Continue Shopping</a>
+  </div>
 
   <div class="checkout-page-grid">
     <div class="checkout-form-col">

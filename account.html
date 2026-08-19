@@ -116,6 +116,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 @media (max-width:600px){ .account-wrap{ padding-left:16px; padding-right:16px; } }
 .account-wrap h1{ color:var(--navy-dark); font-size:1.4rem; margin-bottom:4px; }
 .account-wrap p.sub{ color:var(--gray); font-size:0.85rem; margin:0 0 8px; }
+.account-header-links{ display:flex; align-items:baseline; gap:16px; }
+.account-continue-shopping-link{ color:var(--navy); font-weight:700; font-size:0.82rem; text-decoration:none; }
+.account-continue-shopping-link:hover{ text-decoration:underline; }
 
 .account-tabs{ display:flex; gap:4px; margin:20px 0 28px; border-bottom:1.5px solid var(--line); overflow-x:auto; }
 .account-tab{ padding:10px 16px; background:none; border:none; border-bottom:2.5px solid transparent; margin-bottom:-1.5px; font-size:0.82rem; font-weight:700; color:var(--gray); cursor:pointer; white-space:nowrap; font-family:'Quicksand',sans-serif; }
@@ -226,7 +229,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 <div class="account-wrap">
   <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:10px;">
     <h1>My Account</h1>
-    <a href="#" id="account-logout-link" style="color:var(--navy); font-weight:700; font-size:0.82rem; text-decoration:none;">Log Out</a>
+    <div class="account-header-links">
+      <a href="/shop.html" class="account-continue-shopping-link">&larr; Continue Shopping</a>
+      <a href="#" id="account-logout-link" style="color:var(--navy); font-weight:700; font-size:0.82rem; text-decoration:none;">Log Out</a>
+    </div>
   </div>
   <p class="sub" id="account-email-display">&nbsp;</p>
 
