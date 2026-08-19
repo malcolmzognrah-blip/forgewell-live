@@ -214,25 +214,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
   <h1>Shipping Policy</h1>
   <p class="updated">Last updated: August 2026</p>
 
-  <h2>Shipping Rates</h2>
-  <p>Shipping is calculated at checkout based on your order subtotal:</p>
-  <ul>
-    <li><strong>Orders of $150 or more:</strong> Free shipping</li>
-    <li><strong>Orders under $150:</strong> Flat rate of $9.95</li>
-  </ul>
-
-  <h2>Order Processing</h2>
-  <p>Orders are processed once payment is confirmed. You'll receive an order confirmation by email as soon as your order is placed, and a separate notice once it ships.</p>
-
-  <h2>Where We Ship</h2>
-  <p>We currently ship within the United States.</p>
-
-  <h2>Questions</h2>
-  <p>If you have questions about an order or its shipping status, contact us at <a href="mailto:support@forgewellpeptide.com">support@forgewellpeptide.com</a>.</p>
-
-  <h1>Returns Policy</h1>
-  <p>Because our products are sold for research and laboratory use only, all sales are final and Forgewell LLC does not offer refunds, returns, or exchanges, except as described below.</p>
-  <p>If an order arrives damaged, incorrect, or does not match what was ordered, contact us at <a href="mailto:support@forgewellpeptide.com">support@forgewellpeptide.com</a> within a reasonable period after delivery so we can review the issue. Approved resolutions are at Forgewell LLC's sole discretion and may include a replacement or store credit.</p>
+  <div id="shipping-policy-sections"></div>
 </div>
 
 
@@ -434,6 +416,24 @@ Promise.all([
 ]).then(wireHeaderFooter).catch(function(err) {
   console.error('Failed to load shared header/footer', err);
 });
+
+// Shipping Policy sections are admin-editable (see admin.html's Content >
+// Shipping Policy tab) rather than hardcoded here -- same
+// heading+body-per-section pattern as about-us.html's sections fetch.
+function renderContentParagraphs(text) {
+  return (text || '').split('\n\n').filter(function(p) { return p.trim(); })
+    .map(function(p) { return '<p>' + p + '</p>'; }).join('');
+}
+
+fetch('/api/content/shipping-policy').then(function(r) { return r.json(); })
+  .then(function(sections) {
+    var el = document.getElementById('shipping-policy-sections');
+    if (!el) return;
+    el.innerHTML = sections.map(function(s) {
+      return '<h2>' + s.heading + '</h2>' + renderContentParagraphs(s.body);
+    }).join('');
+  })
+  .catch(function() {});
 
 async function loadProducts() {
   try {

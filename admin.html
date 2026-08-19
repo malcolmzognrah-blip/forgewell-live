@@ -474,6 +474,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="content-subtabs">
       <button type="button" class="content-subtab active" id="content-subtab-about-us">About Us</button>
       <button type="button" class="content-subtab" id="content-subtab-faq">FAQ</button>
+      <button type="button" class="content-subtab" id="content-subtab-shipping-policy">Shipping Policy</button>
       <button type="button" class="content-subtab" id="content-subtab-disclaimer">Disclaimer</button>
     </div>
 
@@ -485,6 +486,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="content-subview" id="content-subview-faq">
       <p class="fulfillment-section-note">Edits the accordion shown on the FAQs page (and the teaser on the home page).</p>
       <div id="content-faq-list"></div>
+    </div>
+
+    <div class="content-subview" id="content-subview-shipping-policy">
+      <p class="fulfillment-section-note">Edits the sections shown on the Shipping Policy page.</p>
+      <div id="content-shipping-policy-list"></div>
     </div>
 
     <div class="content-subview" id="content-subview-disclaimer">
@@ -854,11 +860,25 @@ function renderContentFaq(items) {
   }).join('');
 }
 
+function renderContentShippingPolicy(sections) {
+  document.getElementById('content-shipping-policy-list').innerHTML = sections.map(function(s) {
+    return '<div class="content-item" data-shipping-policy-id="' + s.id + '">' +
+      '<label>Heading</label>' +
+      '<input type="text" class="content-shipping-policy-heading" value="' + escapeHtml(s.heading) + '">' +
+      '<label>Body</label>' +
+      '<textarea class="content-shipping-policy-body">' + escapeHtml(s.body) + '</textarea>' +
+      '<button type="button" class="fulfillment-btn content-shipping-policy-save-btn" data-shipping-policy-id="' + s.id + '" style="margin-top:10px;">Save</button>' +
+      '<span class="product-save-status" id="content-shipping-policy-status-' + s.id + '"></span>' +
+    '</div>';
+  }).join('');
+}
+
 function loadContent() {
   if (contentLoaded) return;
   contentLoaded = true;
   fetch('/api/content/about-us', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentAboutUs).catch(function() {});
   fetch('/api/content/faq', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentFaq).catch(function() {});
+  fetch('/api/content/shipping-policy', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentShippingPolicy).catch(function() {});
   fetch('/api/content/disclaimer', { credentials: 'include' }).then(function(r) { return r.json(); })
     .then(function(d) { document.getElementById('content-disclaimer-textarea').value = d.body || ''; })
     .catch(function() {});
@@ -870,14 +890,15 @@ function showContentTab() {
 }
 
 // Sub-navigation within the Content tab -- one sub-tab per page this
-// content is shown on (About Us, FAQ, Disclaimer), same active/inactive
-// toggle pattern as showAdminTab() above, just scoped to the smaller
-// content-subtab/content-subview set instead of the top-level tabs.
+// content is shown on (About Us, FAQ, Shipping Policy, Disclaimer), same
+// active/inactive toggle pattern as showAdminTab() above, just scoped to
+// the smaller content-subtab/content-subview set instead of the top-level
+// tabs.
 function showContentSubtab(subtabId, subviewId) {
-  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-disclaimer'].forEach(function(id) {
+  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['content-subview-about-us', 'content-subview-faq', 'content-subview-disclaimer'].forEach(function(id) {
+  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -1425,6 +1446,9 @@ document.getElementById('content-subtab-about-us').addEventListener('click', fun
 document.getElementById('content-subtab-faq').addEventListener('click', function() {
   showContentSubtab('content-subtab-faq', 'content-subview-faq');
 });
+document.getElementById('content-subtab-shipping-policy').addEventListener('click', function() {
+  showContentSubtab('content-subtab-shipping-policy', 'content-subview-shipping-policy');
+});
 document.getElementById('content-subtab-disclaimer').addEventListener('click', function() {
   showContentSubtab('content-subtab-disclaimer', 'content-subview-disclaimer');
 });
@@ -1634,6 +1658,35 @@ document.getElementById('content-faq-list').addEventListener('click', function(e
   statusEl.textContent = '';
   statusEl.className = 'product-save-status';
   fetch('/api/admin/content/faq/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-shipping-policy-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.content-shipping-policy-save-btn');
+  if (!btn) return;
+  var id = btn.getAttribute('data-shipping-policy-id');
+  var item = document.querySelector('.content-item[data-shipping-policy-id="' + id + '"]');
+  var statusEl = document.getElementById('content-shipping-policy-status-' + id);
+  var body = {
+    heading: item.querySelector('.content-shipping-policy-heading').value,
+    body: item.querySelector('.content-shipping-policy-body').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/shipping-policy/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
