@@ -1,9 +1,9 @@
-// Composites product name, dosage, and purity onto the blank universal vial
-// template (images/_templates/universal-vial-template.png) so any
-// peptide/amino/kit product can reuse the same photo instead of needing its
-// own. Replaces the old BPC-157-only template/path. Wordmark and disclaimer
-// are pre-baked into the template (per its own fixed-element list), so this
-// script only ever draws name, dosage, and purity.
+// Composites product name, dosage, and (usually) purity onto the blank
+// universal vial template (images/_templates/universal-vial-template.png)
+// so any peptide/amino/kit product can reuse the same photo instead of
+// needing its own. Replaces the old BPC-157-only template/path. Wordmark
+// and disclaimer are pre-baked into the template (per its own fixed-element
+// list), so this script only ever draws name, dosage, and purity.
 //
 // Requires the `sharp` package (not a site dependency -- this script is a
 // standalone content tool, run manually per product/dosage tier):
@@ -18,6 +18,15 @@
 //   node generate-dosage-images.js "Cagrilintide|5mg"   (purity omitted -> '00',
 //                                                         matching the products
 //                                                         table's own default)
+//   node generate-dosage-images.js "Bacteriostatic Water|30mL|"   (purity field
+//                                                         present but EMPTY ->
+//                                                         omits the purity line
+//                                                         entirely, for products
+//                                                         with no COA-derived
+//                                                         purity data at all --
+//                                                         distinct from omitting
+//                                                         the field, which still
+//                                                         defaults to '00')
 // '|' rather than ':' -- at least one real product name contains a literal
 // colon ("BCAA 2:1:1"), which would misparse as name/dosage/purity fields.
 // Writes images/<slug>.webp per product given, and prints a
@@ -229,8 +238,18 @@ function slugify(name, dosage) {
 }
 
 function parseArg(arg) {
-  const [name, dosage, purity] = arg.split('|');
-  return { name, dosage: dosage || '', purity: purity || '00' };
+  const parts = arg.split('|');
+  const name = parts[0];
+  const dosage = parts[1] || '';
+  // Omitting the purity field entirely (2 pipe-separated segments) keeps
+  // the documented '00' default, unchanged for every existing product this
+  // has already been run for. A THIRD segment that's explicitly empty
+  // ("Name|Dosage|") means the caller is saying "this product has no
+  // COA-derived purity data at all" -- purity: null, so generate() omits
+  // the purity line from the image entirely rather than rendering a fake
+  // placeholder value.
+  const purity = parts.length >= 3 ? (parts[2] || null) : '00';
+  return { name, dosage, purity };
 }
 
 async function generate({ name, dosage, purity, slugSuffix = '' }) {
@@ -258,10 +277,15 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
     })));
   }
 
-  const purityBuf = Buffer.from(textSvg({
+  // Same "omit entirely rather than fake it" rule as the dosage box above --
+  // purity: null (an explicitly-empty third CLI segment, or an object-call
+  // caller passing null/'' directly) skips the line altogether instead of
+  // rendering a placeholder "00% Purity" on a product with no COA-derived
+  // purity data at all.
+  const purityBuf = purity ? Buffer.from(textSvg({
     text: `${purity}% Purity`, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
     color: TEXT_COLOR, weight: PURITY.weight,
-  }));
+  })) : null;
 
   // slugSuffix defaults to '' for the CLI/single-product path (unchanged,
   // clean names like "bpc-157-10mg"). Batch runs pass a real suffix so a
@@ -274,12 +298,13 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
     .composite([
       ...nameBufs.map((buf) => ({ input: buf })),
       ...dosageBufs.map((buf) => ({ input: buf })),
-      { input: purityBuf },
+      ...(purityBuf ? [{ input: purityBuf }] : []),
     ])
     .webp({ quality: 92 })
     .toFile(outPath);
 
-  const mode = dosage ? layout.mode : `${layout.mode}+no-dosage-box`;
+  let mode = dosage ? layout.mode : `${layout.mode}+no-dosage-box`;
+  if (!purity) mode += '+no-purity';
   return { name, dosage, purity, mode, outPath, imagePathForDb: 'images/' + slug + '.png' };
 }
 
@@ -298,7 +323,8 @@ async function main() {
 
   console.log('\nGenerated files (set each product\'s image_path to the value shown):');
   for (const r of results) {
-    console.log(`  ${r.name.padEnd(24)} ${r.dosage.padEnd(6)} purity:${r.purity.padEnd(6)} ${r.mode.padEnd(16)} ${r.outPath} -> image_path: ${r.imagePathForDb}`);
+    const purityLabel = r.purity ? r.purity : '(omitted)';
+    console.log(`  ${r.name.padEnd(24)} ${r.dosage.padEnd(6)} purity:${purityLabel.padEnd(9)} ${r.mode.padEnd(16)} ${r.outPath} -> image_path: ${r.imagePathForDb}`);
   }
 }
 
