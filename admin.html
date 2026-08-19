@@ -534,8 +534,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </select>
       <label>Discount Value <span style="font-weight:400; text-transform:none;">(e.g. 15 for 15%, or 10 for $10)</span></label>
       <input type="number" step="0.01" min="0" id="new-coupon-value">
-      <label>Expires <span style="font-weight:400; text-transform:none;">(optional)</span></label>
-      <input type="date" id="new-coupon-expires">
+      <label>Expires <span style="font-weight:400; text-transform:none;">(date &amp; time, optional)</span></label>
+      <input type="datetime-local" id="new-coupon-expires">
       <label>Per-Customer Redemption Limit <span style="font-weight:400; text-transform:none;">(optional, default 1)</span></label>
       <input type="number" step="1" min="1" id="new-coupon-limit" placeholder="1">
       <button type="button" class="product-save-btn" id="new-coupon-save-btn">Create Coupon</button>
@@ -1334,11 +1334,18 @@ document.getElementById('coupons-new-toggle-btn').addEventListener('click', func
 document.getElementById('new-coupon-save-btn').addEventListener('click', function() {
   var btn = this;
   var statusEl = document.getElementById('new-coupon-status');
+  // <input type="datetime-local"> gives a timezone-less local string
+  // ("2026-08-25T14:30") -- new Date(...) parses that as the browser's
+  // local time, and toISOString() converts it to a real UTC timestamp, so
+  // an admin's chosen time-of-day actually lands on that moment rather
+  // than always being interpreted as midnight (what a date-only picker
+  // sent here before this change).
+  var expiresInput = document.getElementById('new-coupon-expires').value;
   var body = {
     code: document.getElementById('new-coupon-code').value.trim().toUpperCase(),
     discount_type: document.getElementById('new-coupon-type').value,
     discount_value: document.getElementById('new-coupon-value').value,
-    expires_at: document.getElementById('new-coupon-expires').value || null,
+    expires_at: expiresInput ? new Date(expiresInput).toISOString() : null,
     per_customer_limit: document.getElementById('new-coupon-limit').value || 1,
   };
   if (!body.code || !body.discount_value) {

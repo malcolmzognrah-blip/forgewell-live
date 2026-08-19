@@ -1175,17 +1175,26 @@ updateCartIcon();
   // only, not "any coupon redeemed", is the intended behavior.
   var PROMO_CODE = 'FORGE15';
 
-  // Signed-in customers who've already redeemed this code shouldn't be
-  // prompted for it again. /api/coupons/mine is cookie-gated (same session
-  // as /api/auth/me) and 401s for a signed-out visitor -- caught below and
-  // treated as "can't tell, so behave as before" rather than suppressing,
-  // since a signed-out visitor has no redemption history to check yet.
-  function isPromoAlreadyRedeemed(cb){
+  // Signed-in customers shouldn't be prompted to "sign up for a code" they
+  // already have access to. /api/coupons/mine returns every active coupon
+  // available to the signed-in customer's account (not just ones they've
+  // used), so a match here -- 'available' or 'redeemed' -- means they can
+  // already grab this code from their account (see account.html's Coupons
+  // tab) or already used it. Only status === 'redeemed' used to suppress,
+  // which meant a customer whose account already has FORGE15 sitting
+  // unused (e.g. every customer, since it's granted account-wide the
+  // moment they're signed in) still got nagged by this popup -- fixed by
+  // suppressing on any match, not just a redeemed one.
+  // /api/coupons/mine is cookie-gated (same session as /api/auth/me) and
+  // 401s for a signed-out visitor -- caught below and treated as "can't
+  // tell, so behave as before" rather than suppressing, since a
+  // signed-out visitor has no account to already have this code in.
+  function customerAlreadyHasPromo(cb){
     fetch('/api/coupons/mine', { credentials: 'include' })
       .then(function(res){ return res.ok ? res.json() : null; })
       .then(function(coupons){
         var mine = Array.isArray(coupons) && coupons.find(function(c){ return c.code === PROMO_CODE; });
-        cb(!!mine && mine.status === 'redeemed');
+        cb(!!mine);
       })
       .catch(function(){ cb(false); });
   }
@@ -1195,10 +1204,10 @@ updateCartIcon();
     if (!document.body.classList.contains('gate-active')) {
       setTimeout(function(){
         if (localStorage.getItem(POPUP_KEY)) return;
-        isPromoAlreadyRedeemed(function(alreadyRedeemed){
+        customerAlreadyHasPromo(function(alreadyHasIt){
           if (localStorage.getItem(POPUP_KEY)) return;
           localStorage.setItem(POPUP_KEY, 'yes');
-          if (alreadyRedeemed) return;
+          if (alreadyHasIt) return;
           document.getElementById('email-popup-overlay').classList.add('popup-active');
         });
       }, 3000);
