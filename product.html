@@ -958,19 +958,24 @@ function renderProduct(product, siblings) {
   // etc.) are single-ingredient and keep the normal selector.
   var hasIngredients = product.category === 'amino' && Array.isArray(product.ingredients) && product.ingredients.length > 0;
 
+  // Peptide Carrier (the essentials solvent/diluent, not a dosed peptide)
+  // has the same "no real dosage axis" shape as the amino blends below --
+  // dosage is just the 'vial' placeholder -- but it's a single specific
+  // product rather than a whole category, so it's matched by id instead of
+  // a category+data check. Kept separate from hasIngredients since that
+  // variable also gates the Ingredient Profile table further down, which
+  // this product has no product_ingredients rows for.
+  var fixedVolume = hasIngredients ? '20mL' : (product.id === 'peptide-carrier' ? '10 x 3mL' : null);
+
   var sizeOptionsHtml = '';
-  if (hasIngredients) {
-    // Every amino blend with real product_ingredients rows ships as a
-    // 20mL vial -- restricted to that literal display rather than echoing
-    // product.dosage, since that field's raw text varies per product
-    // ("20mL Vial", "2:1:1 Ratio 20mL Vial", etc.). Reuses the exact same
-    // .size-selector/.size-options/.size-option markup as SELECT MG below
-    // (buildSelectorHtml) so it's visually the same pill component as the
-    // peptide dosage selector, just with a single, permanently-active
-    // "20mL" option -- there's nothing else to pick, so no id/click wiring
-    // is attached to it (wireProductInteractions only wires #mg-options
-    // and #pack-options by id).
-    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="size-options"><div class="size-option active" data-value="20mL">20mL</div></div></div>';
+  if (fixedVolume) {
+    // Reuses the exact same .size-selector/.size-options/.size-option
+    // markup as SELECT MG below (buildSelectorHtml) so it's visually the
+    // same pill component as the peptide dosage selector, just with a
+    // single, permanently-active option -- there's nothing else to pick,
+    // so no id/click wiring is attached to it (wireProductInteractions
+    // only wires #mg-options and #pack-options by id).
+    sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="size-options"><div class="size-option active" data-value="' + fixedVolume + '">' + fixedVolume + '</div></div></div>';
   } else {
     if (dosageValues.length >= 1) {
       sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
