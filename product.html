@@ -961,14 +961,19 @@ function renderProduct(product, siblings) {
   // etc.) are single-ingredient and keep the normal selector.
   var hasIngredients = product.category === 'amino' && Array.isArray(product.ingredients) && product.ingredients.length > 0;
 
-  // Peptide Carrier (the essentials solvent/diluent, not a dosed peptide)
-  // has the same "no real dosage axis" shape as the amino blends below --
-  // dosage is just the 'vial' placeholder -- but it's a single specific
-  // product rather than a whole category, so it's matched by id instead of
-  // a category+data check. Kept separate from hasIngredients since that
+  // Non-dosed essentials (solvents/diluents/hardware, not a dosed peptide)
+  // have the same "no real dosage axis" shape as the amino blends below --
+  // dosage is just the 'vial' placeholder -- but each is a single specific
+  // product rather than a whole category, so they're matched by id instead
+  // of a category+data check. Kept separate from hasIngredients since that
   // variable also gates the Ingredient Profile table further down, which
-  // this product has no product_ingredients rows for.
-  var fixedVolume = hasIngredients ? '20mL' : (product.id === 'peptide-carrier' ? '10 x 3mL' : null);
+  // none of these have product_ingredients rows for.
+  var FIXED_VOLUME_BY_ID = {
+    'peptide-carrier': '10 x 3mL',
+    'bacteriostatic-water': '30mL',
+    'acetic-acid-water': '30mL',
+  };
+  var fixedVolume = hasIngredients ? '20mL' : (FIXED_VOLUME_BY_ID[product.id] || null);
 
   var sizeOptionsHtml = '';
   if (fixedVolume) {
