@@ -932,14 +932,16 @@ function renderProduct(product, siblings) {
   // nonexistent row no matter which one a visitor touches first. For a
   // single-axis family (packSize always null on every sibling) this
   // reduces to a plain dosage match and never disables anything. Also
-  // disables a combo whose row exists but is a kit that's effectively out
-  // of stock (its own flag, or its backing vial's) -- scoped to kits only,
-  // so a plain peptide's sibling pills don't grey out based on another
-  // tier's stock (only that tier's own buy buttons react to its own flag).
+  // disables a combo whose row is effectively out of stock (its own flag,
+  // or -- for a kit -- its backing vial's), for any category: `siblings`
+  // is always one category or the other, never mixed (groupKeyFor() keys
+  // kits and plain vials differently -- "BPC-157 Kit" vs "BPC-157" -- so
+  // this was never really kit-only, just written before a plain peptide
+  // tier had ever gone out of stock to notice the gap).
   function comboAvailable(dosage, packSize) {
     var match = siblings.filter(function(s) { return s.dosage === dosage && s.pack_size === packSize; })[0];
     if (!match) return false;
-    if (match.category === 'kit' && isEffectivelyOutOfStock(match)) return false;
+    if (isEffectivelyOutOfStock(match)) return false;
     return true;
   }
 
