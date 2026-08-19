@@ -450,13 +450,15 @@ function categoryMeta(cat) {
   return CATEGORY_META[cat] || FALLBACK_CATEGORY;
 }
 
-// Strips a trailing size/dose token like "5mg", "(5mg)", "10 mcg" to get
-// the base product label used to group sibling size-tier rows into one
-// card. String match against `name`, not a real key -- base_product_id
-// is empty for simple tiered products (confirmed in the DB this session).
+// Strips a trailing size/dose token like "5mg", "(5mg)", "10 mcg", "10ct"
+// to get the base product label used to group sibling size-tier rows into
+// one card. "ct" (count) covers non-dosage quantity tiers like Insulin
+// Needles' 10ct/100ct. String match against `name`, not a real key --
+// base_product_id is empty for simple tiered products (confirmed in the
+// DB this session).
 function baseLabel(name) {
   if (!name) return '';
-  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
+  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct))*\)?\s*$/i, '').trim();
 }
 
 // Kit names are formatted "<Family> Kit (<dosage>, <N>-Pack)" -- the

@@ -478,9 +478,11 @@ function categoryMeta(cat) {
   return CATEGORY_META[cat] || FALLBACK_CATEGORY;
 }
 
+// "ct" (count) covers non-dosage quantity tiers like Insulin Needles'
+// 10ct/100ct, alongside the usual mg/mcg/iu/ml dosage units.
 function baseLabel(name) {
   if (!name) return '';
-  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
+  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct))*\)?\s*$/i, '').trim();
 }
 
 function resolveImagePath(path) {

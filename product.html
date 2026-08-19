@@ -542,13 +542,16 @@ function getQueryParam(name) {
   return params.get(name);
 }
 
-// Strips a trailing size/dose token like "5mg", "(5mg)", "10 mcg", "500iu"
-// to get the base product label used to group sibling size-tier rows.
-// This is a string match against `name`, not a real foreign key (base_product_id
-// is empty for simple tiered products) -- confirmed in the DB this session.
+// Strips a trailing size/dose token like "5mg", "(5mg)", "10 mcg", "500iu",
+// "10ct" to get the base product label used to group sibling size-tier
+// rows. "ct" (count) covers non-dosage quantity tiers like Insulin
+// Needles' 10ct/100ct -- same trailing-token shape as a dosage unit, just
+// counting items instead of measuring a dose. This is a string match
+// against `name`, not a real foreign key (base_product_id is empty for
+// simple tiered products) -- confirmed in the DB this session.
 function baseLabel(name) {
   if (!name) return '';
-  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml))*\)?\s*$/i, '').trim();
+  return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct))*\)?\s*$/i, '').trim();
 }
 
 // Kit names are formatted "<Family> Kit (<dosage>, <N>-Pack)" -- the
@@ -606,8 +609,8 @@ function parseLeadingNumber(text) {
 }
 
 // Siblings are already grouped by baseLabel(), so they always share one unit
-// (mg/mcg/iu/ml) -- comparing the leading number alone is enough to order
-// them correctly.
+// (mg/mcg/iu/ml, or ct for a quantity tier) -- comparing the leading number
+// alone is enough to order them correctly.
 function parseDosageValue(product) {
   return parseLeadingNumber(product.dosage || product.name);
 }
@@ -978,7 +981,11 @@ function renderProduct(product, siblings) {
     sizeOptionsHtml = '<div class="size-selector"><label>Volume</label><div class="size-options"><div class="size-option active" data-value="' + fixedVolume + '">' + fixedVolume + '</div></div></div>';
   } else {
     if (dosageValues.length >= 1) {
-      sizeOptionsHtml += buildSelectorHtml('SELECT MG', 'mg-options', dosageValues, product.dosage, product.pack_size, false);
+      // A "ct" tier (e.g. Insulin Needles' 10ct/100ct) is a quantity, not
+      // a dose -- "SELECT MG" above a row of count pills would be wrong,
+      // so the label follows the values' own unit instead of assuming mg.
+      var dosageAxisLabel = /ct$/i.test(dosageValues[0]) ? 'SELECT QUANTITY' : 'SELECT MG';
+      sizeOptionsHtml += buildSelectorHtml(dosageAxisLabel, 'mg-options', dosageValues, product.dosage, product.pack_size, false);
     }
     if (packSizeValues.length >= 1) {
       sizeOptionsHtml += buildSelectorHtml('SELECT PACK SIZE', 'pack-options', packSizeValues, product.pack_size, product.dosage, true);
