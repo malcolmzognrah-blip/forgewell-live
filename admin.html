@@ -762,6 +762,13 @@ function renderProductsRows() {
       '</tr>' +
       '<tr class="product-detail-row' + (startExpanded ? ' show' : '') + '" data-product-id="' + p.id + '">' +
         '<td colspan="5" class="product-detail-cell">' +
+          '<label>Display Name</label>' +
+          '<input type="text" class="product-detail-name" value="' + escapeHtml(p.name) + '">' +
+          '<p class="fulfillment-section-note" style="margin:4px 0 0;">' +
+            'Changes how this product is shown site-wide. The product ID (<code>' + escapeHtml(p.id) + '</code>) never changes. ' +
+            'If this is one tier of a multi-tier product, keep the same base text across all its tiers (e.g. "New Name (5mg)", "New Name (10mg)") ' +
+            'or this tier will stop grouping with its siblings on the product page and shop grid.' +
+          '</p>' +
           '<div class="product-detail-grid">' +
             '<div>' +
               '<label>Sale Price</label>' +
@@ -1480,6 +1487,7 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
   var statusEl = document.getElementById('product-save-status-' + productId);
 
   var body = {
+    name: detailRow2.querySelector('.product-detail-name').value,
     price: mainRow.querySelector('.product-row-price-input').value,
     stock_status: mainRow.querySelector('.product-row-stock-select').value,
     on_sale: mainRow.querySelector('.product-row-onsale-checkbox').checked,
