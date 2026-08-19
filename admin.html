@@ -219,12 +219,16 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 
 <div class="admin-header">
   <div class="title">FORGE<span>WELL</span> Admin</div>
-  <a href="#" id="admin-logout-link" style="display:none;">Log Out</a>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <span id="admin-header-username" style="font-size:0.8rem; opacity:0.8; display:none;"></span>
+    <a href="#" id="admin-logout-link" style="display:none;">Log Out</a>
+  </div>
 </div>
 
 <div class="login-wrap" id="login-wrap">
   <h1>Admin Login</h1>
-  <input type="password" id="admin-password-input" placeholder="Admin password">
+  <input type="text" id="admin-username-input" placeholder="Username" autocomplete="username">
+  <input type="password" id="admin-password-input" placeholder="Password" autocomplete="current-password">
   <button id="admin-login-btn">Log In</button>
   <p class="login-error" id="admin-login-error"></p>
 </div>
@@ -240,6 +244,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-content">Content</button>
     <button type="button" class="admin-tab" id="tab-coupons">Coupons</button>
     <button type="button" class="admin-tab" id="tab-credit">Store Credit</button>
+    <button type="button" class="admin-tab" id="tab-audit">Audit Log</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -570,6 +575,22 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </table>
     </div>
   </div>
+
+  <div class="admin-view coa-panel" id="view-audit">
+    <p class="fulfillment-section-note">Who did what, and when -- covers product/content edits, coupon and store-credit actions, and order fulfillment updates. Read-only.</p>
+    <table class="products-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Admin</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>Change</th>
+        </tr>
+      </thead>
+      <tbody id="audit-log-tbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
@@ -579,10 +600,15 @@ function formatDate(iso) {
 function statusClass(s) { return s === 'paid' ? 'paid' : s === 'pending_payment' ? 'pending_payment' : 'other'; }
 var FULFILLMENT_STATUSES = ['pending', 'processing', 'shipped', 'delivered'];
 
-function showAdmin() {
+function showAdmin(username) {
   document.getElementById('login-wrap').style.display = 'none';
   document.getElementById('admin-wrap').style.display = 'block';
   document.getElementById('admin-logout-link').style.display = 'inline';
+  var usernameEl = document.getElementById('admin-header-username');
+  if (username) {
+    usernameEl.textContent = 'Logged in as ' + username;
+    usernameEl.style.display = 'inline';
+  }
   loadOrders();
 }
 
@@ -632,6 +658,7 @@ function showLogin() {
   document.getElementById('login-wrap').style.display = 'block';
   document.getElementById('admin-wrap').style.display = 'none';
   document.getElementById('admin-logout-link').style.display = 'none';
+  document.getElementById('admin-header-username').style.display = 'none';
 }
 
 // Shared by every tab (rather than each function individually
@@ -639,10 +666,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-coupons', 'tab-credit'].forEach(function(id) {
+  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-coupons', 'view-credit'].forEach(function(id) {
+  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -671,6 +698,60 @@ function showCouponsTab() {
 
 function showCreditTab() {
   showAdminTab('tab-credit', 'view-credit');
+}
+
+// ============================================================
+// Audit Log -- read-only, see routes/admin.js's GET /audit-log (backend
+// repo) and lib/auditLog.js, which every logged action writes through.
+// ============================================================
+
+function auditChangeSummary(entry) {
+  // old_value present -> an edit, show a compact "field: old -> new" list
+  // for whichever keys actually differ (an UPDATE can touch several
+  // columns at once, e.g. price + stock_status together, so this doesn't
+  // assume just one). No old_value -> a create/issue action, just show
+  // the new record's key facts.
+  if (entry.old_value && typeof entry.old_value === 'object') {
+    var newVal = entry.new_value || {};
+    var lines = [];
+    Object.keys(entry.old_value).forEach(function(key) {
+      var oldV = entry.old_value[key];
+      var newV = newVal[key];
+      if (JSON.stringify(oldV) === JSON.stringify(newV)) return;
+      lines.push('<strong>' + escapeHtml(key) + ':</strong> ' + escapeHtml(oldV == null ? '(none)' : String(oldV)) + ' &rarr; ' + escapeHtml(newV == null ? '(none)' : String(newV)));
+    });
+    return lines.length ? lines.join('<br>') : '<span style="color:var(--gray)">No fields changed.</span>';
+  }
+  if (entry.new_value && typeof entry.new_value === 'object') {
+    return Object.keys(entry.new_value).map(function(key) {
+      return '<strong>' + escapeHtml(key) + ':</strong> ' + escapeHtml(String(entry.new_value[key]));
+    }).join('<br>');
+  }
+  return '';
+}
+
+function loadAuditLog() {
+  fetch('/api/admin/audit-log', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(entries) {
+      document.getElementById('audit-log-tbody').innerHTML = entries.map(function(e) {
+        return '<tr>' +
+          '<td>' + formatDate(e.created_at) + '</td>' +
+          '<td>' + (e.admin_username ? escapeHtml(e.admin_username) : '<span style="color:var(--gray)">(deleted user)</span>') + '</td>' +
+          '<td><code>' + escapeHtml(e.action) + '</code></td>' +
+          '<td>' + escapeHtml(e.target_type || '') + (e.target_id ? ' <code>' + escapeHtml(e.target_id) + '</code>' : '') + '</td>' +
+          '<td style="font-size:0.78rem;">' + auditChangeSummary(e) + '</td>' +
+        '</tr>';
+      }).join('') || '<tr><td colspan="5" style="color:var(--gray);padding:20px;">No audit log entries yet.</td></tr>';
+    })
+    .catch(function() {
+      document.getElementById('audit-log-tbody').innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">Could not load audit log.</td></tr>';
+    });
+}
+
+function showAuditTab() {
+  showAdminTab('tab-audit', 'view-audit');
+  loadAuditLog();
 }
 
 // ============================================================
@@ -1410,6 +1491,7 @@ document.getElementById('credit-issue-btn').addEventListener('click', function()
 });
 
 document.getElementById('admin-login-btn').addEventListener('click', function() {
+  var username = document.getElementById('admin-username-input').value.trim();
   var pw = document.getElementById('admin-password-input').value;
   var errorEl = document.getElementById('admin-login-error');
   errorEl.classList.remove('show');
@@ -1417,7 +1499,7 @@ document.getElementById('admin-login-btn').addEventListener('click', function() 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ password: pw }),
+    body: JSON.stringify({ username: username, password: pw }),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
     .then(function(r) {
@@ -1426,10 +1508,13 @@ document.getElementById('admin-login-btn').addEventListener('click', function() 
         errorEl.classList.add('show');
         return;
       }
-      showAdmin();
+      showAdmin(r.d.username);
     });
 });
 
+document.getElementById('admin-username-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('admin-login-btn').click();
+});
 document.getElementById('admin-password-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') document.getElementById('admin-login-btn').click();
 });
@@ -1446,6 +1531,7 @@ document.getElementById('tab-products').addEventListener('click', showProductsTa
 document.getElementById('tab-content').addEventListener('click', showContentTab);
 document.getElementById('tab-coupons').addEventListener('click', showCouponsTab);
 document.getElementById('tab-credit').addEventListener('click', showCreditTab);
+document.getElementById('tab-audit').addEventListener('click', showAuditTab);
 
 document.getElementById('content-subtab-about-us').addEventListener('click', function() {
   showContentSubtab('content-subtab-about-us', 'content-subview-about-us');
@@ -2148,7 +2234,8 @@ document.getElementById('admin-logout-link').addEventListener('click', function(
 
 // Check for an existing admin session on load
 fetch('/api/admin/me', { credentials: 'include' })
-  .then(function(res) { if (res.ok) showAdmin(); })
+  .then(function(res) { return res.ok ? res.json() : null; })
+  .then(function(d) { if (d) showAdmin(d.username); })
   .catch(function() {});
 </script>
 
