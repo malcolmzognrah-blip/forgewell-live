@@ -760,6 +760,13 @@ async function renderShopGrid() {
         groups[base].baseId = p.id; // link to the cheapest tier
         groups[base].dosage = p.dosage;
         groups[base].lot = p.lot;
+        // The card's photo should be the cheapest tier's own photo, same as
+        // baseId/dosage/lot above -- previously left at whichever sibling
+        // happened to be encountered first (harmless while every tier of a
+        // family shared one photo, but Insulin Needles' 30ct/100ct now have
+        // distinct real photos, so a stale imgUrl here would show the wrong
+        // tier's box on the card it links to).
+        groups[base].imgUrl = imgUrl;
       }
       if (p.effectivePrice > 0 && p.effectivePrice > groups[base].highestPrice) {
         groups[base].highestPrice = p.effectivePrice;
