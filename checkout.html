@@ -950,6 +950,29 @@ if (cart.length === 0) {
         window.location.href = data.payment.paymentUrl;
         return;
       }
+
+      // No payment.paymentUrl and status is 'paid' -- the order was fully
+      // covered by store credit, so there's no PayRam step at all (see the
+      // backend's own comment on that branch). order-confirmation.html
+      // already handles status 'paid' correctly on its very first fetch
+      // (the same code path a webhook-confirmed PayRam order reaches after
+      // polling), including clearing the cart -- so this just skips
+      // straight there instead of redirecting to a payment page.
+      if (data.status === 'paid') {
+        localStorage.setItem('forgewell_last_order_id', data.orderId);
+        localStorage.removeItem('forgewell_promo_code');
+        if (isSignedIn && saveAddressCheckbox.checked) {
+          fetch('/api/addresses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(Object.assign({ label: saveAddressLabelInput.value.trim() }, shippingAddress)),
+          }).catch(function() {});
+        }
+        window.location.href = '/order-confirmation.html';
+        return;
+      }
+
       alert('Checkout succeeded but no payment link was returned — check the console and contact support.');
       console.error('Checkout response missing payment.paymentUrl:', data);
     } catch (err) {
