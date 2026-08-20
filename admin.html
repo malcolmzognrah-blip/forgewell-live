@@ -583,7 +583,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <p class="credit-issue-status" id="credit-issue-status"></p>
 
       <table class="credit-history-table">
-        <thead><tr><th>Date</th><th>Reason</th><th>Amount</th></tr></thead>
+        <thead><tr><th>Date</th><th>Reason</th><th>Amount</th><th></th></tr></thead>
         <tbody id="credit-history-tbody"></tbody>
       </table>
     </div>
@@ -1448,26 +1448,144 @@ document.getElementById('credit-search-results').addEventListener('click', funct
 });
 
 // NEW endpoint -- see the backend handoff spec.
+var creditHistoryAll = [];
+
+function closeCreditSelectedCustomer() {
+  document.getElementById('credit-selected-customer').style.display = 'none';
+  creditSelectedCustomerId = null;
+  creditHistoryAll = [];
+}
+
+// Only 'issued' rows get Correct/Remove controls -- 'redeemed' rows come
+// from checkout against a real order and aren't admin-editable (same
+// restriction the backend enforces on PATCH/DELETE .../store-credit/:id).
+function renderCreditHistory() {
+  document.getElementById('credit-history-tbody').innerHTML = creditHistoryAll.map(function(t) {
+    var isPositive = t.type === 'issued';
+    var row = '<tr>' +
+      '<td>' + formatDate(t.createdAt) + '</td>' +
+      '<td>' + (t.reason || '—') + '</td>' +
+      '<td style="color:' + (isPositive ? '#1F7A34' : '#c0392b') + '; font-weight:700;">' +
+        (isPositive ? '+' : '-') + formatCents(Math.abs(t.amountCents)) +
+      '</td>' +
+      '<td>' + (isPositive ?
+        '<button type="button" class="product-edit-toggle-btn credit-correct-toggle-btn" data-transaction-id="' + t.id + '">Correct</button> ' +
+        '<button type="button" class="coa-delete-btn credit-remove-btn" data-transaction-id="' + t.id + '">Remove</button>'
+        : '') +
+      '</td>' +
+    '</tr>';
+    if (!isPositive) return row;
+    row += '<tr class="product-detail-row" data-transaction-id="' + t.id + '">' +
+      '<td colspan="4" class="product-detail-cell">' +
+        '<label>Amount (USD)</label>' +
+        '<input type="number" step="0.01" min="0.01" class="credit-correct-amount" value="' + (t.amountCents / 100).toFixed(2) + '">' +
+        '<label>Reason</label>' +
+        '<input type="text" class="credit-correct-reason" value="' + escapeHtml(t.reason || '') + '">' +
+        '<div style="margin-top:12px;">' +
+          '<button type="button" class="product-save-btn credit-correct-save-btn" data-transaction-id="' + t.id + '">Save Correction</button> ' +
+          '<button type="button" class="product-edit-toggle-btn credit-correct-cancel-btn" data-transaction-id="' + t.id + '">Cancel</button>' +
+        '</div>' +
+        '<p class="credit-issue-status" id="credit-correct-status-' + t.id + '"></p>' +
+      '</td>' +
+    '</tr>';
+    return row;
+  }).join('');
+}
+
 function loadCreditForSelectedCustomer() {
   fetch('/api/admin/store-credit/' + encodeURIComponent(creditSelectedCustomerId), { credentials: 'include' })
     .then(function(res) { return res.ok ? res.json() : { balanceCents: 0, transactions: [] }; })
     .then(function(data) {
       document.getElementById('credit-selected-balance').textContent = formatCents(data.balanceCents);
-      document.getElementById('credit-history-tbody').innerHTML = (data.transactions || []).map(function(t) {
-        var isPositive = t.type === 'issued';
-        return '<tr>' +
-          '<td>' + formatDate(t.createdAt) + '</td>' +
-          '<td>' + (t.reason || '—') + '</td>' +
-          '<td style="color:' + (isPositive ? '#1F7A34' : '#c0392b') + '; font-weight:700;">' +
-            (isPositive ? '+' : '-') + formatCents(Math.abs(t.amountCents)) +
-          '</td>' +
-        '</tr>';
-      }).join('');
+      creditHistoryAll = data.transactions || [];
+      renderCreditHistory();
     })
     .catch(function() {
-      document.getElementById('credit-history-tbody').innerHTML = '<tr><td colspan="3" style="color:var(--gray);">Could not load credit history.</td></tr>';
+      creditHistoryAll = [];
+      document.getElementById('credit-history-tbody').innerHTML = '<tr><td colspan="4" style="color:var(--gray);">Could not load credit history.</td></tr>';
     });
 }
+
+// Delegated -- #credit-history-tbody is fully rebuilt by every renderCreditHistory() call.
+document.getElementById('credit-history-tbody').addEventListener('click', function(e) {
+  var toggleBtn = e.target.closest('.credit-correct-toggle-btn');
+  if (toggleBtn) {
+    var toggleId = toggleBtn.getAttribute('data-transaction-id');
+    var detailRow = document.querySelector('.product-detail-row[data-transaction-id="' + toggleId + '"]');
+    if (detailRow) detailRow.classList.toggle('show');
+    return;
+  }
+
+  var cancelBtn = e.target.closest('.credit-correct-cancel-btn');
+  if (cancelBtn) {
+    var cancelId = cancelBtn.getAttribute('data-transaction-id');
+    var cancelRow = document.querySelector('.product-detail-row[data-transaction-id="' + cancelId + '"]');
+    if (cancelRow) cancelRow.classList.remove('show');
+    return;
+  }
+
+  var removeBtn = e.target.closest('.credit-remove-btn');
+  if (removeBtn) {
+    var removeId = removeBtn.getAttribute('data-transaction-id');
+    if (!window.confirm('Remove this store credit entry? This cannot be undone.')) return;
+    removeBtn.disabled = true;
+    fetch('/api/admin/store-credit/' + encodeURIComponent(removeId), {
+      method: 'DELETE', credentials: 'include',
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        if (!r.ok) {
+          removeBtn.disabled = false;
+          window.alert(r.d.error || 'Could not remove credit entry.');
+          return;
+        }
+        closeCreditSelectedCustomer();
+      })
+      .catch(function() {
+        removeBtn.disabled = false;
+        window.alert('Could not remove credit entry.');
+      });
+    return;
+  }
+
+  var saveBtn = e.target.closest('.credit-correct-save-btn');
+  if (saveBtn) {
+    var saveId = saveBtn.getAttribute('data-transaction-id');
+    var saveRow = document.querySelector('.product-detail-row[data-transaction-id="' + saveId + '"]');
+    var statusEl = document.getElementById('credit-correct-status-' + saveId);
+    var amount = parseFloat(saveRow.querySelector('.credit-correct-amount').value);
+    var reason = saveRow.querySelector('.credit-correct-reason').value.trim();
+    statusEl.className = 'credit-issue-status';
+    statusEl.textContent = '';
+    if (!amount || amount <= 0) {
+      statusEl.textContent = 'Enter a valid amount.';
+      statusEl.className = 'credit-issue-status error';
+      return;
+    }
+    saveBtn.disabled = true;
+    fetch('/api/admin/store-credit/' + encodeURIComponent(saveId), {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amountCents: Math.round(amount * 100), reason: reason }),
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        saveBtn.disabled = false;
+        if (!r.ok) {
+          statusEl.textContent = r.d.error || 'Could not save correction.';
+          statusEl.className = 'credit-issue-status error';
+          return;
+        }
+        closeCreditSelectedCustomer();
+      })
+      .catch(function() {
+        saveBtn.disabled = false;
+        statusEl.textContent = 'Could not save correction.';
+        statusEl.className = 'credit-issue-status error';
+      });
+    return;
+  }
+});
 
 document.getElementById('credit-issue-btn').addEventListener('click', function() {
   var btn = this;
