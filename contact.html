@@ -54,6 +54,12 @@ header{
   header{ gap:10px; padding:10px 14px; }
   .header-search-row{ max-width:200px; }
   .logo-word{ font-size:0.95rem; }
+  /* Icon-only for the whole hamburger-mode range, not just below 420px --
+     "Cart" plus the login label was tight enough to visibly overlap the
+     search box's icon in the 421-455px window specifically (measured
+     directly), so the fix needs to cover that window too, not just the
+     narrower phones the 420px tier already handled. */
+  .cart-icon-label{ display:none; }
 }
 @media (max-width: 420px){
   header{ gap:6px; padding:8px 10px; }
@@ -63,10 +69,17 @@ header{
   .menu-toggle{ gap:10px; }
   .cart-icon svg{ width:18px; height:18px; }
   .cart-count{ font-size:0.55rem; min-width:13px; height:13px; line-height:13px; }
-  .cart-icon-label{ display:none; }
   .logo-word{ font-size:0.85rem; }
   .login-icon svg{ width:18px; height:18px; }
-  .login-icon-label{ display:none; }
+  /* header.html's <=1150px rule for this label (header .login-icon-label,
+     specificity 0,1,1) would otherwise beat a plain .login-icon-label
+     rule (0,1,0) here regardless of which one loads later -- confirmed
+     as a real, pre-existing bug (the label was never actually hidden
+     below 420px despite this rule) while testing the two-line mobile
+     greeting. header .menu-toggle .login-icon-label (0,2,1) reliably
+     outranks it instead, same specificity-engineering approach as
+     header.html's own comments describe for its rules. */
+  header .menu-toggle .login-icon-label{ display:none; }
 }
 
 /* ---- footer (matches shop.html) ---- */
@@ -385,7 +398,12 @@ function wireHeaderFooter() {
           // rather than showing a blank/broken greeting.
           var displayName = customer.name || customer.email.split('@')[0];
           var labelEl = loginIcon.querySelector('.login-icon-label');
-          if (labelEl) labelEl.textContent = 'Hi, ' + displayName;
+          // Literal newline (not just a leading space) -- on mobile,
+          // header.html's white-space:pre-line rule for this label breaks
+          // on it to show "Hi," and the name on two lines; on desktop the
+          // plain white-space:nowrap rule collapses it back to a single
+          // space, so "Hi, <name>" still reads as one line there.
+          if (labelEl) labelEl.textContent = 'Hi,\n' + displayName;
 
           function doLogout() {
             fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })

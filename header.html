@@ -52,23 +52,37 @@
    this label) is flex-shrink:0 in header{flex-wrap:nowrap}, same as the
    logo -- only .header-search-row shrinks to compensate for its neighbors'
    width, so a long name can squeeze/overlap the search box on mobile even
-   though a short "Sign In" never did. Truncating the label with an ellipsis
-   keeps .menu-toggle's footprint bounded regardless of name length. Scoped
-   to the same <=1150px tier as the focus-expand rule above -- desktop has
-   room to spare and keeps showing the full name; the label is already
-   hidden entirely below 420px (see each host page's own <style> block), so
-   this only matters in the 420-1150px window. header selector prefix (not
-   just .login-icon-label) gives this (0,1,1) specificity, beating the plain
-   .login-icon-label{...} rule (0,1,0) duplicated in every host page
+   though a short "Sign In" never did. Bounding the label's width keeps
+   .menu-toggle's footprint contained regardless of name length. Scoped to
+   the same <=1150px tier as the focus-expand rule above -- desktop has room
+   to spare and keeps showing "Hi, <name>" on one line via the plain
+   .login-icon-label{ white-space:nowrap; } rule duplicated in every host
+   page; the label is already hidden entirely below 420px (see each host
+   page's own <style> block), so this only matters in the 420-1150px
+   window. header selector prefix (not just .login-icon-label) gives this
+   (0,1,1) specificity, beating that plain per-host-page rule (0,1,0)
    regardless of script-load timing -- same reasoning as :focus-within
-   above, just via specificity instead of a pseudo-class. */
+   above, just via specificity instead of a pseudo-class.
+   wireHeaderFooter() sets this label's text as "Hi,\n<name>" (a literal
+   newline, not just a space) specifically so white-space:pre-line here has
+   something to break on -- "Hi," lands on its own first line and the name
+   on the second, rather than truncating with "..." (the old single-line
+   ellipsis behavior) or wrapping unpredictably mid-word. -webkit-line-clamp
+   is a second, independent safety net -- if the name itself is long enough
+   to still wrap within 70px, this caps it at 2 total lines instead of
+   growing a 3rd, clipping the overflow rather than expanding the header's
+   height. */
 @media (max-width: 1150px) {
   header .login-icon-label {
-    display: inline-block;
-    max-width: 70px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 70px;
+    white-space: pre-line;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    text-align: left;
     vertical-align: middle;
   }
 }
@@ -91,8 +105,21 @@
 .account-menu-wrap.signed-in .account-menu-arrow { display: inline-block; }
 /* "Hi, <name>" already identifies the account -- the generic person icon
    next to it is redundant once signed in, on both desktop and mobile (no
-   media query here, unlike the other rules in this block). */
+   media query here, unlike the other rules in this block) -- EXCEPT below
+   420px, where each host page's own <style> block hides .login-icon-label
+   entirely (see the media query rule above). Without this override, a
+   signed-in customer on a narrow phone was left with neither the name nor
+   the icon -- just the bare dropdown arrow, no visible account-menu
+   affordance at all. Caught while testing the two-line mobile greeting:
+   fixing the pre-existing specificity bug that kept the label wrongly
+   visible below 420px (see each host page's own comment on this) also
+   stopped it from accidentally masking this gap. Same selector as the
+   unconditional rule above, so plain source order (this rule comes later)
+   is enough to override it here -- no specificity trick needed. */
 .account-menu-wrap.signed-in .login-icon-glyph { display: none; }
+@media (max-width: 420px) {
+  .account-menu-wrap.signed-in .login-icon-glyph { display: inline-block; }
+}
 .account-dropdown {
   display: none;
   position: absolute;
