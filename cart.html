@@ -140,6 +140,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-summary-card{ border:1px solid var(--line); border-radius:10px; padding:20px; background:var(--panel); position:sticky; top:90px; }
 .cart-summary-line{ display:flex; justify-content:space-between; font-size:0.85rem; color:#444; margin-bottom:10px; }
 .cart-summary-discount{ color:var(--green); font-weight:700; }
+.cart-field-label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px; }
+.cart-coupon-select-row{ margin:16px 0 6px; }
+.cart-coupon-select-row select{ width:100%; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
+.cart-coupon-select-row select:focus{ outline:none; border-color:var(--navy); }
 .cart-promo-row{ display:flex; gap:8px; margin:16px 0 6px; }
 .cart-promo-row input{ flex:1; min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; box-sizing:border-box; }
 .cart-promo-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
@@ -185,8 +189,14 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
     <div class="cart-summary-col">
       <div class="cart-summary-card">
         <div id="cart-summary-lines"></div>
+        <div class="cart-coupon-select-row" id="cart-coupon-select-row" style="display:none;">
+          <label class="cart-field-label" for="cart-coupon-select">Your Coupons</label>
+          <select id="cart-coupon-select">
+            <option value="">Select a coupon&hellip;</option>
+          </select>
+        </div>
         <div class="cart-promo-row">
-          <input type="text" id="cart-promo-input" placeholder="Promo code">
+          <input type="text" id="cart-promo-input" placeholder="Or enter a promo code">
           <button type="button" id="cart-promo-btn">Apply</button>
         </div>
         <div id="cart-promo-msg" class="cart-promo-msg"></div>
@@ -206,6 +216,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 <script>
 let allProducts = [];
 let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
+// Populated by loadCoupons() below (signed-in customers only) -- empty
+// until then, so renderCartPage() just shows no coupon-savings line yet.
+let availableCoupons = [];
 
 async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
@@ -485,6 +498,43 @@ function calculateCartDiscount(cartItems) {
   };
 }
 
+function couponDiscountedTotal(rawTotal, coupon) {
+  if (coupon.discountType === 'fixed') {
+    return Math.max(0, rawTotal - Number(coupon.discountValue));
+  }
+  return rawTotal * (1 - Number(coupon.discountValue) / 100);
+}
+
+// Mirrors routes/checkout.js's applyBulkDiscount(): the coupon only ever
+// "wins" (and only ever gets shown/charged as the applied discount) if it
+// beats the bulk discount above -- bulk and coupon never stack. This is
+// what lets the cart page show the customer's actual coupon savings
+// instead of just silently folding it into the total.
+function calculateCartTotals(cartItems, coupon) {
+  const { subtotal, total: bulkTotal, discountApplied: bulkDiscountApplied, savings: bulkSavings } = calculateCartDiscount(cartItems);
+  let finalTotal = bulkTotal;
+  let couponWon = false;
+  let couponSavings = 0;
+  if (coupon) {
+    const couponTotal = couponDiscountedTotal(subtotal, coupon);
+    if (couponTotal < finalTotal) {
+      finalTotal = couponTotal;
+      couponWon = true;
+      couponSavings = subtotal - couponTotal;
+    }
+  }
+  finalTotal = Math.round(finalTotal * 100) / 100;
+  return {
+    subtotal,
+    total: finalTotal,
+    discountApplied: finalTotal < subtotal,
+    couponWon,
+    couponSavings: Math.round(couponSavings * 100) / 100,
+    bulkDiscountApplied,
+    bulkSavings,
+  };
+}
+
 function renderCartPage() {
   const emptyState = document.getElementById('cart-page-empty');
   const content = document.getElementById('cart-page-content');
@@ -529,26 +579,39 @@ function renderCartPage() {
     list.appendChild(row);
   });
 
-  const { subtotal, total, discountApplied, savings } = calculateCartDiscount(cart);
-
-  // Shipping preview: free at $150+ subtotal, $9.95 flat below that.
-  // NOTE: mirrors the rate documented in project notes -- I don't have
-  // direct read access to routes/checkout.js from here to confirm this
-  // still matches the live backend calculation. If the real checkout
-  // charges a different amount, this preview will be wrong and needs
-  // updating to match.
-  const shippingCost = subtotal >= 150 ? 0 : 9.95;
-  const grandTotal = total + shippingCost;
+  // Shipping is intentionally not shown or calculated here anymore -- it
+  // depends on the shipping address, which isn't collected until
+  // checkout.html, and used to just be a client-side guess here that had
+  // no way to confirm it matched the real backend rate. checkout.html is
+  // now the only place shipping is shown.
+  const appliedCode = localStorage.getItem('forgewell_promo_code');
+  const matchedCoupon = appliedCode
+    ? availableCoupons.find(function(c) { return c.code.toUpperCase() === appliedCode.trim().toUpperCase(); })
+    : null;
+  const { subtotal, total, couponWon, couponSavings, bulkDiscountApplied, bulkSavings } = calculateCartTotals(cart, matchedCoupon);
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
   let html = '<div class="cart-summary-line"><span>Subtotal (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')</span><span>$' + subtotal.toFixed(2) + '</span></div>';
-  if (discountApplied) {
-    html += '<div class="cart-summary-line cart-summary-discount"><span>Discount</span><span>-$' + savings.toFixed(2) + '</span></div>';
+  if (couponWon) {
+    html += '<div class="cart-summary-line cart-summary-discount"><span>Coupon ' + matchedCoupon.code + ' applied</span><span>-$' + couponSavings.toFixed(2) + '</span></div>';
+  } else if (bulkDiscountApplied) {
+    html += '<div class="cart-summary-line cart-summary-discount"><span>Discount</span><span>-$' + bulkSavings.toFixed(2) + '</span></div>';
   }
-  html += '<div class="cart-summary-line"><span>Shipping</span><span>' +
-    (shippingCost === 0 ? 'Free' : '$' + shippingCost.toFixed(2)) + '</span></div>';
   document.getElementById('cart-summary-lines').innerHTML = html;
-  document.getElementById('cart-page-total').textContent = '$' + grandTotal.toFixed(2);
+  document.getElementById('cart-page-total').textContent = '$' + total.toFixed(2);
+
+  // Centralized here (not in applyPromoCode()) so it stays correct across
+  // any re-render, not just right after applying -- e.g. changing a qty
+  // can flip whether the bulk discount or the coupon wins, and this needs
+  // to reflect that without the customer re-applying anything.
+  var msgEl = document.getElementById('cart-promo-msg');
+  if (!appliedCode || couponWon) {
+    msgEl.textContent = '';
+  } else if (matchedCoupon) {
+    msgEl.textContent = "Coupon " + matchedCoupon.code + " doesn't beat your current discount, so it wasn't applied.";
+  } else {
+    msgEl.textContent = "Code saved — it'll be applied at checkout.";
+  }
 }
 
 // Delegated so it keeps working after renderCartPage() rebuilds the item
@@ -572,24 +635,74 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// No customer email is known on this page (that's collected on
-// checkout.html), so a promo code can't actually be validated here --
-// this just saves the text for checkout.html to autofill and validate
-// for real when it submits the order.
-var savedPromoCode = localStorage.getItem('forgewell_promo_code');
-if (savedPromoCode) {
-  document.getElementById('cart-promo-input').value = savedPromoCode;
+function couponOptionLabel(c) {
+  var amount = c.discountType === 'percent'
+    ? Number(c.discountValue) + '% off'
+    : '$' + Number(c.discountValue).toFixed(2) + ' off';
+  return c.code + ' — ' + amount;
 }
-document.getElementById('cart-promo-btn').addEventListener('click', function() {
-  var code = document.getElementById('cart-promo-input').value.trim();
-  var msgEl = document.getElementById('cart-promo-msg');
+
+// NEW endpoint -- see the backend handoff spec. Only 'available' coupons
+// are offered (already-redeemed/expired/inactive ones are excluded
+// server-side). 401s for a signed-out visitor -- caught below and left as
+// an empty list, same as a signed-in customer with zero coupons: the
+// selector just stays hidden and only the manual code entry shows.
+function loadCoupons() {
+  fetch('/api/coupons/mine', { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(coupons) {
+      availableCoupons = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
+      var row = document.getElementById('cart-coupon-select-row');
+      if (availableCoupons.length === 0) {
+        row.style.display = 'none';
+      } else {
+        var select = document.getElementById('cart-coupon-select');
+        select.innerHTML = '<option value="">Select a coupon&hellip;</option>' +
+          availableCoupons.map(function(c) { return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>'; }).join('');
+        row.style.display = 'block';
+        var currentCode = localStorage.getItem('forgewell_promo_code');
+        if (currentCode && availableCoupons.some(function(c) { return c.code === currentCode; })) {
+          select.value = currentCode;
+        }
+      }
+      renderCartPage();
+    })
+    .catch(function() {});
+}
+
+// No customer email is known for certain on this page (a guest's isn't
+// collected until checkout.html), but a signed-in customer's coupons are
+// already resolved via loadCoupons() above, so a match there IS priced
+// and shown live here (see renderCartPage()) -- only an unmatched manual
+// code (a guest, or a code not in this account's list) falls back to this
+// soft "will be applied at checkout" message, since it genuinely can't be
+// validated/priced without a server round trip.
+var promoInput = document.getElementById('cart-promo-input');
+var couponSelect = document.getElementById('cart-coupon-select');
+var savedPromoCode = localStorage.getItem('forgewell_promo_code');
+if (savedPromoCode) promoInput.value = savedPromoCode;
+
+// Shared by the manual "Apply" button and the coupon dropdown, so picking
+// a coupon from the list behaves exactly the same as typing its code and
+// clicking Apply -- same localStorage key checkout.html reads from.
+// #cart-promo-msg itself is set by renderCartPage(), not here, so it stays
+// correct across any later re-render (e.g. a qty change flipping whether
+// the bulk discount or the coupon wins), not just right after applying.
+function applyPromoCode(code) {
   if (!code) {
     localStorage.removeItem('forgewell_promo_code');
-    msgEl.textContent = '';
-    return;
+  } else {
+    promoInput.value = code;
+    localStorage.setItem('forgewell_promo_code', code);
   }
-  localStorage.setItem('forgewell_promo_code', code);
-  msgEl.textContent = "Code saved — it'll be applied at checkout.";
+  renderCartPage();
+}
+
+document.getElementById('cart-promo-btn').addEventListener('click', function() {
+  applyPromoCode(promoInput.value.trim());
+});
+couponSelect.addEventListener('change', function() {
+  applyPromoCode(couponSelect.value);
 });
 
 document.getElementById('cart-checkout-btn').addEventListener('click', function() {
@@ -599,6 +712,7 @@ document.getElementById('cart-checkout-btn').addEventListener('click', function(
 
 renderCartPage();
 let productsReady = loadProducts();
+loadCoupons();
 updateCartIcon();
 
 

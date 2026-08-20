@@ -178,15 +178,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-summary-card{ border:1px solid var(--line); border-radius:10px; padding:20px; background:var(--panel); position:sticky; top:90px; }
 .checkout-summary-line{ display:flex; justify-content:space-between; font-size:0.85rem; color:#444; margin-bottom:10px; }
 .checkout-summary-discount{ color:var(--green); font-weight:700; }
-.checkout-coupon-select-row{ margin:2px 0 10px; }
-.checkout-coupon-select-row select{ width:100%; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
-.checkout-coupon-select-row select:focus{ outline:none; border-color:var(--navy); }
-.checkout-promo-row{ display:flex; gap:8px; margin:2px 0 6px; }
-.checkout-promo-row input{ flex:1; min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; box-sizing:border-box; background:#fff; }
-.checkout-promo-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
-.checkout-promo-row button:hover{ background:var(--navy); color:#fff; }
-.checkout-promo-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; margin-bottom:10px; }
-.checkout-promo-msg.error{ color:#c0392b; }
+.checkout-coupon-note{ font-size:0.75rem; color:var(--gray); margin:2px 0 12px; }
+.checkout-coupon-note.error{ color:#c0392b; }
+.checkout-coupon-note a{ color:var(--navy); font-weight:700; text-decoration:none; }
+.checkout-coupon-note a:hover{ text-decoration:underline; }
 .checkout-store-credit-block{ margin-bottom:10px; }
 .checkout-store-credit-row{ display:flex; align-items:center; gap:8px; font-size:0.82rem; color:#444; cursor:pointer; }
 .checkout-store-credit-row input{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
@@ -291,17 +286,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
     <div class="checkout-summary-col">
       <div class="checkout-summary-card">
         <div id="checkout-summary-lines"></div>
-        <div class="checkout-coupon-select-row" id="checkout-coupon-select-row" style="display:none;">
-          <label class="checkout-field-label" for="checkout-coupon-select">Your Coupons</label>
-          <select id="checkout-coupon-select">
-            <option value="">Select a coupon&hellip;</option>
-          </select>
-        </div>
-        <div class="checkout-promo-row">
-          <input type="text" id="checkout-promo-input" placeholder="Or enter a promo code">
-          <button type="button" id="checkout-promo-btn">Apply</button>
-        </div>
-        <div id="checkout-promo-msg" class="checkout-promo-msg"></div>
+        <div id="checkout-coupon-note" class="checkout-coupon-note" style="display:none;"></div>
         <div class="checkout-store-credit-block" id="checkout-store-credit-block" style="display:none;">
           <label class="checkout-store-credit-row">
             <input type="checkbox" id="checkout-store-credit-checkbox">
@@ -585,6 +570,51 @@ function calculateCartDiscount(cartItems) {
   };
 }
 
+function couponDiscountedTotal(rawTotal, coupon) {
+  if (coupon.discountType === 'fixed') {
+    return Math.max(0, rawTotal - Number(coupon.discountValue));
+  }
+  return rawTotal * (1 - Number(coupon.discountValue) / 100);
+}
+
+// Mirrors routes/checkout.js's applyBulkDiscount() -- the coupon only
+// "wins" (and is only ever shown/actually charged as the applied
+// discount) if it beats the bulk discount above; the two never stack.
+// The coupon itself isn't editable here -- it's carried over from
+// cart.html via forgewell_promo_code, see loadCoupons()/renderOrderSummary()
+// below -- but the savings this produces still needs to be computed the
+// same way cart.html does, so the total shown here matches what the
+// customer already saw there.
+function calculateCartTotals(cartItems, coupon) {
+  const { subtotal, total: bulkTotal, discountApplied: bulkDiscountApplied, savings: bulkSavings } = calculateCartDiscount(cartItems);
+  let finalTotal = bulkTotal;
+  let couponWon = false;
+  let couponSavings = 0;
+  if (coupon) {
+    const couponTotal = couponDiscountedTotal(subtotal, coupon);
+    if (couponTotal < finalTotal) {
+      finalTotal = couponTotal;
+      couponWon = true;
+      couponSavings = subtotal - couponTotal;
+    }
+  }
+  finalTotal = Math.round(finalTotal * 100) / 100;
+  return {
+    subtotal,
+    total: finalTotal,
+    discountApplied: finalTotal < subtotal,
+    couponWon,
+    couponSavings: Math.round(couponSavings * 100) / 100,
+    bulkDiscountApplied,
+    bulkSavings,
+  };
+}
+
+// Populated by loadCoupons() below (signed-in customers only) -- used to
+// resolve forgewell_promo_code (set on cart.html) to a real discountType/
+// discountValue so its savings can be shown here too.
+let availableCoupons = [];
+
 const SHIPPING_METHODS = [
   { id: 'usps_flat', label: 'USPS Flat Rate', cost: 11.99 },
   { id: 'ups_fedex_ground', label: 'UPS/FedEx Ground (3-5 Days)', cost: 14.99 },
@@ -622,7 +652,11 @@ let storeCreditBalanceCents = 0;
 // the store-credit line -- the real deduction/cap happens server-side (see
 // the backend handoff spec), this just previews it the same way.
 function renderOrderSummary() {
-  const { subtotal, total, discountApplied, savings } = calculateCartDiscount(cart);
+  const appliedCode = localStorage.getItem('forgewell_promo_code');
+  const matchedCoupon = appliedCode
+    ? availableCoupons.find(function(c) { return c.code.toUpperCase() === appliedCode.trim().toUpperCase(); })
+    : null;
+  const { subtotal, total, couponWon, couponSavings, bulkDiscountApplied, bulkSavings } = calculateCartTotals(cart, matchedCoupon);
   const shippingMethod = getSelectedShippingMethod();
   const preCreditTotal = total + shippingMethod.cost;
 
@@ -633,8 +667,10 @@ function renderOrderSummary() {
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
   let html = '<div class="checkout-summary-line"><span>Subtotal (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')</span><span>$' + subtotal.toFixed(2) + '</span></div>';
-  if (discountApplied) {
-    html += '<div class="checkout-summary-line checkout-summary-discount"><span>Discount</span><span>-$' + savings.toFixed(2) + '</span></div>';
+  if (couponWon) {
+    html += '<div class="checkout-summary-line checkout-summary-discount"><span>Coupon ' + matchedCoupon.code + ' applied</span><span>-$' + couponSavings.toFixed(2) + '</span></div>';
+  } else if (bulkDiscountApplied) {
+    html += '<div class="checkout-summary-line checkout-summary-discount"><span>Discount</span><span>-$' + bulkSavings.toFixed(2) + '</span></div>';
   }
   html += '<div class="checkout-summary-line"><span>Shipping</span><span>$' + shippingMethod.cost.toFixed(2) + '</span></div>';
   if (creditToApply > 0) {
@@ -642,6 +678,27 @@ function renderOrderSummary() {
   }
   document.getElementById('checkout-summary-lines').innerHTML = html;
   document.getElementById('checkout-total').textContent = '$' + grandTotal.toFixed(2);
+
+  // Coupon is not editable on this page -- it's carried over from
+  // cart.html's selector/manual entry (see loadCoupons() below) -- so this
+  // is a status note, not a control. Only shown when there's something to
+  // say: a winning coupon still gets a "change on cart" pointer, an
+  // applied-but-not-winning or unresolvable code explains why it isn't
+  // reflected above, and no code at all means no note.
+  const noteEl = document.getElementById('checkout-coupon-note');
+  noteEl.classList.remove('error');
+  if (!appliedCode) {
+    noteEl.style.display = 'none';
+  } else if (couponWon) {
+    noteEl.style.display = 'block';
+    noteEl.innerHTML = '<a href="/cart.html">Change coupon on cart page</a>';
+  } else if (matchedCoupon) {
+    noteEl.style.display = 'block';
+    noteEl.innerHTML = 'Coupon ' + matchedCoupon.code + " doesn't beat your current discount, so it wasn't applied. <a href=\"/cart.html\">Change on cart page</a>";
+  } else {
+    noteEl.style.display = 'block';
+    noteEl.innerHTML = 'Promo code ' + appliedCode + ' will be validated when you place your order. <a href="/cart.html">Change on cart page</a>';
+  }
 }
 
 // NEW endpoint -- see the backend handoff spec.
@@ -660,40 +717,18 @@ function loadStoreCreditBalance() {
     .catch(function() {});
 }
 
-function couponOptionLabel(c) {
-  var amount = c.discountType === 'percent'
-    ? Number(c.discountValue) + '% off'
-    : '$' + Number(c.discountValue).toFixed(2) + ' off';
-  return c.code + ' — ' + amount;
-}
-
-// NEW endpoint -- see the backend handoff spec. Only 'available' coupons
-// are offered here (already-redeemed ones would just fail the same
-// per_customer_limit check at checkout, and /api/coupons/mine already
-// excludes expired/inactive ones server-side, so there's nothing else to
-// filter out client-side). Selecting one calls applyPromoCode() below --
-// same code path the manual "Promo code" input's Apply button uses, so
-// picking from the list behaves identically to typing the code by hand.
+// NEW endpoint -- see the backend handoff spec. The coupon itself is
+// chosen on cart.html now (selector + manual entry both live there) --
+// this page just needs to know this customer's available coupons well
+// enough to resolve forgewell_promo_code to a real discountType/
+// discountValue for the read-only summary/note above, not to offer a
+// picker of its own.
 function loadCoupons() {
   fetch('/api/coupons/mine', { credentials: 'include' })
     .then(function(res) { return res.ok ? res.json() : []; })
     .then(function(coupons) {
-      var available = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
-      var row = document.getElementById('checkout-coupon-select-row');
-      if (available.length === 0) {
-        row.style.display = 'none';
-        return;
-      }
-      var select = document.getElementById('checkout-coupon-select');
-      select.innerHTML = '<option value="">Select a coupon&hellip;</option>' +
-        available.map(function(c) { return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>'; }).join('');
-      row.style.display = 'block';
-      // If a code is already applied (e.g. restored from localStorage) and
-      // it matches one of these, reflect that selection in the dropdown too.
-      var currentCode = localStorage.getItem('forgewell_promo_code');
-      if (currentCode && available.some(function(c) { return c.code === currentCode; })) {
-        select.value = currentCode;
-      }
+      availableCoupons = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
+      renderOrderSummary();
     })
     .catch(function() {});
 }
@@ -804,39 +839,6 @@ if (cart.length === 0) {
     saveAddressLabelWrap.classList.toggle('show', saveAddressCheckbox.checked);
   });
 
-  // No live validation here (that requires the email + a server round trip
-  // to check redemption history) -- same "preview only" role cart.html's
-  // copy of this field plays. The real check happens in POST /api/checkout
-  // when Place Order is actually clicked, below.
-  const promoInput = document.getElementById('checkout-promo-input');
-  const promoMsg = document.getElementById('checkout-promo-msg');
-  const couponSelect = document.getElementById('checkout-coupon-select');
-  const savedPromoCode = localStorage.getItem('forgewell_promo_code');
-  if (savedPromoCode) promoInput.value = savedPromoCode;
-
-  // Shared by the manual "Apply" button and the coupon dropdown below, so
-  // picking a coupon from the list behaves exactly the same as typing its
-  // code and clicking Apply -- same localStorage key, same message, same
-  // discountCode value that ends up in the /api/checkout POST body.
-  function applyPromoCode(code) {
-    promoMsg.classList.remove('error');
-    if (!code) {
-      localStorage.removeItem('forgewell_promo_code');
-      promoMsg.textContent = '';
-      return;
-    }
-    promoInput.value = code;
-    localStorage.setItem('forgewell_promo_code', code);
-    promoMsg.textContent = "Code will be applied when you place your order.";
-  }
-
-  document.getElementById('checkout-promo-btn').addEventListener('click', function() {
-    applyPromoCode(promoInput.value.trim());
-  });
-  couponSelect.addEventListener('change', function() {
-    applyPromoCode(couponSelect.value);
-  });
-
   renderShippingMethods();
   renderOrderSummary();
   document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
@@ -871,8 +873,10 @@ if (cart.length === 0) {
     localStorage.setItem('forgewell_checkout_email', email);
     localStorage.setItem('forgewell_shipping_address', JSON.stringify(shippingAddress));
 
-    const promoCode = promoInput.value.trim();
-    promoMsg.classList.remove('error');
+    // Not read from an input here -- the coupon isn't editable on this
+    // page, it's whatever was chosen on cart.html (see loadCoupons()/
+    // renderOrderSummary() above).
+    const promoCode = (localStorage.getItem('forgewell_promo_code') || '').trim();
 
     try {
       const creditCheckbox = document.getElementById('checkout-store-credit-checkbox');
@@ -899,17 +903,23 @@ if (cart.length === 0) {
       const data = await res.json();
 
       // The backend rejects an invalid/already-used code with a 400 and no
-      // order is created -- surface that inline on the promo field (that's
-      // the field the problem actually belongs to) rather than the earlier
+      // order is created -- surface that on the coupon note (that's the
+      // element the problem actually belongs to) rather than the earlier
       // fallback below, which used to fire for this too with a misleading
-      // "checkout succeeded" message. Any other 400/500 (bad shipping data,
-      // unknown product, payment provider issue, etc.) isn't about the
-      // promo code, so that still falls back to the generic alert below --
-      // this only narrows the one case this change is actually about.
+      // "checkout succeeded" message. There's no field to fix here anymore
+      // (the coupon isn't editable on this page), so the note just sends
+      // them back to cart.html the same way an unresolvable/losing coupon
+      // already does in renderOrderSummary(). Any other 400/500 (bad
+      // shipping data, unknown product, payment provider issue, etc.)
+      // isn't about the promo code, so that still falls back to the
+      // generic alert below -- this only narrows the one case this change
+      // is actually about.
       if (!res.ok) {
         if (data.error && /promo code/i.test(data.error)) {
-          promoMsg.classList.add('error');
-          promoMsg.textContent = data.error;
+          const noteEl = document.getElementById('checkout-coupon-note');
+          noteEl.style.display = 'block';
+          noteEl.classList.add('error');
+          noteEl.innerHTML = data.error + ' <a href="/cart.html">Fix on cart page</a>';
           return;
         }
         alert(data.error || 'Checkout failed — please try again.');
