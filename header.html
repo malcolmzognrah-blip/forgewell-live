@@ -1,19 +1,42 @@
 <style>
-/* Expands the search box on focus at narrow widths, where it's otherwise
-   squeezed down to 200px/160px (see each host page's own <style> block --
-   header.html has no CSS of its own besides this, so this is the one place
-   a header-only rule can live without duplicating it across all 16 pages).
-   :focus-within's specificity (0,2,0) beats those plain-class max-width
-   rules (0,1,0) regardless of load order, so no !important is needed.
-   Pulled out of flex flow via position:absolute instead of grown in place,
-   since header{flex-wrap:nowrap} has no room to give -- every sibling
-   (logo/nav/menu-toggle) is flex-shrink:0, so growing in place would just
-   overflow or shove them. header's own position:sticky already establishes
-   the positioning context. top:100% + left/right:0 opens a new full-width
-   strip directly below the header's own padding box -- NOT inset:0, which
-   would size this to the header's own box and, being opaque, visually paint
-   over the logo/nav/account/cart/hamburger instead of just the search
-   input, making the whole header look like it disappeared while focused. */
+/* .header-search-slot is a NEW wrapper (not present before) around the
+   existing .header-search-row -- fixes a real bug where focusing the
+   search box on mobile visibly shifted the sign-in/cart/hamburger group
+   left and, at certain widths, left the sign-in dropdown's hit area
+   sitting under where the tap/cursor landed, making it look like tapping
+   search "opened" the sign-in menu. Root cause: .header-search-row itself
+   used to be both the flex item in header's row AND the thing that went
+   position:absolute on focus -- removing a flex item from flow makes
+   every following sibling in a flex-wrap:nowrap row (menu-toggle's
+   account/cart/hamburger group) slide left to fill the gap, which is
+   exactly the "shift" that was happening. Confirmed directly (not just
+   theorized) by focusing the input and diffing getBoundingClientRect()
+   for the account icon before/after -- it moved ~115px left on a 390px
+   viewport.
+   Fix: .header-search-slot now takes over every flex-sizing property
+   .header-search-row used to carry as a direct child of header (moved
+   here from each host page's own <style> block, which still has the old
+   declarations on .header-search-row itself -- now harmless no-ops there,
+   since flex-basis/margin-left:auto/etc. only do anything on a direct
+   flex child, left in place rather than editing all 16 pages purely to
+   delete dead code). .header-search-slot never changes position, so it
+   always keeps reserving its normal slot in header's row regardless of
+   what its child does -- flexbox allocates row space from each item's
+   width/flex-basis, which doesn't depend on that item's height or
+   in-flow content, so .header-search-row collapsing to a 0-height
+   absolutely-positioned box on focus doesn't shrink or vacate the slot
+   it sits in. .header-search-row itself keeps expanding into a
+   full-width strip below the header exactly as before (still
+   position:absolute on :focus-within, still anchored to header's own
+   position:sticky as its containing block, since .header-search-slot
+   deliberately has no position value of its own to intercept that) --
+   only WHERE that expansion's containing block sits changed conceptually
+   (nested one level deeper), not what it visually does.
+   :focus-within's specificity (0,2,0) still beats the plain max-width
+   rules on .header-search-row (0,1,0) duplicated in every host page
+   regardless of load order, so no !important is needed there either --
+   though those rules are also now no-ops, superseded by
+   .header-search-slot's own max-width below. */
 @media (max-width: 1150px) {
   .header-search-row:focus-within {
     position: absolute;
@@ -30,18 +53,71 @@
   }
 }
 
+/* Base (desktop-and-up) sizing -- matches what .header-search-row used to
+   carry as a direct flex child of header before the .header-search-slot
+   wrapper existed. */
+.header-search-slot {
+  flex: 0 1 240px;
+  min-width: 0;
+  max-width: 240px;
+  margin-left: auto;
+}
+/* min-width below (overriding the base min-width:0) is a fix, not just a
+   copy of the old per-host-page rules -- confirmed by testing at 320px
+   that without it, .header-search-slot's flex-shrink math bottoms out
+   narrow enough that the <input>'s own horizontal padding (icon space --
+   56px unscoped/<=1150px: padding 11px 16px 11px 40px; 46px <=420px:
+   padding 10px 12px 10px 34px) doesn't shrink to match, forcing the
+   input to overflow its now-too-narrow slot and visibly collide with the
+   sign-in icon next to it.
+   48px/44px below are a few px UNDER each tier's own padding floor, not
+   an exact match -- a signed-in customer's account-menu-wrap got
+   measurably wider at narrow widths in the mobile-header change just
+   before this one (the person icon re-appears below 420px specifically,
+   so there's less slack at that tier than there used to be), and setting
+   min-width to the exact padding value left the header itself
+   overflowing the viewport by a few px at exactly 320px and 421px.
+   Trimmed both down empirically (alongside the reduced <=420px
+   margin-right below) until 320px through 1280px all measured 0px of
+   header horizontal overflow, signed in, at every width actually tested
+   -- narrower than 320px (no real device) still overflows and isn't
+   pursued further, matching the site's own existing breakpoints, which
+   don't explicitly target anything narrower either. */
+@media (max-width: 1150px) {
+  .header-search-slot {
+    max-width: 200px;
+    min-width: 48px;
+  }
+}
+@media (max-width: 420px) {
+  .header-search-slot {
+    max-width: 160px;
+    min-width: 44px;
+  }
+}
+
 /* The only spacing between the search box and the account/cart/hamburger
    group is header{gap}, which shrinks to 10px (<=1150px) and 6px (<=420px)
    in each host page's own <style> block to make room as things get tighter
    -- comfortable on desktop's 18px gap, but the search box and the sign-in
-   element read as touching on mobile. margin-right isn't set anywhere else
-   on .header-search-row (only margin-left:auto, for its own left-side
-   positioning), so this just adds spacing rather than overriding anything
-   -- no specificity fight needed the way the focus-expand/label-truncate
-   rules above needed one. */
+   element read as touching on mobile. On .header-search-slot now (the
+   actual flex item), not .header-search-row -- margin-right on the inner,
+   no-longer-a-flex-item .header-search-row would just eat into its own
+   parent slot's width instead of pushing the next flex sibling over.
+   Smaller (4px, not 10px) specifically <=420px -- header{gap:6px} already
+   applies on top of this (gap and margin both add up, they don't
+   replace each other), so the two tiers land on a combined 16px/10px
+   gap respectively; trimmed the redundant part of the narrower tier's
+   to help it fit the min-width floor above without the header
+   overflowing the viewport, verified empirically alongside it. */
 @media (max-width: 1150px) {
-  .header-search-row {
+  .header-search-slot {
     margin-right: 10px;
+  }
+}
+@media (max-width: 420px) {
+  .header-search-slot {
+    margin-right: 4px;
   }
 }
 
@@ -162,9 +238,11 @@
     <a href="/about-us.html" class="header-nav-link">About Us</a>
     <a href="/contact.html" class="header-nav-link">Contact Us</a>
   </nav>
-  <div class="header-search-row">
-    <input type="text" id="header-catalog-search-input" placeholder="Search the catalog...">
-    <button type="button" id="header-search-icon-btn" class="search-icon-btn" aria-label="Search"></button>
+  <div class="header-search-slot">
+    <div class="header-search-row">
+      <input type="text" id="header-catalog-search-input" placeholder="Search the catalog...">
+      <button type="button" id="header-search-icon-btn" class="search-icon-btn" aria-label="Search"></button>
+    </div>
   </div>
   <div class="menu-toggle">
     <div class="account-menu-wrap" id="account-menu-wrap">
