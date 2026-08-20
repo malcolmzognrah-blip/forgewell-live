@@ -182,9 +182,17 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-coupon-note.error{ color:#c0392b; }
 .checkout-coupon-note a{ color:var(--navy); font-weight:700; text-decoration:none; }
 .checkout-coupon-note a:hover{ text-decoration:underline; }
-.checkout-store-credit-block{ margin-bottom:10px; }
-.checkout-store-credit-row{ display:flex; align-items:center; gap:8px; font-size:0.82rem; color:#444; cursor:pointer; }
+.checkout-store-credit-block{ margin-bottom:14px; }
+.checkout-store-credit-balance{ font-size:0.82rem; font-weight:700; color:var(--navy-dark); margin-bottom:8px; }
+.checkout-store-credit-amount-row{ display:flex; align-items:center; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; overflow:hidden; }
+.checkout-store-credit-amount-row span{ padding:9px 0 9px 10px; font-size:0.82rem; color:#444; font-family:'Quicksand',sans-serif; }
+.checkout-store-credit-amount-row input{ flex:1; min-width:0; border:none; padding:9px 10px 9px 2px; font-family:'Quicksand',sans-serif; font-size:0.82rem; color:#333; }
+.checkout-store-credit-amount-row input:focus{ outline:none; }
+.checkout-store-credit-amount-row:focus-within{ border-color:var(--navy); }
+.checkout-store-credit-row{ display:flex; align-items:center; gap:8px; font-size:0.82rem; color:#444; cursor:pointer; margin-bottom:6px; }
 .checkout-store-credit-row input{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
+.checkout-store-credit-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; }
+.checkout-store-credit-msg.error{ color:#c0392b; }
 .checkout-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .checkout-place-order-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .checkout-place-order-btn:hover{ background:var(--navy-dark); }
@@ -288,10 +296,16 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         <div id="checkout-summary-lines"></div>
         <div id="checkout-coupon-note" class="checkout-coupon-note" style="display:none;"></div>
         <div class="checkout-store-credit-block" id="checkout-store-credit-block" style="display:none;">
+          <div class="checkout-store-credit-balance" id="checkout-store-credit-balance">Store Credit Available: $0.00</div>
+          <div class="checkout-store-credit-amount-row">
+            <span>$</span>
+            <input type="number" id="checkout-store-credit-amount" min="0" step="0.01" placeholder="0.00" inputmode="decimal">
+          </div>
           <label class="checkout-store-credit-row">
-            <input type="checkbox" id="checkout-store-credit-checkbox">
-            <span id="checkout-store-credit-label">Apply store credit</span>
+            <input type="checkbox" id="checkout-store-credit-all-checkbox">
+            <span>Apply all available credit</span>
           </label>
+          <div id="checkout-store-credit-msg" class="checkout-store-credit-msg"></div>
         </div>
         <div class="checkout-total-row">
           <span>Order Total</span>
@@ -644,6 +658,62 @@ function getSelectedShippingMethod() {
 // and before that fetch resolves.
 let storeCreditBalanceCents = 0;
 
+// Recomputes the subtotal-after-coupon + shipping total, independent of
+// whatever store credit is currently entered -- shared by
+// renderOrderSummary() (which needs it every render) and the "Apply all"
+// checkbox handler (which needs it once, without going through
+// syncStoreCreditAmount()'s clamp/error-message path -- filling in
+// min(balance, this) is the checkbox's job, not a correction of bad
+// manual input).
+function calculatePreCreditTotal() {
+  const appliedCode = localStorage.getItem('forgewell_promo_code');
+  const matchedCoupon = appliedCode
+    ? availableCoupons.find(function(c) { return c.code.toUpperCase() === appliedCode.trim().toUpperCase(); })
+    : null;
+  const { total } = calculateCartTotals(cart, matchedCoupon);
+  const shippingMethod = getSelectedShippingMethod();
+  return Math.round((total + shippingMethod.cost) * 100) / 100;
+}
+
+// Reads the amount input, clamps it to [0, min(balance, preCreditTotal)],
+// writes any clamp back into the field with an explanatory message, and
+// syncs the "Apply all" checkbox to reflect whether the (possibly just-
+// clamped) amount equals that max. Called on every renderOrderSummary()
+// pass, not just when the amount field itself changes, since preCreditTotal
+// can shrink out from under an already-entered amount (e.g. switching to
+// a cheaper shipping method) without the customer touching the field at all.
+function syncStoreCreditAmount(preCreditTotal) {
+  const amountInput = document.getElementById('checkout-store-credit-amount');
+  const allCheckbox = document.getElementById('checkout-store-credit-all-checkbox');
+  const msgEl = document.getElementById('checkout-store-credit-msg');
+  if (!amountInput) return 0; // block not rendered -- balance is 0, nothing to apply
+
+  const balanceDollars = storeCreditBalanceCents / 100;
+  const maxApplicable = Math.round(Math.min(balanceDollars, preCreditTotal) * 100) / 100;
+
+  const raw = amountInput.value.trim();
+  let parsed = raw === '' ? 0 : parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) parsed = 0;
+
+  // Small epsilon for float comparison -- avoids e.g. 12.00 vs 11.999999996
+  // both from legitimate cent-level rounding elsewhere reading as "over".
+  if (parsed > maxApplicable + 0.001) {
+    msgEl.textContent = balanceDollars < preCreditTotal
+      ? 'You only have $' + balanceDollars.toFixed(2) + ' in store credit available.'
+      : "You can't apply more than the order total ($" + preCreditTotal.toFixed(2) + ').';
+    msgEl.classList.add('error');
+    parsed = maxApplicable;
+    amountInput.value = parsed > 0 ? parsed.toFixed(2) : '';
+  } else {
+    msgEl.textContent = '';
+    msgEl.classList.remove('error');
+  }
+
+  allCheckbox.checked = maxApplicable > 0 && Math.abs(parsed - maxApplicable) < 0.001;
+
+  return parsed;
+}
+
 // NOTE: like the discount preview above, this total is a client-side
 // preview only. Today's /api/checkout payload doesn't carry a shipping
 // method at all (kept unchanged, per the "reuse the payment flow as-is"
@@ -660,10 +730,8 @@ function renderOrderSummary() {
   const shippingMethod = getSelectedShippingMethod();
   const preCreditTotal = total + shippingMethod.cost;
 
-  const creditCheckbox = document.getElementById('checkout-store-credit-checkbox');
-  const applyCredit = !!(creditCheckbox && creditCheckbox.checked);
-  const creditToApply = applyCredit ? Math.min(storeCreditBalanceCents / 100, preCreditTotal) : 0;
-  const grandTotal = preCreditTotal - creditToApply;
+  const creditToApply = syncStoreCreditAmount(preCreditTotal);
+  const grandTotal = Math.max(0, preCreditTotal - creditToApply);
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
   let html = '<div class="checkout-summary-line"><span>Subtotal (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')</span><span>$' + subtotal.toFixed(2) + '</span></div>';
@@ -709,8 +777,8 @@ function loadStoreCreditBalance() {
       storeCreditBalanceCents = data.balanceCents || 0;
       if (storeCreditBalanceCents > 0) {
         document.getElementById('checkout-store-credit-block').style.display = 'block';
-        document.getElementById('checkout-store-credit-label').textContent =
-          'Apply available store credit ($' + (storeCreditBalanceCents / 100).toFixed(2) + ')';
+        document.getElementById('checkout-store-credit-balance').textContent =
+          'Store Credit Available: $' + (storeCreditBalanceCents / 100).toFixed(2);
       }
       renderOrderSummary();
     })
@@ -842,7 +910,23 @@ if (cart.length === 0) {
   renderShippingMethods();
   renderOrderSummary();
   document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
-  document.getElementById('checkout-store-credit-checkbox').addEventListener('change', renderOrderSummary);
+
+  // Typing a specific amount and checking "Apply all" both funnel through
+  // renderOrderSummary() -> syncStoreCreditAmount(), which is the single
+  // place that clamps/validates and keeps the two in sync -- see its own
+  // comment. This handler's only job is deciding what to seed the amount
+  // field with before that runs.
+  document.getElementById('checkout-store-credit-amount').addEventListener('input', renderOrderSummary);
+  document.getElementById('checkout-store-credit-all-checkbox').addEventListener('change', function() {
+    const amountInput = document.getElementById('checkout-store-credit-amount');
+    if (this.checked) {
+      const maxApplicable = Math.round(Math.min(storeCreditBalanceCents / 100, calculatePreCreditTotal()) * 100) / 100;
+      amountInput.value = maxApplicable > 0 ? maxApplicable.toFixed(2) : '';
+    } else {
+      amountInput.value = '';
+    }
+    renderOrderSummary();
+  });
 
   document.getElementById('checkout-place-order-btn').addEventListener('click', async function() {
     const email = emailInput.value.trim();
@@ -879,8 +963,16 @@ if (cart.length === 0) {
     const promoCode = (localStorage.getItem('forgewell_promo_code') || '').trim();
 
     try {
-      const creditCheckbox = document.getElementById('checkout-store-credit-checkbox');
-      const applyStoreCredit = isSignedIn && creditCheckbox && creditCheckbox.checked && storeCreditBalanceCents > 0;
+      // Reads whatever renderOrderSummary()'s last pass already validated/
+      // clamped into the field (syncStoreCreditAmount() runs on every
+      // render, including right before this on qty/coupon/shipping
+      // changes), rather than re-deriving it here -- the amount actually
+      // shown in the order total is the amount actually submitted.
+      const creditAmountInput = document.getElementById('checkout-store-credit-amount');
+      const enteredCreditDollars = (isSignedIn && creditAmountInput) ? parseFloat(creditAmountInput.value) : 0;
+      const storeCreditCentsToApply = Number.isFinite(enteredCreditDollars) && enteredCreditDollars > 0
+        ? Math.round(enteredCreditDollars * 100)
+        : 0;
 
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -897,7 +989,7 @@ if (cart.length === 0) {
           customerEmail: email,
           shippingAddress: shippingAddress,
           discountCode: promoCode || undefined,
-          storeCreditCents: applyStoreCredit ? storeCreditBalanceCents : undefined
+          storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined
         })
       });
       const data = await res.json();
