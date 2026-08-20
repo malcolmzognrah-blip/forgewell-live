@@ -142,15 +142,11 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-summary-discount{ color:var(--green); font-weight:700; }
 .cart-field-label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px; }
 .cart-field-label:first-child{ margin-top:0; }
-.cart-coupon-select-row{ display:flex; gap:8px; margin:0 0 6px; }
-.cart-coupon-select-row select{ flex:1; min-width:0; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
-.cart-coupon-select-row select:focus{ outline:none; border-color:var(--navy); }
-.cart-coupon-select-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
-.cart-coupon-select-row button:hover{ background:var(--navy); color:#fff; }
-.cart-promo-row{ display:flex; gap:8px; margin:0 0 6px; }
-.cart-promo-row input{ flex:1; min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; box-sizing:border-box; }
-.cart-promo-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
-.cart-promo-row button:hover{ background:var(--navy); color:#fff; }
+.cart-coupon-row{ display:flex; gap:8px; margin:0 0 6px; }
+.cart-coupon-row input{ flex:1; min-width:0; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
+.cart-coupon-row input:focus{ outline:none; border-color:var(--navy); }
+.cart-coupon-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.cart-coupon-row button:hover{ background:var(--navy); color:#fff; }
 .cart-promo-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; margin:6px 0 10px; }
 .cart-promo-msg.error{ color:#c0392b; }
 .cart-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
@@ -195,20 +191,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
     <div class="cart-summary-col">
       <div class="cart-summary-card">
         <div id="cart-summary-lines"></div>
-        <div class="cart-coupon-block" id="cart-coupon-select-block" style="display:none;">
-          <label class="cart-field-label" for="cart-coupon-select">Your Coupons</label>
-          <div class="cart-coupon-select-row">
-            <select id="cart-coupon-select">
-              <option value="">Select a coupon&hellip;</option>
-            </select>
-            <button type="button" id="cart-coupon-select-apply-btn">Apply</button>
-          </div>
-        </div>
         <div class="cart-coupon-block">
-          <label class="cart-field-label" for="cart-promo-input">Or Enter a Code</label>
-          <div class="cart-promo-row">
-            <input type="text" id="cart-promo-input" placeholder="Enter a coupon code">
-            <button type="button" id="cart-promo-btn">Apply</button>
+          <label class="cart-field-label" for="cart-coupon-input">Coupon Code</label>
+          <div class="cart-coupon-row">
+            <input type="text" id="cart-coupon-input" list="cart-coupon-datalist" placeholder="Enter or select a coupon code" autocomplete="off">
+            <datalist id="cart-coupon-datalist"></datalist>
+            <button type="button" id="cart-coupon-apply-btn">Apply</button>
           </div>
         </div>
         <div id="cart-promo-msg" class="cart-promo-msg"></div>
@@ -687,37 +675,28 @@ function loadCoupons() {
     })
     .then(function(coupons) {
       availableCoupons = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
-      var block = document.getElementById('cart-coupon-select-block');
-      if (availableCoupons.length === 0) {
-        block.style.display = 'none';
-      } else {
-        var select = document.getElementById('cart-coupon-select');
-        select.innerHTML = '<option value="">Select a coupon&hellip;</option>' +
-          availableCoupons.map(function(c) { return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>'; }).join('');
-        block.style.display = 'block';
-        var currentCode = localStorage.getItem('forgewell_promo_code');
-        if (currentCode && availableCoupons.some(function(c) { return c.code === currentCode; })) {
-          select.value = currentCode;
-        }
-      }
+      var datalist = document.getElementById('cart-coupon-datalist');
+      // The value a browser actually fills into the input on selection is
+      // the option's `value` (the bare code) -- the visible label text is
+      // a hint only, shown alongside it in the suggestion list.
+      datalist.innerHTML = availableCoupons.map(function(c) {
+        return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>';
+      }).join('');
       renderCartPage();
     })
     .catch(function() {});
 }
 
-// Two separate controls, same as checkout.html originally had: a dropdown
-// (Your Coupons, populated from loadCoupons() above) for a coupon already
-// tied to this account, and a manual text field for a one-off code a
-// guest has or that isn't in the dropdown -- each with its own Apply
-// button (no auto-apply-on-select/on-keystroke). Both funnel into the
-// same applyPromoCode(), so either path behaves identically and only one
-// coupon is ever active at a time (forgewell_promo_code is a single
-// value, not a list) -- applying a new one always just replaces whatever
-// was there.
-var promoInput = document.getElementById('cart-promo-input');
-var couponSelect = document.getElementById('cart-coupon-select');
+// One combined field (text input + <datalist>): typing and picking from
+// the list both land in the same field, but nothing is applied until the
+// separate Apply button next to it is clicked -- no auto-apply on
+// selection, typing, or Enter. Only one coupon is ever active at a time
+// (forgewell_promo_code is a single value, not a list), so clicking
+// Apply with a new code always just replaces whatever was there; clicking
+// it with the field emptied removes the current coupon entirely.
+var couponInput = document.getElementById('cart-coupon-input');
 var savedPromoCode = localStorage.getItem('forgewell_promo_code');
-if (savedPromoCode) promoInput.value = savedPromoCode;
+if (savedPromoCode) couponInput.value = savedPromoCode;
 
 // #cart-promo-msg itself is set by renderCartPage(), not here, so it stays
 // correct across any later re-render (e.g. a qty change flipping whether
@@ -725,18 +704,16 @@ if (savedPromoCode) promoInput.value = savedPromoCode;
 function applyPromoCode(code) {
   if (!code) {
     localStorage.removeItem('forgewell_promo_code');
+    couponInput.value = '';
   } else {
-    promoInput.value = code;
+    couponInput.value = code;
     localStorage.setItem('forgewell_promo_code', code);
   }
   renderCartPage();
 }
 
-document.getElementById('cart-coupon-select-apply-btn').addEventListener('click', function() {
-  applyPromoCode(couponSelect.value);
-});
-document.getElementById('cart-promo-btn').addEventListener('click', function() {
-  applyPromoCode(promoInput.value.trim());
+document.getElementById('cart-coupon-apply-btn').addEventListener('click', function() {
+  applyPromoCode(couponInput.value.trim());
 });
 
 document.getElementById('cart-checkout-btn').addEventListener('click', function() {
