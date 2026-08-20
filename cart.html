@@ -152,8 +152,32 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
    panels (see header.html's #account-dropdown -- same white/border/
    border-radius/box-shadow combo). */
 .cart-coupon-combo{ position:relative; flex:1; min-width:0; }
-.cart-coupon-combo input{ width:100%; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
+.cart-coupon-combo input{ width:100%; box-sizing:border-box; padding:9px 30px 9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
 .cart-coupon-combo input:focus{ outline:none; border-color:var(--navy); }
+/* Hidden unless there are coupons to pick from (see loadCoupons()) --
+   same chevron glyph as header.html's .account-menu-arrow, so this reads
+   as the same "dropdown available" affordance used elsewhere on the site.
+   A plain text field with nothing to select from just stays a plain text
+   field, with no dead arrow implying otherwise. */
+/* Selectors below are scoped as .cart-coupon-combo .cart-coupon-arrow-btn
+   (two classes), not just .cart-coupon-arrow-btn alone -- needed to
+   out-specificity .cart-coupon-row button above, which would otherwise
+   also match this button (it's a <button> nested inside .cart-coupon-row)
+   and paint it with the Apply button's white/bordered/padded look,
+   hiding the chevron inside an oversized box. */
+.cart-coupon-combo .cart-coupon-arrow-btn{
+  display:none; position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  width:22px; height:22px; align-items:center; justify-content:center;
+  padding:0; background:none; border:none; outline:none; color:var(--gray); cursor:pointer;
+  -webkit-appearance:none; appearance:none;
+}
+.cart-coupon-combo .cart-coupon-arrow-btn.show{ display:flex; }
+/* background/border repeated here, not just in the base rule above --
+   .cart-coupon-row button:hover (the Apply button's own hover style)
+   also matches this element and sets a navy background; CSS cascades
+   per-property, so a higher-specificity rule that's silent on
+   background does not block that property specifically, only color. */
+.cart-coupon-combo .cart-coupon-arrow-btn:hover{ color:var(--navy); background:none; border:none; }
 .cart-coupon-dropdown{
   display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
   background:#fff; border:1px solid var(--line); border-radius:10px;
@@ -212,7 +236,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <label class="cart-field-label" for="cart-coupon-input">Coupon Code</label>
           <div class="cart-coupon-row">
             <div class="cart-coupon-combo" id="cart-coupon-combo">
-              <input type="text" id="cart-coupon-input" placeholder="Enter or select a coupon code" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="cart-coupon-dropdown">
+              <input type="text" id="cart-coupon-input" placeholder="Enter a coupon code" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="cart-coupon-dropdown">
+              <button type="button" id="cart-coupon-arrow-btn" class="cart-coupon-arrow-btn" tabindex="-1" aria-label="Show available coupons" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
               <div class="cart-coupon-dropdown" id="cart-coupon-dropdown" role="listbox"></div>
             </div>
             <button type="button" id="cart-coupon-apply-btn">Apply</button>
@@ -694,6 +721,14 @@ function loadCoupons() {
     })
     .then(function(coupons) {
       availableCoupons = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
+      // The dropdown arrow (and the "or select" wording) only make sense
+      // when there's actually something to pick from -- a guest, or a
+      // signed-in customer with zero available coupons, just gets a plain
+      // text field with nothing implying otherwise.
+      var hasCoupons = availableCoupons.length > 0;
+      couponArrowBtn.classList.toggle('show', hasCoupons);
+      couponArrowBtn.setAttribute('aria-hidden', hasCoupons ? 'false' : 'true');
+      couponInput.placeholder = hasCoupons ? 'Enter or select a coupon code' : 'Enter a coupon code';
       renderCartPage();
     })
     .catch(function() {});
@@ -713,6 +748,7 @@ function loadCoupons() {
 // than relying on native browser autocomplete UI.
 var couponInput = document.getElementById('cart-coupon-input');
 var couponDropdown = document.getElementById('cart-coupon-dropdown');
+var couponArrowBtn = document.getElementById('cart-coupon-arrow-btn');
 var savedPromoCode = localStorage.getItem('forgewell_promo_code');
 if (savedPromoCode) couponInput.value = savedPromoCode;
 
@@ -775,6 +811,22 @@ couponInput.addEventListener('click', function() {
 });
 couponInput.addEventListener('input', function() {
   if (availableCoupons.length > 0) openCouponDropdown(couponInput.value);
+});
+// The arrow button itself only ever shows once loadCoupons() confirms
+// there's something to pick from, so no availableCoupons.length guard is
+// needed here the way the listeners above need one. Always opens with
+// the full list (not filtered by whatever's currently typed) -- clicking
+// a dedicated "show everything" affordance shouldn't be at the mercy of
+// stray text already in the field. Doesn't call couponInput.focus() --
+// that would re-trigger the 'focus' listener above and re-filter by the
+// current value, undoing the unfiltered list this just opened.
+couponArrowBtn.addEventListener('click', function(e) {
+  e.preventDefault();
+  if (couponDropdown.classList.contains('open')) {
+    closeCouponDropdown();
+  } else {
+    openCouponDropdown('');
+  }
 });
 couponInput.addEventListener('keydown', function(e) {
   if (e.key === 'ArrowDown') {
