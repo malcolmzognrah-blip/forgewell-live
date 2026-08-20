@@ -141,14 +141,18 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-summary-line{ display:flex; justify-content:space-between; font-size:0.85rem; color:#444; margin-bottom:10px; }
 .cart-summary-discount{ color:var(--green); font-weight:700; }
 .cart-field-label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px; }
-.cart-coupon-block{ margin:16px 0 6px; }
-.cart-coupon-input-row{ position:relative; }
-.cart-coupon-input-row input{ width:100%; box-sizing:border-box; padding:9px 32px 9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
-.cart-coupon-input-row input:focus{ outline:none; border-color:var(--navy); }
-.cart-coupon-clear-btn{ display:none; position:absolute; right:4px; top:50%; transform:translateY(-50%); width:24px; height:24px; background:none; border:none; color:var(--gray); font-size:1.1rem; line-height:1; cursor:pointer; font-family:'Quicksand',sans-serif; }
-.cart-coupon-clear-btn:hover{ color:#C0447A; }
-.cart-coupon-clear-btn.show{ display:block; }
+.cart-field-label:first-child{ margin-top:0; }
+.cart-coupon-select-row{ display:flex; gap:8px; margin:0 0 6px; }
+.cart-coupon-select-row select{ flex:1; min-width:0; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
+.cart-coupon-select-row select:focus{ outline:none; border-color:var(--navy); }
+.cart-coupon-select-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.cart-coupon-select-row button:hover{ background:var(--navy); color:#fff; }
+.cart-promo-row{ display:flex; gap:8px; margin:0 0 6px; }
+.cart-promo-row input{ flex:1; min-width:0; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; box-sizing:border-box; }
+.cart-promo-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
+.cart-promo-row button:hover{ background:var(--navy); color:#fff; }
 .cart-promo-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; margin:6px 0 10px; }
+.cart-promo-msg.error{ color:#c0392b; }
 .cart-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .cart-checkout-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .cart-checkout-btn:hover{ background:var(--navy-dark); }
@@ -191,12 +195,20 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
     <div class="cart-summary-col">
       <div class="cart-summary-card">
         <div id="cart-summary-lines"></div>
+        <div class="cart-coupon-block" id="cart-coupon-select-block" style="display:none;">
+          <label class="cart-field-label" for="cart-coupon-select">Your Coupons</label>
+          <div class="cart-coupon-select-row">
+            <select id="cart-coupon-select">
+              <option value="">Select a coupon&hellip;</option>
+            </select>
+            <button type="button" id="cart-coupon-select-apply-btn">Apply</button>
+          </div>
+        </div>
         <div class="cart-coupon-block">
-          <label class="cart-field-label" for="cart-coupon-input">Coupon Code</label>
-          <div class="cart-coupon-input-row">
-            <input type="text" id="cart-coupon-input" list="cart-coupon-datalist" placeholder="Enter or select a coupon code" autocomplete="off">
-            <datalist id="cart-coupon-datalist"></datalist>
-            <button type="button" id="cart-coupon-clear-btn" class="cart-coupon-clear-btn" title="Remove coupon" aria-label="Remove coupon">&times;</button>
+          <label class="cart-field-label" for="cart-promo-input">Or Enter a Code</label>
+          <div class="cart-promo-row">
+            <input type="text" id="cart-promo-input" placeholder="Enter a coupon code">
+            <button type="button" id="cart-promo-btn">Apply</button>
           </div>
         </div>
         <div id="cart-promo-msg" class="cart-promo-msg"></div>
@@ -220,6 +232,12 @@ let cart = JSON.parse(localStorage.getItem('forgewell_cart') || '[]');
 // Populated by loadCoupons() below (signed-in customers only) -- empty
 // until then, so renderCartPage() just shows no coupon-savings line yet.
 let availableCoupons = [];
+// True once /api/coupons/mine has actually resolved successfully (a real
+// signed-in session, whether or not they have any coupons) -- stays false
+// for a signed-out guest (401) or before the fetch resolves. Lets
+// renderCartPage() tell "this code is genuinely invalid" (we have the
+// full list and it's not in it) apart from "we simply don't know."
+let couponsKnown = false;
 
 async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
@@ -606,12 +624,24 @@ function renderCartPage() {
   // can flip whether the bulk discount or the coupon wins, and this needs
   // to reflect that without the customer re-applying anything.
   var msgEl = document.getElementById('cart-promo-msg');
+  msgEl.classList.remove('error');
   if (!appliedCode || couponWon) {
     msgEl.textContent = '';
   } else if (matchedCoupon) {
     msgEl.textContent = "Coupon " + matchedCoupon.code + " doesn't beat your current discount, so it wasn't applied.";
+  } else if (couponsKnown) {
+    // /api/coupons/mine already returns every active, unused coupon in the
+    // whole system for a signed-in customer -- so once that's actually
+    // loaded, a typed code that isn't in it is genuinely invalid (or
+    // already used by this email), not just "unverified." Previously this
+    // showed "Code saved -- it'll be applied at checkout," which read as
+    // a success message for what's actually a bad code -- bug fix.
+    msgEl.textContent = 'Invalid coupon.';
+    msgEl.classList.add('error');
   } else {
-    msgEl.textContent = "Code saved — it'll be applied at checkout.";
+    // Signed out, or the coupons fetch hasn't resolved/failed -- there's
+    // no way to tell if this code is real, so don't claim either way.
+    msgEl.textContent = "We can't verify this code until checkout.";
   }
 }
 
@@ -645,47 +675,49 @@ function couponOptionLabel(c) {
 
 // NEW endpoint -- see the backend handoff spec. Only 'available' coupons
 // are offered (already-redeemed/expired/inactive ones are excluded
-// server-side). 401s for a signed-out visitor -- caught below and left as
-// an empty list, same as a signed-in customer with zero coupons: the
-// <datalist> just stays empty and the field behaves as plain manual entry.
+// server-side). 401s for a signed-out visitor -- caught below, leaving
+// availableCoupons empty and couponsKnown false, same as a signed-in
+// customer with zero coupons except renderCartPage()'s invalid-coupon
+// messaging treats the two differently -- see its own comment.
 function loadCoupons() {
   fetch('/api/coupons/mine', { credentials: 'include' })
-    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(res) {
+      couponsKnown = res.ok;
+      return res.ok ? res.json() : [];
+    })
     .then(function(coupons) {
       availableCoupons = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
-      var datalist = document.getElementById('cart-coupon-datalist');
-      // The value browsers actually fill in on selection is the option's
-      // `value` (the bare code) -- the visible label text is a hint only,
-      // shown alongside it in the suggestion list.
-      datalist.innerHTML = availableCoupons.map(function(c) {
-        return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>';
-      }).join('');
+      var block = document.getElementById('cart-coupon-select-block');
+      if (availableCoupons.length === 0) {
+        block.style.display = 'none';
+      } else {
+        var select = document.getElementById('cart-coupon-select');
+        select.innerHTML = '<option value="">Select a coupon&hellip;</option>' +
+          availableCoupons.map(function(c) { return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>'; }).join('');
+        block.style.display = 'block';
+        var currentCode = localStorage.getItem('forgewell_promo_code');
+        if (currentCode && availableCoupons.some(function(c) { return c.code === currentCode; })) {
+          select.value = currentCode;
+        }
+      }
       renderCartPage();
     })
     .catch(function() {});
 }
 
-// Single combined control (input + <datalist>) replaces the old separate
-// dropdown + text box + Apply button: typing and picking from the list
-// both land in the same field, and applying is immediate -- no button
-// click needed. Only one coupon is ever active at a time by construction
-// (forgewell_promo_code is a single value, not a list), so entering a new
-// one always just overwrites whatever was there.
-//
-// No customer email is known for certain on this page (a guest's isn't
-// collected until checkout.html), but a signed-in customer's coupons are
-// already resolved via loadCoupons() above, so a match there IS priced
-// and shown live here (see renderCartPage()) -- only an unmatched code (a
-// guest, or a code not in this account's list) falls back to the soft
-// "will be applied at checkout" message, since it genuinely can't be
-// validated/priced without a server round trip.
-var couponInput = document.getElementById('cart-coupon-input');
-var couponClearBtn = document.getElementById('cart-coupon-clear-btn');
+// Two separate controls, same as checkout.html originally had: a dropdown
+// (Your Coupons, populated from loadCoupons() above) for a coupon already
+// tied to this account, and a manual text field for a one-off code a
+// guest has or that isn't in the dropdown -- each with its own Apply
+// button (no auto-apply-on-select/on-keystroke). Both funnel into the
+// same applyPromoCode(), so either path behaves identically and only one
+// coupon is ever active at a time (forgewell_promo_code is a single
+// value, not a list) -- applying a new one always just replaces whatever
+// was there.
+var promoInput = document.getElementById('cart-promo-input');
+var couponSelect = document.getElementById('cart-coupon-select');
 var savedPromoCode = localStorage.getItem('forgewell_promo_code');
-if (savedPromoCode) {
-  couponInput.value = savedPromoCode;
-  couponClearBtn.classList.add('show');
-}
+if (savedPromoCode) promoInput.value = savedPromoCode;
 
 // #cart-promo-msg itself is set by renderCartPage(), not here, so it stays
 // correct across any later re-render (e.g. a qty change flipping whether
@@ -693,44 +725,18 @@ if (savedPromoCode) {
 function applyPromoCode(code) {
   if (!code) {
     localStorage.removeItem('forgewell_promo_code');
-    couponInput.value = '';
   } else {
-    couponInput.value = code;
+    promoInput.value = code;
     localStorage.setItem('forgewell_promo_code', code);
   }
-  couponClearBtn.classList.toggle('show', !!code);
   renderCartPage();
 }
 
-// Picking a suggestion from the <datalist> fires 'input' with the value
-// already set to that option's code -- applying immediately the moment it
-// matches a known coupon (case-insensitively, same normalization checkout
-// applies) means a click/tap on a suggestion needs no further action.
-// Free-form typing that doesn't (yet) match anything just passes through
-// without applying on every keystroke.
-couponInput.addEventListener('input', function() {
-  var value = couponInput.value.trim();
-  if (value && availableCoupons.some(function(c) { return c.code.toUpperCase() === value.toUpperCase(); })) {
-    applyPromoCode(value);
-  }
+document.getElementById('cart-coupon-select-apply-btn').addEventListener('click', function() {
+  applyPromoCode(couponSelect.value);
 });
-// Enter confirms a manually-typed code (matched or not -- an unmatched one
-// still gets saved for checkout.html to validate for real, same as
-// before), without requiring a separate Apply button.
-couponInput.addEventListener('keydown', function(e) {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  applyPromoCode(couponInput.value.trim());
-  couponInput.blur();
-});
-// Blurring after an edit is also treated as confirming -- covers clicking
-// away after typing without pressing Enter.
-couponInput.addEventListener('change', function() {
-  applyPromoCode(couponInput.value.trim());
-});
-couponClearBtn.addEventListener('click', function() {
-  applyPromoCode('');
-  couponInput.focus();
+document.getElementById('cart-promo-btn').addEventListener('click', function() {
+  applyPromoCode(promoInput.value.trim());
 });
 
 document.getElementById('cart-checkout-btn').addEventListener('click', function() {
