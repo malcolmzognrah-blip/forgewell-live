@@ -143,10 +143,27 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-field-label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px; }
 .cart-field-label:first-child{ margin-top:0; }
 .cart-coupon-row{ display:flex; gap:8px; margin:0 0 6px; }
-.cart-coupon-row input{ flex:1; min-width:0; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
-.cart-coupon-row input:focus{ outline:none; border-color:var(--navy); }
 .cart-coupon-row button{ padding:9px 14px; background:#fff; border:1.5px solid var(--navy); color:var(--navy); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .cart-coupon-row button:hover{ background:var(--navy); color:#fff; }
+/* Custom combobox -- a plain <input list>/<datalist> renders its
+   suggestion popup entirely via the browser/OS (unstyled, platform-native
+   look), so this is hand-built instead: a normal text input plus a
+   JS-driven dropdown panel, styled to match the site's other dropdown
+   panels (see header.html's #account-dropdown -- same white/border/
+   border-radius/box-shadow combo). */
+.cart-coupon-combo{ position:relative; flex:1; min-width:0; }
+.cart-coupon-combo input{ width:100%; box-sizing:border-box; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font-family:'Quicksand',sans-serif; font-size:0.82rem; background:#fff; color:#333; }
+.cart-coupon-combo input:focus{ outline:none; border-color:var(--navy); }
+.cart-coupon-dropdown{
+  display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
+  background:#fff; border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 8px 24px rgba(18,48,86,0.16); z-index:20;
+  max-height:220px; overflow-y:auto; padding:6px 0;
+}
+.cart-coupon-dropdown.open{ display:block; }
+.cart-coupon-option{ padding:9px 14px; font-size:0.82rem; font-weight:700; color:var(--navy-dark); font-family:'Quicksand',sans-serif; cursor:pointer; }
+.cart-coupon-option:hover, .cart-coupon-option.active{ background:var(--panel); }
+.cart-coupon-option-empty{ padding:9px 14px; font-size:0.78rem; font-weight:500; color:var(--gray); font-family:'Quicksand',sans-serif; }
 .cart-promo-msg{ font-size:0.72rem; color:var(--gray); min-height:14px; margin:6px 0 10px; }
 .cart-promo-msg.error{ color:#c0392b; }
 .cart-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
@@ -194,8 +211,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         <div class="cart-coupon-block">
           <label class="cart-field-label" for="cart-coupon-input">Coupon Code</label>
           <div class="cart-coupon-row">
-            <input type="text" id="cart-coupon-input" list="cart-coupon-datalist" placeholder="Enter or select a coupon code" autocomplete="off">
-            <datalist id="cart-coupon-datalist"></datalist>
+            <div class="cart-coupon-combo" id="cart-coupon-combo">
+              <input type="text" id="cart-coupon-input" placeholder="Enter or select a coupon code" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="cart-coupon-dropdown">
+              <div class="cart-coupon-dropdown" id="cart-coupon-dropdown" role="listbox"></div>
+            </div>
             <button type="button" id="cart-coupon-apply-btn">Apply</button>
           </div>
         </div>
@@ -675,28 +694,121 @@ function loadCoupons() {
     })
     .then(function(coupons) {
       availableCoupons = (Array.isArray(coupons) ? coupons : []).filter(function(c) { return c.status === 'available'; });
-      var datalist = document.getElementById('cart-coupon-datalist');
-      // The value a browser actually fills into the input on selection is
-      // the option's `value` (the bare code) -- the visible label text is
-      // a hint only, shown alongside it in the suggestion list.
-      datalist.innerHTML = availableCoupons.map(function(c) {
-        return '<option value="' + c.code + '">' + couponOptionLabel(c) + '</option>';
-      }).join('');
       renderCartPage();
     })
     .catch(function() {});
 }
 
-// One combined field (text input + <datalist>): typing and picking from
-// the list both land in the same field, but nothing is applied until the
-// separate Apply button next to it is clicked -- no auto-apply on
-// selection, typing, or Enter. Only one coupon is ever active at a time
-// (forgewell_promo_code is a single value, not a list), so clicking
-// Apply with a new code always just replaces whatever was there; clicking
-// it with the field emptied removes the current coupon entirely.
+// One combined field: typing and picking from a dropdown both land in the
+// same input, but nothing is applied until the separate Apply button next
+// to it is clicked -- no auto-apply on selection, typing, or Enter. Only
+// one coupon is ever active at a time (forgewell_promo_code is a single
+// value, not a list), so clicking Apply with a new code always just
+// replaces whatever was there; clicking it with the field emptied removes
+// the current coupon entirely.
+//
+// The dropdown itself is hand-built (a plain <input list>/<datalist>
+// renders its suggestion popup entirely via the browser/OS -- unstyled,
+// platform-native look, not matching the site's other dropdowns) rather
+// than relying on native browser autocomplete UI.
 var couponInput = document.getElementById('cart-coupon-input');
+var couponDropdown = document.getElementById('cart-coupon-dropdown');
 var savedPromoCode = localStorage.getItem('forgewell_promo_code');
 if (savedPromoCode) couponInput.value = savedPromoCode;
+
+var couponDropdownActiveIndex = -1;
+var couponDropdownVisibleCoupons = [];
+
+function closeCouponDropdown() {
+  couponDropdown.classList.remove('open');
+  couponInput.setAttribute('aria-expanded', 'false');
+  couponDropdownActiveIndex = -1;
+}
+
+// filterText is matched against the code (case-insensitive, substring) --
+// same forgiving match the manual-entry field itself already tolerates.
+function openCouponDropdown(filterText) {
+  var query = (filterText || '').trim().toUpperCase();
+  couponDropdownVisibleCoupons = query
+    ? availableCoupons.filter(function(c) { return c.code.toUpperCase().indexOf(query) !== -1; })
+    : availableCoupons.slice();
+
+  if (couponDropdownVisibleCoupons.length === 0) {
+    couponDropdown.innerHTML = '<div class="cart-coupon-option-empty">No matching coupons</div>';
+  } else {
+    couponDropdown.innerHTML = couponDropdownVisibleCoupons.map(function(c, i) {
+      return '<div class="cart-coupon-option" data-index="' + i + '" role="option">' + couponOptionLabel(c) + '</div>';
+    }).join('');
+  }
+  couponDropdown.classList.add('open');
+  couponInput.setAttribute('aria-expanded', 'true');
+  couponDropdownActiveIndex = -1;
+}
+
+function setCouponDropdownActive(index) {
+  var options = couponDropdown.querySelectorAll('.cart-coupon-option');
+  options.forEach(function(el, i) { el.classList.toggle('active', i === index); });
+  couponDropdownActiveIndex = index;
+  var activeEl = options[index];
+  if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+}
+
+// Picking an option only populates the field (same as typing it by hand)
+// -- it does not apply the coupon, matching the Apply-button-only rule
+// above.
+function selectCouponOption(index) {
+  var coupon = couponDropdownVisibleCoupons[index];
+  if (!coupon) return;
+  couponInput.value = coupon.code;
+  closeCouponDropdown();
+}
+
+// 'click' is needed alongside 'focus' -- clicking an input that's already
+// focused (e.g. right after Enter/Escape closed the dropdown but left
+// focus in the field) doesn't fire a new 'focus' event, so relying on
+// 'focus' alone would leave the dropdown stuck closed in that case.
+couponInput.addEventListener('focus', function() {
+  if (availableCoupons.length > 0) openCouponDropdown(couponInput.value);
+});
+couponInput.addEventListener('click', function() {
+  if (availableCoupons.length > 0 && !couponDropdown.classList.contains('open')) openCouponDropdown(couponInput.value);
+});
+couponInput.addEventListener('input', function() {
+  if (availableCoupons.length > 0) openCouponDropdown(couponInput.value);
+});
+couponInput.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (!couponDropdown.classList.contains('open')) { openCouponDropdown(couponInput.value); }
+    if (couponDropdownVisibleCoupons.length === 0) return;
+    setCouponDropdownActive((couponDropdownActiveIndex + 1) % couponDropdownVisibleCoupons.length);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!couponDropdown.classList.contains('open')) { openCouponDropdown(couponInput.value); }
+    if (couponDropdownVisibleCoupons.length === 0) return;
+    setCouponDropdownActive((couponDropdownActiveIndex - 1 + couponDropdownVisibleCoupons.length) % couponDropdownVisibleCoupons.length);
+  } else if (e.key === 'Enter') {
+    // Selects the highlighted option into the field, same as a click --
+    // it still doesn't apply the coupon. If nothing is highlighted, Enter
+    // does nothing here (same as before this change -- only the Apply
+    // button applies).
+    if (couponDropdown.classList.contains('open') && couponDropdownActiveIndex >= 0) {
+      e.preventDefault();
+      selectCouponOption(couponDropdownActiveIndex);
+    }
+  } else if (e.key === 'Escape') {
+    closeCouponDropdown();
+  }
+});
+couponDropdown.addEventListener('click', function(e) {
+  var option = e.target.closest('.cart-coupon-option');
+  if (!option) return;
+  selectCouponOption(Number(option.dataset.index));
+});
+document.addEventListener('click', function(e) {
+  if (!couponDropdown.classList.contains('open')) return;
+  if (!document.getElementById('cart-coupon-combo').contains(e.target)) closeCouponDropdown();
+});
 
 // #cart-promo-msg itself is set by renderCartPage(), not here, so it stays
 // correct across any later re-render (e.g. a qty change flipping whether
@@ -713,6 +825,7 @@ function applyPromoCode(code) {
 }
 
 document.getElementById('cart-coupon-apply-btn').addEventListener('click', function() {
+  closeCouponDropdown();
   applyPromoCode(couponInput.value.trim());
 });
 
