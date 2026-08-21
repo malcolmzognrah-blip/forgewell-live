@@ -194,7 +194,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .product-create-form.show{ display:block; }
 .product-create-form label{ display:block; font-size:0.72rem; font-weight:700; color:var(--gray); margin:14px 0 5px; text-transform:uppercase; letter-spacing:0.03em; }
 .product-create-form label:first-of-type{ margin-top:0; }
-.product-create-form input, .product-create-form select{ width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; background:#fff; }
+.product-create-form input, .product-create-form select, .product-create-form textarea{ width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; background:#fff; }
+.product-create-form textarea{ min-height:140px; resize:vertical; }
 
 .coupons-panel{ max-width:900px; }
 .coupon-status-pill{ display:inline-block; padding:3px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
@@ -617,6 +618,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   <div class="admin-view coupons-panel" id="view-coupons">
     <div class="filters">
       <button type="button" id="coupons-new-toggle-btn">+ New Coupon</button>
+      <button type="button" id="coupon-campaign-toggle-btn">+ Send Coupon Campaign</button>
     </div>
 
     <div class="product-create-form" id="coupon-create-form">
@@ -650,6 +652,40 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </thead>
       <tbody id="coupons-tbody"></tbody>
     </table>
+
+    <!-- Drafts a broadcast email (same subject/body/Send Now/Schedule Send
+    mechanics as the Promotions tab, reusing its exact /api/admin/promo/*
+    endpoints -- no new backend route or table) that mentions a chosen
+    coupon's code. Sending it does NOT attach or save the coupon to any
+    customer record: it's just an email to every row in `subscribers`,
+    same as any other promo blast. Unlike Store Credit (which is issued to
+    one specific customer_id and lives in store_credit_transactions), a
+    coupon stays the single global, self-serve code it already is --
+    anyone who has it can redeem it at checkout, subject to the coupon's
+    own per_customer_limit. -->
+    <div class="product-create-form coupon-campaign-form" id="coupon-campaign-form">
+      <label>Coupon</label>
+      <select id="coupon-campaign-select"></select>
+
+      <label>Subject</label>
+      <input type="text" id="coupon-campaign-subject">
+
+      <label>Body</label>
+      <textarea id="coupon-campaign-body"></textarea>
+
+      <p class="promo-subscriber-count" id="coupon-campaign-subscriber-count"></p>
+
+      <div class="promo-actions">
+        <button type="button" class="promo-send-btn" id="coupon-campaign-send-btn">Send Now</button>
+      </div>
+      <p class="promo-status" id="coupon-campaign-send-status"></p>
+
+      <div class="promo-schedule-row">
+        <input type="datetime-local" id="coupon-campaign-schedule-time">
+        <button type="button" class="promo-send-btn" id="coupon-campaign-schedule-btn">Schedule Send</button>
+      </div>
+      <p class="promo-status" id="coupon-campaign-schedule-status"></p>
+    </div>
   </div>
 
   <div class="admin-view credit-panel" id="view-credit">
@@ -886,6 +922,7 @@ function showPromoTab() {
 function showCouponsTab() {
   showAdminTab('tab-coupons', 'view-coupons');
   loadCoupons();
+  loadCouponCampaignSubscriberCount();
 }
 
 function showCreditTab() {
@@ -1535,6 +1572,7 @@ function renderCoupons() {
       '<td><button type="button" class="product-edit-toggle-btn coupon-toggle-active-btn" data-code="' + c.code + '">' + (c.active ? 'Deactivate' : 'Activate') + '</button></td>' +
     '</tr>';
   }).join('');
+  populateCouponCampaignSelect();
 }
 
 // NEW endpoint -- see the backend handoff spec (no coupons table exists
@@ -1625,6 +1663,148 @@ document.getElementById('coupons-tbody').addEventListener('click', function(e) {
   })
     .then(function() { loadCoupons(); })
     .catch(function() { btn.disabled = false; });
+});
+
+// ============================================================
+// Send Coupon Campaign -- drafts a broadcast email mentioning a chosen
+// coupon's code, then reuses the SAME /api/admin/promo/send + /schedule
+// endpoints the Promotions tab uses (no separate route, no new table).
+// A sent/scheduled coupon campaign is indistinguishable, storage-wise,
+// from any other promo blast -- it's just subject/body text that happens
+// to reference a coupon code -- and a scheduled one will also show up in
+// the Promotions tab's own "Scheduled Sends" list. Deliberately does NOT
+// write anything tying the coupon to a customer record (unlike Store
+// Credit, issued to one specific customer_id): the coupon stays the same
+// global, self-serve code anyone can redeem, subject to its own
+// per_customer_limit at checkout.
+// ============================================================
+
+document.getElementById('coupon-campaign-toggle-btn').addEventListener('click', function() {
+  document.getElementById('coupon-campaign-form').classList.toggle('show');
+});
+
+function selectedCouponCampaignCoupon() {
+  var code = document.getElementById('coupon-campaign-select').value;
+  return couponsAll.find(function(c) { return c.code === code; }) || null;
+}
+
+// Active coupons only -- sending a campaign for a deactivated coupon
+// would invite customers to redeem something that no longer works.
+function populateCouponCampaignSelect() {
+  var select = document.getElementById('coupon-campaign-select');
+  var current = select.value;
+  var options = couponsAll.filter(function(c) { return c.active; });
+  select.innerHTML = '<option value="">Select a coupon...</option>' +
+    options.map(function(c) {
+      return '<option value="' + c.code + '"' + (c.code === current ? ' selected' : '') + '>' +
+        c.code + ' (' + couponDiscountLabel(c) + ')' +
+      '</option>';
+    }).join('');
+}
+
+// Auto-fills Subject/Body from the selected coupon, until the admin edits
+// either directly -- same "auto-fill until manually overridden" pattern
+// as the Create Kit form's Name/ID fields.
+var couponCampaignSubjectManuallyEdited = false;
+var couponCampaignBodyManuallyEdited = false;
+
+document.getElementById('coupon-campaign-select').addEventListener('change', function() {
+  var coupon = selectedCouponCampaignCoupon();
+  if (!coupon) return;
+
+  if (!couponCampaignSubjectManuallyEdited) {
+    document.getElementById('coupon-campaign-subject').value = couponDiscountLabel(coupon) + ' -- just for you';
+  }
+  if (!couponCampaignBodyManuallyEdited) {
+    var expiryLine = coupon.expires_at ? (' Offer expires ' + formatDate(coupon.expires_at) + '.') : '';
+    document.getElementById('coupon-campaign-body').value =
+      'Use code ' + coupon.code + ' at checkout to get ' + couponDiscountLabel(coupon) + '.' + expiryLine;
+  }
+});
+document.getElementById('coupon-campaign-subject').addEventListener('input', function() { couponCampaignSubjectManuallyEdited = true; });
+document.getElementById('coupon-campaign-body').addEventListener('input', function() { couponCampaignBodyManuallyEdited = true; });
+
+function loadCouponCampaignSubscriberCount() {
+  var el = document.getElementById('coupon-campaign-subscriber-count');
+  fetch('/api/admin/promo/subscriber-count', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      el.textContent = 'This will be sent to ' + d.count + ' subscriber' + (d.count === 1 ? '' : 's') + '.';
+    })
+    .catch(function() { el.textContent = ''; });
+}
+
+document.getElementById('coupon-campaign-send-btn').addEventListener('click', function() {
+  var btn = this;
+  var subject = document.getElementById('coupon-campaign-subject').value.trim();
+  var body = document.getElementById('coupon-campaign-body').value.trim();
+  var statusEl = document.getElementById('coupon-campaign-send-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!subject) { statusEl.textContent = 'Subject is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!body) { statusEl.textContent = 'Body is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!window.confirm('Send this coupon email to every subscriber right now? This cannot be undone.')) return;
+
+  btn.disabled = true;
+  fetch('/api/admin/promo/send', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject: subject, body: body }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not send.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' subscriber(s).';
+      statusEl.classList.add('show', 'success');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not send.';
+      statusEl.classList.add('show', 'error');
+    });
+});
+
+document.getElementById('coupon-campaign-schedule-btn').addEventListener('click', function() {
+  var btn = this;
+  var subject = document.getElementById('coupon-campaign-subject').value.trim();
+  var body = document.getElementById('coupon-campaign-body').value.trim();
+  var scheduledFor = document.getElementById('coupon-campaign-schedule-time').value;
+  var statusEl = document.getElementById('coupon-campaign-schedule-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!subject) { statusEl.textContent = 'Subject is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!body) { statusEl.textContent = 'Body is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!scheduledFor) { statusEl.textContent = 'Pick a date/time first.'; statusEl.classList.add('show', 'error'); return; }
+
+  btn.disabled = true;
+  fetch('/api/admin/promo/schedule', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject: subject, body: body, scheduled_for: new Date(scheduledFor).toISOString() }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not schedule.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Scheduled.';
+      statusEl.classList.add('show', 'success');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not schedule.';
+      statusEl.classList.add('show', 'error');
+    });
 });
 
 // ============================================================
