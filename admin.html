@@ -394,11 +394,20 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         <p class="inbox-detail-subject" id="inbox-detail-subject"></p>
         <p class="inbox-detail-meta" id="inbox-detail-meta"></p>
       </div>
-      <!-- sandbox="" (no allow-scripts/allow-same-origin) so an email from
-           an arbitrary, untrusted sender can never run script or reach the
-           admin session's cookies -- same protection real webmail clients
-           apply to message bodies. -->
-      <iframe class="inbox-detail-body" id="inbox-detail-body" sandbox=""></iframe>
+      <!-- sandbox="allow-same-origin" -- still no allow-scripts, so an email
+           from an arbitrary, untrusted sender can never run script; that's
+           the actual protection (same one real webmail clients apply to
+           message bodies), and it's unaffected by allow-same-origin alone.
+           allow-same-origin is required for setInboxBodyHtml() below to
+           reach iframe.contentWindow.document at all -- without it the
+           iframe's content is cross-origin from admin.html's own script,
+           which throws. (This replaced a plain srcdoc assignment, which
+           put the right content on the element's srcdoc property -- verified
+           in the field via devtools -- but silently failed to navigate/paint
+           it on at least one real Chrome build; document.write() is a
+           different code path that doesn't depend on the same
+           attribute-mutation-triggers-navigation behavior.) -->
+      <iframe class="inbox-detail-body" id="inbox-detail-body" sandbox="allow-same-origin"></iframe>
 
       <div class="inbox-reply">
         <label for="inbox-reply-body">Reply</label>
@@ -1092,6 +1101,23 @@ function escapeForHtml(s) {
   return div.innerHTML;
 }
 
+// document.write() into the iframe's own document, not a srcdoc
+// assignment -- srcdoc puts the right content on the element's property
+// (confirmed in the field via devtools: .srcdoc.length and the string
+// itself both matched the fetched message exactly) but was observed to
+// silently fail to navigate/paint on at least one real Chrome build.
+// open()/write()/close() is a different code path that doesn't depend on
+// the same attribute-mutation-triggers-navigation behavior, and reaching
+// contentWindow.document at all requires sandbox="allow-same-origin" on
+// the iframe (see its own comment in the markup for why that's still
+// safe without allow-scripts).
+function setInboxBodyHtml(html) {
+  var doc = document.getElementById('inbox-detail-body').contentWindow.document;
+  doc.open();
+  doc.write(html || '');
+  doc.close();
+}
+
 function openInboxMessage(uid) {
   var folder = document.getElementById('inbox-folder-select').value || 'INBOX';
   fetch('/api/admin/inbox/messages/' + encodeURIComponent(uid) + '?folder=' + encodeURIComponent(folder), { credentials: 'include' })
@@ -1103,12 +1129,17 @@ function openInboxMessage(uid) {
       inboxCurrentMessage = { uid: uid, folder: folder };
       document.getElementById('inbox-detail-subject').textContent = message.subject;
       document.getElementById('inbox-detail-meta').textContent = 'From ' + message.from + ' — ' + formatInboxDate(message.date);
-      document.getElementById('inbox-detail-body').srcdoc = message.html
-        || ('<pre style="white-space:pre-wrap; font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif; margin:12px;">' + escapeForHtml(message.text) + '</pre>');
       document.getElementById('inbox-reply-body').value = '';
       document.getElementById('inbox-reply-status').classList.remove('show', 'error', 'success');
+      // Reveal the container before writing the iframe's content -- an
+      // iframe inside a display:none ancestor still has a contentWindow,
+      // but there's no upside to writing into it before it's actually
+      // part of the rendered tree, and this matches how the rest of this
+      // function already orders "make visible" relative to "fill in."
       document.getElementById('inbox-list-view').style.display = 'none';
       document.getElementById('inbox-detail').classList.add('show');
+      setInboxBodyHtml(message.html
+        || ('<pre style="white-space:pre-wrap; font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif; margin:12px;">' + escapeForHtml(message.text) + '</pre>'));
       // Refreshes the (hidden) list in the background so its unread
       // styling is correct once the admin clicks back -- opening a
       // message marks it \Seen server-side.
@@ -1122,7 +1153,7 @@ function openInboxMessage(uid) {
 function closeInboxDetail() {
   document.getElementById('inbox-detail').classList.remove('show');
   document.getElementById('inbox-list-view').style.display = '';
-  document.getElementById('inbox-detail-body').srcdoc = '';
+  setInboxBodyHtml('');
   inboxCurrentMessage = null;
 }
 
