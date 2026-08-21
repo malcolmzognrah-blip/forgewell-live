@@ -268,6 +268,10 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <option value="paid">Paid</option>
       <option value="pending_payment">Pending Payment</option>
     </select>
+    <label for="filter-date-from" style="display:flex; align-items:center; font-size:0.82rem; color:var(--gray); font-weight:700;">From</label>
+    <input type="datetime-local" id="filter-date-from">
+    <label for="filter-date-to" style="display:flex; align-items:center; font-size:0.82rem; color:var(--gray); font-weight:700;">To</label>
+    <input type="datetime-local" id="filter-date-to">
     <button id="filter-btn">Search</button>
   </div>
   <p class="result-count" id="result-count"></p>
@@ -647,9 +651,18 @@ function showAdmin(username) {
 function loadOrders() {
   var email = document.getElementById('filter-email').value.trim();
   var status = document.getElementById('filter-status').value;
+  // <input type="datetime-local"> gives a timezone-less local string
+  // ("2026-08-25T14:30") -- same new Date(...).toISOString() conversion
+  // already used for the coupon-expiry field (see its own comment), so
+  // the admin's chosen time-of-day lands on the real moment they meant
+  // rather than being reinterpreted as UTC.
+  var dateFrom = document.getElementById('filter-date-from').value;
+  var dateTo = document.getElementById('filter-date-to').value;
   var params = new URLSearchParams();
   if (email) params.set('email', email);
   if (status) params.set('status', status);
+  if (dateFrom) params.set('from', new Date(dateFrom).toISOString());
+  if (dateTo) params.set('to', new Date(dateTo).toISOString());
 
   fetch('/api/admin/orders?' + params.toString(), { credentials: 'include' })
     .then(function(res) {
@@ -1764,6 +1777,8 @@ document.getElementById('change-password-save-btn').addEventListener('click', fu
 
 document.getElementById('filter-btn').addEventListener('click', loadOrders);
 document.getElementById('filter-email').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
+document.getElementById('filter-date-from').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
+document.getElementById('filter-date-to').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
