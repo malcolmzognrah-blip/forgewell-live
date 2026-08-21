@@ -453,6 +453,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   <div class="admin-view products-panel" id="view-products">
     <div class="filters">
       <select id="products-category-filter"><option value="">All Categories</option></select>
+      <select id="products-status-filter">
+        <option value="">All Statuses</option>
+        <option value="on_sale">On Sale</option>
+        <option value="in_stock">In Stock</option>
+        <option value="out_of_stock">Out of Stock</option>
+      </select>
       <select id="products-single-select"><option value="">— View All Products —</option></select>
       <button type="button" id="products-new-toggle-btn">+ New Product</button>
     </div>
@@ -842,9 +848,19 @@ function renderProductsCategoryOptions() {
 
 function renderProductsRows() {
   var category = document.getElementById('products-category-filter').value;
+  var status = document.getElementById('products-status-filter').value;
   var singleId = document.getElementById('products-single-select').value;
   var filtered = productsAllProducts
     .filter(function(p) { return !category || p.category === category; })
+    .filter(function(p) {
+      if (!status) return true;
+      if (status === 'on_sale') return !!p.on_sale;
+      if (status === 'out_of_stock') return p.stock_status === 'out_of_stock';
+      // 'in_stock' -- same "anything not explicitly out_of_stock counts as
+      // in stock" reading the row's own stock <select> already uses (see
+      // renderProductsRows()'s stock_status !== 'out_of_stock' check below).
+      return p.stock_status !== 'out_of_stock';
+    })
     .filter(function(p) { return !singleId || p.id === singleId; })
     .slice()
     .sort(function(a, b) { return a.name.localeCompare(b.name); });
@@ -1777,6 +1793,7 @@ document.getElementById('products-category-filter').addEventListener('change', f
   renderProductsSingleSelectOptions();
   renderProductsRows();
 });
+document.getElementById('products-status-filter').addEventListener('change', renderProductsRows);
 document.getElementById('products-single-select').addEventListener('change', renderProductsRows);
 
 // Delegated since #products-tbody is rebuilt by every renderProductsRows() call.
@@ -1848,6 +1865,62 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
       saveBtn.disabled = false;
       statusEl.textContent = 'Could not save.';
       statusEl.className = 'product-save-status error';
+    });
+});
+
+// Quick stock/on-sale toggle directly from the list row -- no need to open
+// Edit Details first. Sends only the one changed field (the backend's
+// PATCH /products/:id is partial-update now specifically so this can't
+// clobber price/bullets/sale dates/etc. on a product whose Edit Details
+// panel isn't even open). Delegated (change bubbles) since #products-tbody
+// is fully rebuilt by every renderProductsRows() call, same reasoning as
+// the click listener above.
+document.getElementById('products-tbody').addEventListener('change', function(e) {
+  var control = e.target.closest('.product-row-stock-select') || e.target.closest('.product-row-onsale-checkbox');
+  if (!control) return;
+
+  var mainRow = control.closest('tr[data-product-id]');
+  var productId = mainRow.getAttribute('data-product-id');
+  var isStock = control.classList.contains('product-row-stock-select');
+  var body = isStock ? { stock_status: control.value } : { on_sale: control.checked };
+
+  // renderProductsRows() below rebuilds the whole tbody, which would
+  // otherwise silently collapse any Edit Details panel(s) left open on
+  // other rows -- capture which ones are open first and reopen them after,
+  // same "reopen after any re-render" idea the full Save handler above
+  // already uses for the one row it saves.
+  var expandedIds = Array.prototype.slice.call(document.querySelectorAll('.product-detail-row.show'))
+    .map(function(row) { return row.getAttribute('data-product-id'); });
+
+  control.disabled = true;
+  fetch('/api/admin/products/' + encodeURIComponent(productId), {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (r.ok) {
+        var idx = productsAllProducts.findIndex(function(p) { return p.id === productId; });
+        if (idx !== -1) productsAllProducts[idx] = Object.assign({}, productsAllProducts[idx], r.d);
+      } else {
+        // Re-render below reverts the control to its last-saved value
+        // (rebuilt from productsAllProducts, which wasn't mutated) --
+        // the alert is the only thing needed here beyond that.
+        window.alert(r.d.error || 'Could not save.');
+      }
+      renderProductsRows();
+      expandedIds.forEach(function(id) {
+        var row = document.querySelector('.product-detail-row[data-product-id="' + id + '"]');
+        var btn = document.querySelector('.product-edit-toggle-btn[data-product-id="' + id + '"]');
+        if (row) row.classList.add('show');
+        if (btn) btn.textContent = 'Hide Details';
+      });
+    })
+    .catch(function() {
+      window.alert('Could not save.');
+      renderProductsRows();
     });
 });
 
