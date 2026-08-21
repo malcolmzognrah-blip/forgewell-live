@@ -582,6 +582,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <button type="button" class="content-subtab" id="content-subtab-shipping-policy">Shipping Policy</button>
       <button type="button" class="content-subtab" id="content-subtab-disclaimer">Disclaimer</button>
       <button type="button" class="content-subtab" id="content-subtab-free-shipping">Free Shipping</button>
+      <button type="button" class="content-subtab" id="content-subtab-contact-info">Contact Info</button>
     </div>
 
     <div class="content-subview active" id="content-subview-about-us">
@@ -612,6 +613,25 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <input type="number" step="0.01" min="0" id="content-free-shipping-input" style="width:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem;">
       <button type="button" class="fulfillment-btn" id="content-free-shipping-save-btn" style="margin-left:10px;">Save</button>
       <span class="product-save-status" id="content-free-shipping-status"></span>
+    </div>
+
+    <div class="content-subview" id="content-subview-contact-info">
+      <p class="fulfillment-section-note">Shown in the site footer's Contact column on every page. The address is also used as the physical mailing address in the Email Campaign feature's outgoing email (Coupons tab) -- CAN-SPAM requires a real one on commercial email, so replace the [Company Address] placeholder before sending a real campaign.</p>
+
+      <label for="content-company-phone-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:5px;">Phone Number</label>
+      <input type="text" id="content-company-phone-input" style="width:100%; max-width:320px; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">
+      <button type="button" class="fulfillment-btn" id="content-company-phone-save-btn" style="margin-top:8px;">Save</button>
+      <span class="product-save-status" id="content-company-phone-status"></span>
+
+      <label for="content-company-hours-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin:18px 0 5px;">Business Hours</label>
+      <input type="text" id="content-company-hours-input" style="width:100%; max-width:320px; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">
+      <button type="button" class="fulfillment-btn" id="content-company-hours-save-btn" style="margin-top:8px;">Save</button>
+      <span class="product-save-status" id="content-company-hours-status"></span>
+
+      <label for="content-company-address-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin:18px 0 5px;">Company Address</label>
+      <textarea id="content-company-address-input" style="width:100%; max-width:320px; box-sizing:border-box; min-height:70px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;"></textarea>
+      <button type="button" class="fulfillment-btn" id="content-company-address-save-btn" style="margin-top:8px;">Save</button>
+      <span class="product-save-status" id="content-company-address-status"></span>
     </div>
   </div>
 
@@ -1245,6 +1265,13 @@ function loadContent() {
   fetch('/api/content/free-shipping-threshold', { credentials: 'include' }).then(function(r) { return r.json(); })
     .then(function(d) { document.getElementById('content-free-shipping-input').value = d.threshold != null ? d.threshold : ''; })
     .catch(function() {});
+  fetch('/api/content/company-info', { credentials: 'include' }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      document.getElementById('content-company-phone-input').value = d.phone || '';
+      document.getElementById('content-company-hours-input').value = d.businessHours || '';
+      document.getElementById('content-company-address-input').value = d.address || '';
+    })
+    .catch(function() {});
 }
 
 function showContentTab() {
@@ -1258,10 +1285,10 @@ function showContentTab() {
 // the smaller content-subtab/content-subview set instead of the top-level
 // tabs.
 function showContentSubtab(subtabId, subviewId) {
-  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer', 'content-subtab-free-shipping'].forEach(function(id) {
+  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer', 'content-subtab-free-shipping', 'content-subtab-contact-info'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer', 'content-subview-free-shipping'].forEach(function(id) {
+  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer', 'content-subview-free-shipping', 'content-subview-contact-info'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -2178,6 +2205,9 @@ document.getElementById('content-subtab-disclaimer').addEventListener('click', f
 document.getElementById('content-subtab-free-shipping').addEventListener('click', function() {
   showContentSubtab('content-subtab-free-shipping', 'content-subview-free-shipping');
 });
+document.getElementById('content-subtab-contact-info').addEventListener('click', function() {
+  showContentSubtab('content-subtab-contact-info', 'content-subview-contact-info');
+});
 
 document.getElementById('products-category-filter').addEventListener('change', function() {
   renderProductsSingleSelectOptions();
@@ -2693,6 +2723,75 @@ document.getElementById('content-free-shipping-save-btn').addEventListener('clic
   statusEl.className = 'product-save-status';
   fetch('/api/admin/content/free-shipping-threshold', {
     method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ threshold: threshold }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-company-phone-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-company-phone-status');
+  var body = { body: document.getElementById('content-company-phone-input').value };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/company-phone', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-company-hours-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-company-hours-status');
+  var body = { body: document.getElementById('content-company-hours-input').value };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/company-business-hours', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-company-address-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-company-address-status');
+  var body = { body: document.getElementById('content-company-address-input').value };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/company-address', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
     .then(function(r) {

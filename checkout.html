@@ -545,6 +545,26 @@ function wireHeaderFooter() {
     });
   }
 
+  // Company contact info (phone/hours/address) is admin-editable (see
+  // admin.html's Content > Contact Info tab) rather than hardcoded in
+  // footer.html -- same site_content-backed pattern as the canonical
+  // disclaimer, just targeting the footer fragment instead of the page's
+  // own markup, so this has to run from inside wireHeaderFooter() once
+  // footer.html actually exists in the DOM. company_address here is the
+  // same value the Email Campaign feature uses as the physical mailing
+  // address in its outgoing email (routes/admin.js's POST
+  // /campaigns/coupon/send) -- one source of truth, edited in one place.
+  fetch('/api/content/company-info').then(function(r) { return r.json(); })
+    .then(function(d) {
+      var phoneEl = document.getElementById('footer-contact-phone');
+      var hoursEl = document.getElementById('footer-contact-hours');
+      var addressEl = document.getElementById('footer-contact-address');
+      if (phoneEl && d.phone) phoneEl.textContent = d.phone;
+      if (hoursEl && d.businessHours) hoursEl.textContent = d.businessHours;
+      if (addressEl && d.address) addressEl.textContent = d.address;
+    })
+    .catch(function() {});
+
   // Restores the header's cart count from localStorage now that the header
   // actually exists in the DOM (it didn't yet when updateCartIcon() first
   // ran further down this script).
