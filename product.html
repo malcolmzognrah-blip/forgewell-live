@@ -283,6 +283,10 @@ let allProducts = [];
 // verbatim on about-us.html, contact.html, terms.html, and
 // ruo-agreement.html.
 let disclaimerBody = '';
+// null until the /api/content/free-shipping-threshold fetch below
+// resolves (or forever, if it fails) -- the trust badge falls back to
+// generic wording rather than a stale/guessed dollar figure in that case.
+let freeShippingThreshold = null;
 function buildDisclaimerParagraphsHtml(text) {
   return (text || '').split('\n\n').filter(function(p) { return p.trim(); })
     .map(function(p) { return '<p>' + p + '</p>'; }).join('');
@@ -874,6 +878,15 @@ function renderError(message) {
     '<p><a href="/shop.html">Return to shop</a></p></div>';
 }
 
+// Admin-configurable (see admin.html's Content > Free Shipping tab) --
+// falls back to generic wording rather than a hardcoded/stale dollar
+// figure if the fetch in initProductPage() never resolved.
+function freeShippingBadgeText() {
+  return freeShippingThreshold != null
+    ? 'Free Shipping Over $' + Number(freeShippingThreshold).toFixed(0)
+    : 'Free Shipping Available';
+}
+
 function renderProduct(product, siblings) {
   var root = document.getElementById('product-root');
   var imgUrl = resolveImagePath(product.image_path);
@@ -1186,7 +1199,7 @@ function renderProduct(product, siblings) {
           '<p class="trust-note">For laboratory research use only.</p>' +
           '<div class="trust-badges">' +
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg><span>Third-Party Tested</span></div>' +
-            '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg><span>Free Shipping Over $250</span></div>' +
+            '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg><span>' + freeShippingBadgeText() + '</span></div>' +
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span>14-Day Returns</span></div>' +
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Batch &amp; Lot Tracking</span></div>' +
             '<div class="trust-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Secure Ordering</span></div>' +
@@ -1576,9 +1589,11 @@ async function initProductPage() {
     var results = await Promise.all([
       fetch('/api/products'),
       fetch('/api/content/disclaimer').catch(function() { return null; }),
+      fetch('/api/content/free-shipping-threshold').catch(function() { return null; }),
     ]);
     var res = results[0];
     var disclaimerRes = results[1];
+    var freeShippingRes = results[2];
     var products = await res.json();
     allProducts = products; // shared with cart script
     // Falls back to '' (ruo-note renders no paragraphs) rather than
@@ -1588,6 +1603,10 @@ async function initProductPage() {
     if (disclaimerRes && disclaimerRes.ok) {
       var disclaimerData = await disclaimerRes.json();
       disclaimerBody = disclaimerData.body || '';
+    }
+    if (freeShippingRes && freeShippingRes.ok) {
+      var freeShippingData = await freeShippingRes.json();
+      freeShippingThreshold = freeShippingData.threshold;
     }
 
     var product = products.find(function(p) { return String(p.id) === id; });

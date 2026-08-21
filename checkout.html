@@ -195,6 +195,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-coupon-note.error{ color:#c0392b; }
 .checkout-coupon-note a{ color:var(--navy); font-weight:700; text-decoration:none; }
 .checkout-coupon-note a:hover{ text-decoration:underline; }
+.free-shipping-message{ font-size:0.85rem; font-weight:700; color:var(--navy-dark); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:9px 12px; margin:0 0 12px; }
+.free-shipping-message.qualified{ color:var(--green); }
 .checkout-store-credit-block{ margin-bottom:14px; }
 .checkout-store-credit-balance{ font-size:0.82rem; font-weight:700; color:var(--navy-dark); margin-bottom:8px; }
 .checkout-store-credit-amount-row{ display:flex; align-items:center; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; overflow:hidden; }
@@ -300,6 +302,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
       <div class="checkout-section">
         <h2>Shipping Method</h2>
+        <p class="free-shipping-message" id="free-shipping-message" style="display:none;"></p>
         <div id="shipping-method-list"></div>
       </div>
     </div>
@@ -676,6 +679,11 @@ function getSelectedShippingMethod() {
 // and before that fetch resolves.
 let storeCreditBalanceCents = 0;
 
+// null until loadFreeShippingThreshold() below resolves (or forever, if
+// it fails) -- renderOrderSummary()'s free-shipping message stays hidden
+// in that case rather than showing a wrong/guessed dollar figure.
+let freeShippingThreshold = null;
+
 // Recomputes the subtotal-after-coupon + shipping total, independent of
 // whatever store credit is currently entered -- shared by
 // renderOrderSummary() (which needs it every render) and the "Apply all"
@@ -748,6 +756,28 @@ function renderOrderSummary() {
   const shippingMethod = getSelectedShippingMethod();
   const preCreditTotal = total + shippingMethod.cost;
 
+  // Qualifying total is the post-discount merchandise total (same "total"
+  // calculateCartTotals() already produces) -- deliberately not reduced by
+  // store credit (a payment method, not a discount on the order's size)
+  // and not including shipping itself (that would be circular). Hidden
+  // entirely rather than shown wrong if the threshold fetch never
+  // resolved -- see loadFreeShippingThreshold()'s own comment.
+  const freeShippingEl = document.getElementById('free-shipping-message');
+  if (freeShippingEl) {
+    if (freeShippingThreshold == null) {
+      freeShippingEl.style.display = 'none';
+    } else if (total >= freeShippingThreshold) {
+      freeShippingEl.textContent = "You qualify for free shipping!";
+      freeShippingEl.className = 'free-shipping-message qualified';
+      freeShippingEl.style.display = 'block';
+    } else {
+      const remaining = freeShippingThreshold - total;
+      freeShippingEl.textContent = 'Add $' + remaining.toFixed(2) + ' more to get FREE shipping!';
+      freeShippingEl.className = 'free-shipping-message';
+      freeShippingEl.style.display = 'block';
+    }
+  }
+
   const creditToApply = syncStoreCreditAmount(preCreditTotal);
   const grandTotal = Math.max(0, preCreditTotal - creditToApply);
 
@@ -798,6 +828,18 @@ function loadStoreCreditBalance() {
         document.getElementById('checkout-store-credit-balance').textContent =
           'Store Credit Available: $' + (storeCreditBalanceCents / 100).toFixed(2);
       }
+      renderOrderSummary();
+    })
+    .catch(function() {});
+}
+
+// Not gated on being signed in -- unlike store credit/coupons, the free-
+// shipping threshold applies to guest and signed-in checkouts alike.
+function loadFreeShippingThreshold() {
+  return fetch('/api/content/free-shipping-threshold')
+    .then(function(res) { return res.ok ? res.json() : { threshold: null }; })
+    .then(function(data) {
+      freeShippingThreshold = data.threshold;
       renderOrderSummary();
     })
     .catch(function() {});
@@ -975,6 +1017,7 @@ if (cart.length === 0) {
 
   renderShippingMethods();
   renderOrderSummary();
+  loadFreeShippingThreshold();
   document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
 
   // Typing a specific amount and checking "Apply all" both funnel through
