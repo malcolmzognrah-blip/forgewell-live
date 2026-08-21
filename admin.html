@@ -29,6 +29,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .filters input, .filters select{ padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
 .filters input{ flex:1; min-width:200px; }
 .filters button{ padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+/* Nested two levels inside .filters, so .filters input's flex:1 is inert
+   here (only applies to direct flex children) but its min-width:200px
+   still lands as a plain width constraint -- min-width:0 below clears
+   that so these can be their own compact size instead of 200px each. */
+.date-range-filter{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
+.date-range-field{ display:flex; flex-direction:column; gap:5px; }
+.date-range-field label{ font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; }
+.date-range-field input{ min-width:0; width:150px; }
 
 .admin-tabs{ display:flex; gap:4px; margin-bottom:20px; border-bottom:1.5px solid var(--line); }
 .admin-tab{ padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1.5px; font-size:0.85rem; font-weight:700; color:var(--gray); cursor:pointer; }
@@ -268,10 +276,20 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <option value="paid">Paid</option>
       <option value="pending_payment">Pending Payment</option>
     </select>
-    <label for="filter-date-from" style="display:flex; align-items:center; font-size:0.82rem; color:var(--gray); font-weight:700;">From</label>
-    <input type="datetime-local" id="filter-date-from">
-    <label for="filter-date-to" style="display:flex; align-items:center; font-size:0.82rem; color:var(--gray); font-weight:700;">To</label>
-    <input type="datetime-local" id="filter-date-to">
+    <div class="date-range-filter">
+      <div class="date-range-field">
+        <label for="filter-date-from">From</label>
+        <input type="date" id="filter-date-from">
+        <input type="text" id="filter-time-from" list="common-times-datalist" placeholder="e.g. 2:30 PM" autocomplete="off">
+      </div>
+      <div class="date-range-field">
+        <label for="filter-date-to">To</label>
+        <input type="date" id="filter-date-to">
+        <input type="text" id="filter-time-to" list="common-times-datalist" placeholder="e.g. 2:30 PM" autocomplete="off">
+      </div>
+      <datalist id="common-times-datalist"></datalist>
+      <button type="button" id="filter-date-apply-btn">Apply Filter</button>
+    </div>
     <button id="filter-btn">Search</button>
   </div>
   <p class="result-count" id="result-count"></p>
@@ -648,21 +666,93 @@ function showAdmin(username) {
   loadOrders();
 }
 
+// Populates the shared <datalist> the From/To time fields both point at
+// (list="common-times-datalist") with every half hour in 12-hour format --
+// same "typeable input with a suggestion dropdown" combo-box pattern this
+// file already uses for the product-category input (list="new-product-
+// category-options"), not a new component. The field stays a plain text
+// input specifically so free typing always works regardless of whether a
+// given browser also renders the datalist as a dropdown -- unlike
+// <input type="time">, whose list-attribute/datalist support is
+// inconsistent across browsers, this combo is guaranteed to support both
+// entry methods everywhere.
+function populateCommonTimesDatalist() {
+  var options = [];
+  for (var h = 0; h < 24; h++) {
+    var period = h < 12 ? 'AM' : 'PM';
+    var hour12 = h % 12 === 0 ? 12 : h % 12;
+    ['00', '30'].forEach(function(min) {
+      options.push(hour12 + ':' + min + ' ' + period);
+    });
+  }
+  document.getElementById('common-times-datalist').innerHTML =
+    options.map(function(t) { return '<option value="' + t + '">'; }).join('');
+}
+populateCommonTimesDatalist();
+
+// Accepts "2:30 PM", "2:30pm", "14:30", "2 PM", "2:30" (no AM/PM ->
+// interpreted as 24-hour, e.g. plain "14:30") -- tolerant of however an
+// admin actually types a time, not just the exact "H:MM AM/PM" format the
+// datalist suggestions use. Returns null for anything unparseable, which
+// buildRangeTimestamp() below treats the same as no time entered at all
+// (falls back to start/end of day) rather than blocking the filter.
+function parseTimeOfDay(input) {
+  var s = (input || '').trim();
+  if (!s) return null;
+  var m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/);
+  if (!m) return null;
+  var hours = parseInt(m[1], 10);
+  var minutes = m[2] ? parseInt(m[2], 10) : 0;
+  var meridiem = m[3] ? m[3].toUpperCase() : null;
+  if (minutes > 59) return null;
+  if (meridiem) {
+    if (hours < 1 || hours > 12) return null;
+    if (meridiem === 'AM') { if (hours === 12) hours = 0; }
+    else if (hours !== 12) { hours += 12; }
+  } else if (hours < 0 || hours > 23) {
+    return null;
+  }
+  return { hours: hours, minutes: minutes };
+}
+
+// Combines a date-only "YYYY-MM-DD" input with a free-typed time-of-day
+// into a real UTC ISO timestamp, same end result the old single
+// <input type="datetime-local"> -> new Date(...).toISOString() conversion
+// produced, just built from two separate fields now. A blank/unparseable
+// time falls back to the start of the day for "from" and the end of the
+// day for "to", so picking just a date still behaves the way an admin
+// would expect ("everything on this day") rather than silently excluding
+// most of it.
+function buildRangeTimestamp(dateValue, timeValue, endOfDay) {
+  if (!dateValue) return null;
+  var parts = dateValue.split('-').map(Number);
+  var time = parseTimeOfDay(timeValue);
+  var d = time
+    ? new Date(parts[0], parts[1] - 1, parts[2], time.hours, time.minutes, 0, 0)
+    : (endOfDay
+      ? new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
+      : new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0));
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function loadOrders() {
   var email = document.getElementById('filter-email').value.trim();
   var status = document.getElementById('filter-status').value;
-  // <input type="datetime-local"> gives a timezone-less local string
-  // ("2026-08-25T14:30") -- same new Date(...).toISOString() conversion
-  // already used for the coupon-expiry field (see its own comment), so
-  // the admin's chosen time-of-day lands on the real moment they meant
-  // rather than being reinterpreted as UTC.
-  var dateFrom = document.getElementById('filter-date-from').value;
-  var dateTo = document.getElementById('filter-date-to').value;
+  var fromTimestamp = buildRangeTimestamp(
+    document.getElementById('filter-date-from').value,
+    document.getElementById('filter-time-from').value,
+    false
+  );
+  var toTimestamp = buildRangeTimestamp(
+    document.getElementById('filter-date-to').value,
+    document.getElementById('filter-time-to').value,
+    true
+  );
   var params = new URLSearchParams();
   if (email) params.set('email', email);
   if (status) params.set('status', status);
-  if (dateFrom) params.set('from', new Date(dateFrom).toISOString());
-  if (dateTo) params.set('to', new Date(dateTo).toISOString());
+  if (fromTimestamp) params.set('from', fromTimestamp);
+  if (toTimestamp) params.set('to', toTimestamp);
 
   fetch('/api/admin/orders?' + params.toString(), { credentials: 'include' })
     .then(function(res) {
@@ -1777,8 +1867,13 @@ document.getElementById('change-password-save-btn').addEventListener('click', fu
 
 document.getElementById('filter-btn').addEventListener('click', loadOrders);
 document.getElementById('filter-email').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
-document.getElementById('filter-date-from').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
-document.getElementById('filter-date-to').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
+// Deliberately no change/input listeners on the date/time fields
+// themselves -- picking a date or typing a time must not reload the list
+// on its own. Apply Filter (or Enter in either time field) is the only
+// thing that does.
+document.getElementById('filter-date-apply-btn').addEventListener('click', loadOrders);
+document.getElementById('filter-time-from').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
+document.getElementById('filter-time-to').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
