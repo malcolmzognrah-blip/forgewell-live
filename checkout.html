@@ -887,13 +887,61 @@ if (cart.length === 0) {
       .catch(function() { savedAddresses = []; });
   }
 
+  // Fills the shipping fields (including name -- a saved address or past
+  // order's own recipient name, kept together as one block rather than
+  // mixed field-by-field with the account name below) from any object
+  // shaped like { name, line1, line2, city, state, zip, country }, same
+  // shape whether it comes from /api/addresses or an order's
+  // shipping_address. Only ever touches form inputs -- nothing here
+  // writes back to the account or address book, so it's a pure
+  // convenience default the customer can freely overtype for this order.
+  function applyShippingSource(source) {
+    if (!source) return;
+    Object.keys(shipFields).forEach(function(key) {
+      if (shipFields[key] && source[key]) shipFields[key].value = source[key];
+    });
+  }
+
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res) { return res.ok ? res.json() : null; })
     .then(function(customer) {
       isSignedIn = !!customer;
       if (!isSignedIn) return;
+      // Account data is more authoritative than whatever an earlier
+      // guest-like checkout left in localStorage, so it wins here --
+      // may be further overridden just below by a saved address's own
+      // name (e.g. shipping to someone else), same as picking that
+      // address from the dropdown manually already would.
+      if (customer.email) emailInput.value = customer.email;
+      if (customer.name) shipFields.name.value = customer.name;
       saveAddressBlock.classList.add('show');
-      loadSavedAddresses();
+      loadSavedAddresses().then(function() {
+        if (savedAddresses.length > 0) {
+          // Saved addresses are the more current, purpose-built source
+          // (the customer explicitly maintains this list and can mark a
+          // default) -- prefer it over order history whenever it has
+          // anything at all.
+          var defaultAddress = savedAddresses.find(function(a) { return a.is_default; }) || savedAddresses[0];
+          applyShippingSource(defaultAddress);
+          savedAddressSelect.value = defaultAddress.id;
+          savedAddressDeleteBtn.style.display = '';
+          return;
+        }
+        // No saved address book entry yet -- fall back to the most recent
+        // past order's shipping info as a simpler, still-useful default.
+        // /api/orders/mine is already sorted newest-first, so [0] is it;
+        // a first-time customer just gets [] here and the fields stay
+        // whatever they already were (empty, unless localStorage had
+        // something from a prior guest checkout on this browser).
+        return fetch('/api/orders/mine', { credentials: 'include' })
+          .then(function(res) { return res.ok ? res.json() : []; })
+          .then(function(orders) {
+            if (Array.isArray(orders) && orders.length > 0) {
+              applyShippingSource(orders[0].shipping_address);
+            }
+          })
+          .catch(function() {});
+      });
       loadStoreCreditBalance();
       loadCoupons();
     })
