@@ -197,6 +197,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-coupon-note a:hover{ text-decoration:underline; }
 .free-shipping-message{ font-size:0.85rem; font-weight:700; color:var(--navy-dark); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:9px 12px; margin:0 0 12px; }
 .free-shipping-message.qualified{ color:var(--green); }
+
+.shipping-columns{ display:flex; gap:20px; align-items:flex-start; }
+.shipping-column{ flex:1; min-width:0; }
+.shipping-column-label{ font-size:0.75rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px; }
+.shipping-faster-toggle{ display:flex; align-items:center; gap:8px; margin:4px 0 0; font-size:0.85rem; color:var(--navy-dark); cursor:pointer; }
+.shipping-faster-toggle input{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
 .checkout-store-credit-block{ margin-bottom:14px; }
 .checkout-store-credit-balance{ font-size:0.82rem; font-weight:700; color:var(--navy-dark); margin-bottom:8px; }
 .checkout-store-credit-amount-row{ display:flex; align-items:center; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; overflow:hidden; }
@@ -303,7 +309,19 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
       <div class="checkout-section">
         <h2>Shipping Method</h2>
         <p class="free-shipping-message" id="free-shipping-message" style="display:none;"></p>
-        <div id="shipping-method-list"></div>
+        <div class="shipping-columns">
+          <div class="shipping-column" id="shipping-standard-column">
+            <div id="shipping-standard-list"></div>
+            <label class="shipping-faster-toggle">
+              <input type="checkbox" id="shipping-faster-toggle">
+              Need it faster?
+            </label>
+          </div>
+          <div class="shipping-column" id="shipping-fast-column" style="display:none;">
+            <div class="shipping-column-label">Faster Options</div>
+            <div id="shipping-fast-list"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -653,43 +671,76 @@ let availableCoupons = [];
 // Replaces the old flat-rate SHIPPING_METHODS array -- these now come
 // live from POST /api/shipping/rates (UPS + FedEx today; USPS will just
 // start appearing here once it's wired in server-side, no frontend
-// change needed). currentShippingRates holds whatever that endpoint last
-// returned; currentFreeShipping/currentFreeShippingTotal/
-// currentFreeShippingThreshold mirror its freeShipping/total/threshold
-// fields. Empty/false until the first fetchShippingRates() call resolves
-// (which needs a complete shipping address -- see its own comment).
-let currentShippingRates = [];
+// change needed). currentStandardRates/currentFastRates mirror that
+// endpoint's standardRates/fastRates arrays; currentFreeShipping/
+// currentFreeShippingTotal/currentFreeShippingThreshold mirror its
+// freeShipping/total/threshold fields. All empty/false until the first
+// fetchShippingRates() call resolves (needs a complete shipping address
+// -- see hasCompleteShippingAddress()'s own comment further down).
+//
+// Standard options are always shown; fast (expedited) options are hidden
+// behind the "Need it faster?" checkbox (#shipping-faster-toggle) in a
+// second column next to the standard one -- both columns share the same
+// name="shipping-method" radio group, so exactly one option is ever
+// selected across the two (this is purely a default-visibility/layout
+// split, not a change to "only one shipping method applies").
+//
+// When an order qualifies for free shipping, currentStandardRates'
+// entries already have cost=0 (routes/shipping.js overrides it there) --
+// this file never re-applies the free discount itself, so a fast-tier
+// pick always costs its real quoted price even for a qualifying order
+// (free is a floor on standard, not a blanket discount -- see
+// routes/checkout.js's matching comment on the charge-time side).
+let currentStandardRates = [];
+let currentFastRates = [];
 let currentFreeShipping = false;
 let currentFreeShippingTotal = null;
 let currentFreeShippingThreshold = null;
 let ratesRequestInFlight = false;
 
-function renderShippingMethods() {
-  const list = document.getElementById('shipping-method-list');
-  if (currentFreeShipping) {
-    list.innerHTML = '<label class="shipping-method-option">' +
-      '<span class="shipping-method-option-left">' +
-        '<input type="radio" name="shipping-method" value="free" checked disabled>' +
-        '<span class="shipping-method-name">Free Shipping</span>' +
-      '</span>' +
-      '<span class="shipping-method-price">$0.00</span>' +
-    '</label>';
+function renderShippingOptionsInto(el, rates, emptyMessage) {
+  if (rates.length === 0) {
+    el.innerHTML = '<p class="fulfillment-section-note">' + emptyMessage + '</p>';
     return;
   }
-  if (currentShippingRates.length === 0) {
-    list.innerHTML = '<p class="fulfillment-section-note">Enter your shipping address above to see shipping options.</p>';
-    return;
-  }
-  list.innerHTML = currentShippingRates.map(function(rate, i) {
+  // Radio "checked" only applies to whichever option was already selected
+  // (if any survives this refresh) or the very first standard option on
+  // the page's initial render -- renderShippingMethods() below decides
+  // that once, not this per-column helper, since the two columns share
+  // one radio group.
+  el.innerHTML = rates.map(function(rate) {
     var value = rate.carrier + '|' + rate.service;
     return '<label class="shipping-method-option">' +
       '<span class="shipping-method-option-left">' +
-        '<input type="radio" name="shipping-method" value="' + escapeForHtml(value) + '"' + (i === 0 ? ' checked' : '') + '>' +
-        '<span class="shipping-method-name">' + escapeForHtml(rate.label) + '</span>' +
+        '<input type="radio" name="shipping-method" value="' + escapeForHtml(value) + '">' +
+        '<span class="shipping-method-name">' + escapeForHtml(rate.label) + (rate.cost === 0 ? ' (Free!)' : '') + '</span>' +
       '</span>' +
       '<span class="shipping-method-price">$' + rate.cost.toFixed(2) + '</span>' +
     '</label>';
   }).join('');
+}
+
+function renderShippingMethods() {
+  const standardList = document.getElementById('shipping-standard-list');
+  const fastList = document.getElementById('shipping-fast-list');
+
+  // Remember the previously-selected value (if any) so a re-render
+  // (e.g. after toggling "Need it faster?", or a fresh fetchShippingRates()
+  // response) doesn't silently reset the customer's pick back to the
+  // first standard option every time.
+  var previouslyChecked = document.querySelector('input[name="shipping-method"]:checked');
+  var previousValue = previouslyChecked ? previouslyChecked.value : null;
+
+  renderShippingOptionsInto(standardList, currentStandardRates, 'Enter your shipping address above to see shipping options.');
+  renderShippingOptionsInto(fastList, currentFastRates, 'No expedited options available for this address.');
+
+  var toRestore = previousValue && document.querySelector('input[name="shipping-method"][value="' + CSS.escape(previousValue) + '"]');
+  if (toRestore) {
+    toRestore.checked = true;
+  } else {
+    var firstStandard = document.querySelector('#shipping-standard-list input[name="shipping-method"]');
+    if (firstStandard) firstStandard.checked = true;
+  }
 }
 
 // textContent round-trip, not string concatenation -- same safe-escape
@@ -702,13 +753,10 @@ function escapeForHtml(s) {
 }
 
 function getSelectedShippingMethod() {
-  if (currentFreeShipping) {
-    return { carrier: null, service: null, label: 'Free Shipping', cost: 0 };
-  }
   const checked = document.querySelector('input[name="shipping-method"]:checked');
   if (!checked) return { carrier: null, service: null, label: '', cost: 0 };
   const [carrier, service] = checked.value.split('|');
-  return currentShippingRates.find(function(r) { return r.carrier === carrier && r.service === service; })
+  return currentStandardRates.concat(currentFastRates).find(function(r) { return r.carrier === carrier && r.service === service; })
     || { carrier: null, service: null, label: '', cost: 0 };
 }
 
@@ -808,12 +856,16 @@ function renderOrderSummary() {
     if (currentFreeShippingThreshold == null || currentFreeShippingTotal == null) {
       freeShippingEl.style.display = 'none';
     } else if (currentFreeShipping) {
-      freeShippingEl.textContent = "You qualify for free shipping!";
+      // "standard" called out explicitly -- fast/expedited options stay
+      // paid even once an order qualifies (see currentStandardRates'
+      // own comment), so the message shouldn't read as "everything is
+      // free now."
+      freeShippingEl.textContent = "You qualify for free standard shipping!";
       freeShippingEl.className = 'free-shipping-message qualified';
       freeShippingEl.style.display = 'block';
     } else {
       const remaining = currentFreeShippingThreshold - currentFreeShippingTotal;
-      freeShippingEl.textContent = 'Add $' + remaining.toFixed(2) + ' more to get FREE shipping!';
+      freeShippingEl.textContent = 'Add $' + remaining.toFixed(2) + ' more to get FREE standard shipping!';
       freeShippingEl.className = 'free-shipping-message';
       freeShippingEl.style.display = 'block';
     }
@@ -1016,7 +1068,8 @@ if (cart.length === 0) {
         ratesRequestInFlight = false;
         if (!data) return;
         currentFreeShipping = !!data.freeShipping;
-        currentShippingRates = Array.isArray(data.rates) ? data.rates : [];
+        currentStandardRates = Array.isArray(data.standardRates) ? data.standardRates : [];
+        currentFastRates = Array.isArray(data.fastRates) ? data.fastRates : [];
         currentFreeShippingTotal = typeof data.total === 'number' ? data.total : null;
         currentFreeShippingThreshold = typeof data.threshold === 'number' ? data.threshold : null;
         renderShippingMethods();
@@ -1108,7 +1161,22 @@ if (cart.length === 0) {
   // each also call fetchShippingRates() themselves once they resolve,
   // since they finish after this point.
   fetchShippingRates();
-  document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
+  // Delegated on the shared wrapper -- standard and fast are two
+  // separate lists (#shipping-standard-list/#shipping-fast-list) that
+  // both get replaced by every renderShippingMethods() call, but they
+  // share one radio group, so one listener on their common ancestor
+  // covers a selection change in either column.
+  document.getElementById('shipping-standard-column').closest('.checkout-section').addEventListener('change', function(e) {
+    if (e.target.name === 'shipping-method') renderOrderSummary();
+  });
+  document.getElementById('shipping-faster-toggle').addEventListener('change', function() {
+    // Just a visibility toggle -- renderShippingMethods() already renders
+    // #shipping-fast-list on every fetchShippingRates() response
+    // regardless of whether this box is checked (both tiers come back in
+    // the same carrier call either way), so there's nothing to re-fetch
+    // here.
+    document.getElementById('shipping-fast-column').style.display = this.checked ? '' : 'none';
+  });
   ['name', 'line1', 'city', 'state', 'zip', 'country'].forEach(function(key) {
     shipFields[key].addEventListener('blur', fetchShippingRates);
   });
@@ -1159,9 +1227,13 @@ if (cart.length === 0) {
     // Same shipping method the rate list/order summary are already
     // showing -- carrier+service only (never a cost) so
     // routes/checkout.js can re-quote and charge the real, freshly-quoted
-    // price rather than trusting whatever this page last fetched.
+    // price rather than trusting whatever this page last fetched. Always
+    // a real carrier+service now (standard options still map to a real
+    // quoted service even when free -- see currentStandardRates' own
+    // comment), so there's no more "omit it, this order is just free"
+    // case to special-case here.
     const selectedShipping = getSelectedShippingMethod();
-    if (!currentFreeShipping && !selectedShipping.carrier) {
+    if (!selectedShipping.carrier) {
       window.alert('Please select a shipping method before placing your order.');
       return;
     }
@@ -1202,7 +1274,7 @@ if (cart.length === 0) {
           shippingAddress: shippingAddress,
           discountCode: promoCode || undefined,
           storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined,
-          shippingMethod: currentFreeShipping ? undefined : { carrier: selectedShipping.carrier, service: selectedShipping.service }
+          shippingMethod: { carrier: selectedShipping.carrier, service: selectedShipping.service }
         })
       });
       const data = await res.json();
