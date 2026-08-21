@@ -610,6 +610,21 @@ function findBackingVial(product) {
   })[0] || null;
 }
 
+// A kit created without its own image (admin.html's Create Kit form
+// allows this deliberately) falls back to its backing vial's image --
+// same pattern an individual product doesn't get, since only a kit has a
+// well-defined "the real product this represents" to borrow one from.
+// Resolves to null (same "no image, no listing" outcome as any other
+// product) only if there's genuinely no image anywhere to show -- no
+// own image AND (not a kit, or no backing vial, or the backing vial
+// itself has no image either).
+function resolveKitImagePath(product) {
+  var direct = resolveImagePath(product.image_path);
+  if (direct) return direct;
+  var vial = findBackingVial(product);
+  return vial ? resolveImagePath(vial.image_path) : null;
+}
+
 // stock_status stays a simple, directly-set manual flag on every row
 // (including kits) -- this doesn't write or sync anything, it just also
 // checks the kit's backing vial (if any) at read time, so a kit never
@@ -838,7 +853,7 @@ function findRelatedKits(product, products) {
   if (product.category === 'kit') return []; // kits don't suggest other kits for themselves
   return products.filter(function(p) {
     if (p.category !== 'kit') return false;
-    if (!resolveImagePath(p.image_path)) return false; // no image, no listing
+    if (!resolveKitImagePath(p)) return false; // no image (own or backing vial's), no listing
     if (p.dosage !== product.dosage) return false;
     var base = p.base_product_id;
     if (!base) return false;
@@ -847,7 +862,7 @@ function findRelatedKits(product, products) {
 }
 
 function buildKitCardHtml(p) {
-  var imgUrl = resolveImagePath(p.image_path);
+  var imgUrl = resolveKitImagePath(p);
   var priceLabel = buildCompactPriceLabel(p);
   return '<div class="essential-card" data-product-id="' + p.id + '">' +
     (p.onSaleNow ? '<div class="sale-badge">Sale</div>' : '') +
@@ -889,7 +904,7 @@ function freeShippingBadgeText() {
 
 function renderProduct(product, siblings) {
   var root = document.getElementById('product-root');
-  var imgUrl = resolveImagePath(product.image_path);
+  var imgUrl = resolveKitImagePath(product);
   var trailIds = getTrailIds();
 
   if (!imgUrl) {

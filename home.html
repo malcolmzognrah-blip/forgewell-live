@@ -509,6 +509,21 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
+// A kit created without its own image falls back to its backing vial's
+// image -- same base_product_id + dosage matching rule product.html's
+// findBackingVial() uses (duplicated here per this codebase's no-shared-
+// JS convention). MOST_POPULAR_IDS below is a fixed list that doesn't
+// currently include any kit, but this keeps the fallback consistent with
+// shop.html/product.html in case one's ever added to it.
+function resolveKitImagePath(p) {
+  const direct = resolveImagePath(p.image_path);
+  if (direct) return direct;
+  if (p.category !== 'kit' || !p.base_product_id) return null;
+  const base = p.base_product_id;
+  const vial = allProducts.find(v => v.category !== 'kit' && (v.id === base || v.id.indexOf(base + '-') === 0) && v.dosage === p.dosage);
+  return vial ? resolveImagePath(vial.image_path) : null;
+}
+
 async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
   if (!query) return;
@@ -789,7 +804,7 @@ async function renderHomeMostPopular() {
       baseId: p.id, name: p.name, category: p.category || 'other',
       lowestPrice: (p.effectivePrice != null ? p.effectivePrice : p.price), lowestRegularPrice: p.price,
       lot: p.lot, dosage: p.dosage, onSale: !!p.onSaleNow,
-      imgUrl: resolveImagePath(p.image_path), multi: false,
+      imgUrl: resolveKitImagePath(p), multi: false,
     }))
     .filter(g => g.imgUrl); // still respect the image-matching display rule
   popularEl.innerHTML = picks.map(g => buildCardHtml(g)).join('');

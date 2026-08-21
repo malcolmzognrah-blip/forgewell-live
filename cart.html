@@ -509,6 +509,19 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
+// A kit created without its own image falls back to its backing vial's
+// image -- same base_product_id + dosage matching rule product.html's
+// findBackingVial() uses (duplicated here per this codebase's no-shared-
+// JS convention).
+function resolveKitImagePath(p) {
+  const direct = resolveImagePath(p.image_path);
+  if (direct) return direct;
+  if (p.category !== 'kit' || !p.base_product_id) return null;
+  const base = p.base_product_id;
+  const vial = allProducts.find(v => v.category !== 'kit' && (v.id === base || v.id.indexOf(base + '-') === 0) && v.dosage === p.dosage);
+  return vial ? resolveImagePath(vial.image_path) : null;
+}
+
 function saveCart() {
   localStorage.setItem('forgewell_cart', JSON.stringify(cart));
   updateCartIcon();
@@ -622,7 +635,7 @@ function renderCartPage() {
   list.innerHTML = '';
   cart.forEach(item => {
     const product = allProducts.find(p => p.id === item.productId);
-    const imgUrl = product ? resolveImagePath(product.image_path) : null;
+    const imgUrl = product ? resolveKitImagePath(product) : null;
     const lineTotal = item.price * item.qty;
     const productLink = '/product.html?id=' + encodeURIComponent(item.productId);
 

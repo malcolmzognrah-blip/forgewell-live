@@ -500,6 +500,36 @@ function resolveImagePath(path) {
   return '/' + path;
 }
 
+// A kit created without its own image falls back to its backing vial's
+// image -- same base_product_id + dosage matching rule product.html's
+// findBackingVial() uses (duplicated here per this codebase's no-shared-
+// JS convention), needed since a kit is otherwise indistinguishable from
+// any other product for image-resolution purposes.
+function resolveKitImagePath(p) {
+  const direct = resolveImagePath(p.image_path);
+  if (direct) return direct;
+  if (p.category !== 'kit' || !p.base_product_id) return null;
+  const base = p.base_product_id;
+  const vial = allProducts.find(v => v.category !== 'kit' && (v.id === base || v.id.indexOf(base + '-') === 0) && v.dosage === p.dosage);
+  return vial ? resolveImagePath(vial.image_path) : null;
+}
+
+// Same "own flag OR backing vial's flag" rule product.html's
+// isEffectivelyOutOfStock() and routes/checkout.js's server-side check
+// already apply -- this file's own inStock aggregation (used only by the
+// "In Stock Only" filter checkbox; there's no per-card out-of-stock
+// badge/disabling here for any product, kit or not) was checking just the
+// kit's own flag, so that filter could show a kit as in-stock while its
+// backing vial (and therefore the kit itself, everywhere else on the
+// site) was actually unavailable.
+function isEffectivelyOutOfStock(p) {
+  if (p.stock_status === 'out_of_stock') return true;
+  if (p.category !== 'kit' || !p.base_product_id) return false;
+  const base = p.base_product_id;
+  const vial = allProducts.find(v => v.category !== 'kit' && (v.id === base || v.id.indexOf(base + '-') === 0) && v.dosage === p.dosage);
+  return !!vial && vial.stock_status === 'out_of_stock';
+}
+
 async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
   if (!query) return;
@@ -758,18 +788,18 @@ async function renderShopGrid() {
   const groups = {};
   products.forEach(p => {
     if (EXCLUDED_COMPONENT_IDS.indexOf(p.id) !== -1) return;
-    const imgUrl = resolveImagePath(p.image_path);
-    if (!imgUrl) return; // image-matching display rule: no image, no listing
+    const imgUrl = resolveKitImagePath(p);
+    if (!imgUrl) return; // image-matching display rule: no image (own or backing vial's), no listing
     const base = groupKeyFor(p);
     if (!groups[base]) {
       groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
         lowestPrice: p.effectivePrice, highestPrice: p.effectivePrice, lowestRegularPrice: p.price,
         lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
-        inStock: p.stock_status !== 'out_of_stock', onSale: !!p.onSaleNow, unitsSold: p.units_sold || 0 };
+        inStock: !isEffectivelyOutOfStock(p), onSale: !!p.onSaleNow, unitsSold: p.units_sold || 0 };
     } else {
       groups[base].count += 1;
       groups[base].multi = true;
-      groups[base].inStock = groups[base].inStock || (p.stock_status !== 'out_of_stock');
+      groups[base].inStock = groups[base].inStock || !isEffectivelyOutOfStock(p);
       groups[base].onSale = groups[base].onSale || !!p.onSaleNow;
       groups[base].unitsSold += (p.units_sold || 0);
       if (p.effectivePrice > 0 && (groups[base].lowestPrice <= 0 || p.effectivePrice < groups[base].lowestPrice)) {

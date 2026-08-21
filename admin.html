@@ -162,6 +162,7 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
 .fulfillment-section:last-child{ border-bottom:none; padding-bottom:0; margin-bottom:0; }
 .fulfillment-section h3{ font-size:0.95rem; color:var(--navy-dark); margin:0 0 4px; }
 .fulfillment-section-note{ font-size:0.78rem; color:var(--gray); margin:0 0 14px; }
+.fulfillment-section-note.error{ color:#c0392b; }
 .fulfillment-btn{ margin-top:16px; padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
 .fulfillment-btn:disabled{ opacity:0.5; cursor:not-allowed; }
 .fulfillment-status{ font-size:0.82rem; margin-top:10px; display:none; }
@@ -490,6 +491,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </select>
       <select id="products-single-select"><option value="">— View All Products —</option></select>
       <button type="button" id="products-new-toggle-btn">+ New Product</button>
+      <button type="button" id="kit-new-toggle-btn">+ Create Kit</button>
     </div>
 
     <div class="product-create-form" id="product-create-form">
@@ -519,6 +521,43 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <p class="fulfillment-section-note">Leave blank, or point at a file that doesn't exist yet, and this product won't appear in the shop or home grids until a real image is in place — it'll still be reachable directly via its own product page.</p>
       <button type="button" class="product-save-btn" id="new-product-save-btn">Create Product</button>
       <span class="product-save-status" id="new-product-status"></span>
+    </div>
+
+    <!-- A kit is a normal products row (category='kit') with three extra
+         fields -- base_product_id, pack_size, weight_oz -- not a separate
+         concept with its own table (see routes/admin.js's POST /products
+         comment). This form is a friendlier front end over that same
+         create-product endpoint, purpose-built for the one thing every
+         real kit already is: a bulk pack of ONE existing product/dosage
+         tier at a flat price -- not a bundle of several different
+         products, which nothing in this schema/checkout/shipping supports
+         today. -->
+    <div class="product-create-form" id="kit-create-form">
+      <label>Backing Product</label>
+      <select id="kit-backing-product-select"><option value="">Select a product...</option></select>
+      <p class="fulfillment-section-note">The existing product/dosage tier this kit is a bulk pack of. This kit automatically shows as out of stock whenever this product does, on top of its own Stock Status below.</p>
+      <label>Pack Quantity</label>
+      <input type="number" step="1" min="1" id="kit-pack-quantity" placeholder="e.g. 10">
+      <label>Kit Name</label>
+      <input type="text" id="kit-name">
+      <label>Kit ID</label>
+      <input type="text" id="kit-id">
+      <label>Price <span style="font-weight:400; text-transform:none;">(flat -- not computed from the backing product's price)</span></label>
+      <input type="number" step="0.01" min="0" id="kit-price">
+      <p class="fulfillment-section-note" id="kit-price-hint"></p>
+      <label>Shipping Weight (oz) <span style="font-weight:400; text-transform:none;">(auto-suggested as backing product's weight &times; pack quantity, editable)</span></label>
+      <input type="number" step="0.01" min="0" id="kit-weight">
+      <p class="fulfillment-section-note" id="kit-weight-hint"></p>
+      <label>Kit Image <span style="font-weight:400; text-transform:none;">(optional)</span></label>
+      <input type="text" id="kit-image-path" placeholder="images/foo.png">
+      <p class="fulfillment-section-note">Leave blank to show the backing product's own image instead.</p>
+      <label>Stock Status</label>
+      <select id="kit-stock-status">
+        <option value="in_stock">In Stock</option>
+        <option value="out_of_stock">Out of Stock</option>
+      </select>
+      <button type="button" class="product-save-btn" id="kit-save-btn">Create Kit</button>
+      <span class="product-save-status" id="kit-save-status"></span>
     </div>
 
     <table class="products-table">
@@ -1021,6 +1060,9 @@ function renderProductsRows() {
               '<input type="date" class="product-detail-sale-start" value="' + (p.sale_start || '') + '">' +
               '<label>Sale End</label>' +
               '<input type="date" class="product-detail-sale-end" value="' + (p.sale_end || '') + '">' +
+              '<label>Shipping Weight (oz)</label>' +
+              '<input type="number" step="0.01" min="0" class="product-detail-weight" value="' + (p.weight_oz != null ? p.weight_oz : '') + '" placeholder="e.g. 4">' +
+              '<p class="fulfillment-section-note" style="margin:4px 0 0;">Used for live UPS/FedEx rate quotes at checkout. Leave blank to fall back to a conservative default -- see lib/shipping/index.js.</p>' +
             '</div>' +
             '<div>' +
               '<label>Bullets (one per line)</label>' +
@@ -1029,6 +1071,20 @@ function renderProductsRows() {
               '<textarea class="product-detail-research-use">' + escapeHtml(p.research_use || '') + '</textarea>' +
             '</div>' +
           '</div>' +
+          (p.category === 'kit' ? (
+            '<div class="product-detail-grid" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">' +
+              '<div>' +
+                '<label>Backing Product ID</label>' +
+                '<input type="text" class="product-detail-base-product-id" value="' + escapeHtml(p.base_product_id || '') + '">' +
+                '<p class="fulfillment-section-note" style="margin:4px 0 0;">The non-kit product this kit is a pack of (e.g. <code>bpc-157</code> for a BPC-157 kit) -- this kit inherits that product\'s out-of-stock status automatically.</p>' +
+              '</div>' +
+              '<div>' +
+                '<label>Pack Size</label>' +
+                '<input type="text" class="product-detail-pack-size" value="' + escapeHtml(p.pack_size || '') + '" placeholder="e.g. 10-Pack">' +
+                '<p class="fulfillment-section-note" style="margin:4px 0 0;">Display label only.</p>' +
+              '</div>' +
+            '</div>'
+          ) : '') +
           '<button type="button" class="product-save-btn" data-product-id="' + p.id + '">Save</button>' +
           '<span class="product-save-status" id="product-save-status-' + p.id + '"></span>' +
         '</td>' +
@@ -1958,7 +2014,15 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
     sale_end: detailRow2.querySelector('.product-detail-sale-end').value || null,
     bullets: detailRow2.querySelector('.product-detail-bullets').value,
     research_use: detailRow2.querySelector('.product-detail-research-use').value,
+    weight_oz: detailRow2.querySelector('.product-detail-weight').value || null,
   };
+  // Kit Settings block only renders for category='kit' rows (see
+  // renderProductsRows()) -- these two are absent from the DOM for every
+  // other product, so only include them in the PATCH body when present.
+  var basePidInput = detailRow2.querySelector('.product-detail-base-product-id');
+  var packSizeInput = detailRow2.querySelector('.product-detail-pack-size');
+  if (basePidInput) body.base_product_id = basePidInput.value || null;
+  if (packSizeInput) body.pack_size = packSizeInput.value || null;
 
   saveBtn.disabled = true;
   statusEl.textContent = '';
@@ -2136,6 +2200,173 @@ document.getElementById('new-product-save-btn').addEventListener('click', functi
     .catch(function() {
       btn.disabled = false;
       statusEl.textContent = 'Could not create product.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// ============================================================
+// Create Kit -- a friendlier form in front of the SAME POST
+// /api/admin/products endpoint above, not a separate kit-specific route.
+// Every real kit in the catalog is a normal product row that happens to
+// carry base_product_id/pack_size/weight_oz (see that route's own
+// comment) -- a bulk pack of ONE existing product/dosage tier at a flat
+// price, not a bundle of several different products (nothing in this
+// schema, checkout, or shipping-weight calculation supports that).
+// ============================================================
+
+document.getElementById('kit-new-toggle-btn').addEventListener('click', function() {
+  populateKitBackingProductOptions();
+  document.getElementById('kit-create-form').classList.toggle('show');
+});
+
+// Non-kit products only -- a kit is always a bulk pack of something that
+// isn't itself a kit, same "category !== 'kit'" rule findBackingVial()
+// uses in product.html.
+function populateKitBackingProductOptions() {
+  var select = document.getElementById('kit-backing-product-select');
+  var current = select.value;
+  var options = productsAllProducts
+    .filter(function(p) { return p.category !== 'kit'; })
+    .slice()
+    .sort(function(a, b) { return a.name.localeCompare(b.name); });
+  select.innerHTML = '<option value="">Select a product...</option>' +
+    options.map(function(p) {
+      return '<option value="' + p.id + '"' + (p.id === current ? ' selected' : '') + '>' +
+        escapeHtml(p.name) + (p.dosage ? ' (' + escapeHtml(p.dosage) + ')' : '') +
+      '</option>';
+    }).join('');
+}
+
+function selectedKitBackingProduct() {
+  var id = document.getElementById('kit-backing-product-select').value;
+  return productsAllProducts.find(function(p) { return p.id === id; }) || null;
+}
+
+// Auto-fills Kit Name / Kit ID / Weight from the selected backing product
+// + pack quantity, until the admin edits Name or ID directly -- same
+// "auto-slug until manually overridden" pattern as the New Product form's
+// own name->id fill just above.
+var kitNameManuallyEdited = false;
+var kitIdManuallyEdited = false;
+
+function refreshKitAutoFields() {
+  var backing = selectedKitBackingProduct();
+  var qty = parseInt(document.getElementById('kit-pack-quantity').value, 10);
+  var priceHintEl = document.getElementById('kit-price-hint');
+  var weightHintEl = document.getElementById('kit-weight-hint');
+
+  if (!backing || !Number.isInteger(qty) || qty <= 0) {
+    priceHintEl.textContent = '';
+    weightHintEl.textContent = '';
+    return;
+  }
+
+  var suggestedName = backing.name + ' Kit (' + (backing.dosage || '') + ', ' + qty + '-Pack)';
+  if (!kitNameManuallyEdited) document.getElementById('kit-name').value = suggestedName;
+  if (!kitIdManuallyEdited) document.getElementById('kit-id').value = slugify(suggestedName);
+
+  priceHintEl.textContent = backing.price
+    ? ('For reference: ' + qty + ' × $' + Number(backing.price).toFixed(2) + ' = $' + (Number(backing.price) * qty).toFixed(2) +
+       ' at the backing product\'s regular price -- this is just a reference, set your own flat kit price above.')
+    : '';
+
+  // A kit is physically qty times as heavy as one unit of its backing
+  // product -- but that's only a sensible number if the backing product
+  // itself has a real weight on file (see product-shipping-weight-
+  // migration.sql's placeholder-default caveat). Rather than silently
+  // auto-filling a wrong pack weight from an unset backing weight, warn
+  // and leave it blank so the admin sets the backing product's weight
+  // first (via its own Edit Details) instead of shipping quotes for this
+  // kit quietly using the generic single-item default.
+  if (backing.weight_oz != null) {
+    document.getElementById('kit-weight').value = Math.round(Number(backing.weight_oz) * qty * 100) / 100;
+    weightHintEl.textContent = '';
+    weightHintEl.classList.remove('error');
+  } else {
+    document.getElementById('kit-weight').value = '';
+    weightHintEl.textContent = 'The backing product has no Shipping Weight set yet, so this can\'t be auto-suggested -- set ' +
+      backing.name + '\'s weight via its own Edit Details first, or enter this kit\'s total weight manually.';
+    weightHintEl.classList.add('error');
+  }
+}
+
+document.getElementById('kit-backing-product-select').addEventListener('change', function() {
+  var backing = selectedKitBackingProduct();
+  var imagePathInput = document.getElementById('kit-image-path');
+  imagePathInput.placeholder = backing ? ('images/foo.png (leave blank to use ' + backing.name + '\'s image)') : 'images/foo.png';
+  refreshKitAutoFields();
+});
+document.getElementById('kit-pack-quantity').addEventListener('input', refreshKitAutoFields);
+document.getElementById('kit-name').addEventListener('input', function() { kitNameManuallyEdited = true; });
+document.getElementById('kit-id').addEventListener('input', function() { kitIdManuallyEdited = true; });
+
+document.getElementById('kit-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('kit-save-status');
+  var backing = selectedKitBackingProduct();
+  if (!backing) {
+    statusEl.textContent = 'Select a backing product.';
+    statusEl.className = 'product-save-status error';
+    return;
+  }
+  var packQuantity = document.getElementById('kit-pack-quantity').value;
+  var body = {
+    id: document.getElementById('kit-id').value.trim(),
+    name: document.getElementById('kit-name').value.trim(),
+    category: 'kit',
+    dosage: backing.dosage || '',
+    price: document.getElementById('kit-price').value,
+    stock_status: document.getElementById('kit-stock-status').value,
+    image_path: document.getElementById('kit-image-path').value.trim(),
+    base_product_id: backing.id,
+    pack_size: packQuantity ? (packQuantity + '-Pack') : '',
+    weight_oz: document.getElementById('kit-weight').value,
+  };
+
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+
+  fetch('/api/admin/products', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not create kit.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      productsAllProducts.push(r.d);
+      document.getElementById('kit-backing-product-select').value = '';
+      document.getElementById('kit-pack-quantity').value = '';
+      document.getElementById('kit-name').value = '';
+      document.getElementById('kit-id').value = '';
+      document.getElementById('kit-price').value = '';
+      document.getElementById('kit-weight').value = '';
+      document.getElementById('kit-image-path').value = '';
+      document.getElementById('kit-image-path').placeholder = 'images/foo.png';
+      document.getElementById('kit-stock-status').value = 'in_stock';
+      document.getElementById('kit-price-hint').textContent = '';
+      document.getElementById('kit-weight-hint').textContent = '';
+      kitNameManuallyEdited = false;
+      kitIdManuallyEdited = false;
+      statusEl.textContent = '';
+      document.getElementById('kit-create-form').classList.remove('show');
+
+      renderProductsCategoryOptions();
+      document.getElementById('products-category-filter').value = '';
+      renderProductsSingleSelectOptions();
+      document.getElementById('products-single-select').value = r.d.id;
+      renderProductsRows();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not create kit.';
       statusEl.className = 'product-save-status error';
     });
 });
