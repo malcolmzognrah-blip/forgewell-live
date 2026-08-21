@@ -29,14 +29,17 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .filters input, .filters select{ padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
 .filters input{ flex:1; min-width:200px; }
 .filters button{ padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
-/* Nested two levels inside .filters, so .filters input's flex:1 is inert
-   here (only applies to direct flex children) but its min-width:200px
-   still lands as a plain width constraint -- min-width:0 below clears
-   that so these can be their own compact size instead of 200px each. */
-.date-range-filter{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
+/* A separate row below .filters (a sibling, not nested inside it) --
+   guarantees From/To always lands on its own line rather than depending
+   on .filters' own flex-wrap to push it down at some viewport widths.
+   Not a descendant of .filters, so its inputs/button need their own
+   padding/border/etc. below rather than inheriting .filters'. */
+.date-range-filter{ display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
 .date-range-field{ display:flex; flex-direction:column; gap:5px; }
 .date-range-field label{ font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; }
-.date-range-field input{ min-width:0; width:150px; }
+.date-range-inputs{ display:flex; gap:8px; }
+.date-range-inputs input{ padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; width:150px; }
+.date-range-filter button{ padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
 
 .admin-tabs{ display:flex; gap:4px; margin-bottom:20px; border-bottom:1.5px solid var(--line); }
 .admin-tab{ padding:10px 16px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1.5px; font-size:0.85rem; font-weight:700; color:var(--gray); cursor:pointer; }
@@ -276,21 +279,25 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <option value="paid">Paid</option>
       <option value="pending_payment">Pending Payment</option>
     </select>
-    <div class="date-range-filter">
-      <div class="date-range-field">
-        <label for="filter-date-from">From</label>
+    <button id="filter-btn">Search</button>
+  </div>
+  <div class="date-range-filter">
+    <div class="date-range-field">
+      <label for="filter-date-from">From</label>
+      <div class="date-range-inputs">
         <input type="date" id="filter-date-from">
         <input type="text" id="filter-time-from" list="common-times-datalist" placeholder="e.g. 2:30 PM" autocomplete="off">
       </div>
-      <div class="date-range-field">
-        <label for="filter-date-to">To</label>
+    </div>
+    <div class="date-range-field">
+      <label for="filter-date-to">To</label>
+      <div class="date-range-inputs">
         <input type="date" id="filter-date-to">
         <input type="text" id="filter-time-to" list="common-times-datalist" placeholder="e.g. 2:30 PM" autocomplete="off">
       </div>
-      <datalist id="common-times-datalist"></datalist>
-      <button type="button" id="filter-date-apply-btn">Apply Filter</button>
     </div>
-    <button id="filter-btn">Search</button>
+    <datalist id="common-times-datalist"></datalist>
+    <button type="button" id="filter-date-apply-btn">Apply Filter</button>
   </div>
   <p class="result-count" id="result-count"></p>
   <table class="orders-table">
