@@ -650,39 +650,77 @@ function calculateCartTotals(cartItems, coupon) {
 // discountValue so its savings can be shown here too.
 let availableCoupons = [];
 
-const SHIPPING_METHODS = [
-  { id: 'usps_flat', label: 'USPS Flat Rate', cost: 11.99 },
-  { id: 'ups_fedex_ground', label: 'UPS/FedEx Ground (3-5 Days)', cost: 14.99 },
-  { id: 'ups_fedex_2day', label: 'UPS/FedEx 2nd Day Air', cost: 21.99 },
-];
+// Replaces the old flat-rate SHIPPING_METHODS array -- these now come
+// live from POST /api/shipping/rates (UPS + FedEx today; USPS will just
+// start appearing here once it's wired in server-side, no frontend
+// change needed). currentShippingRates holds whatever that endpoint last
+// returned; currentFreeShipping/currentFreeShippingTotal/
+// currentFreeShippingThreshold mirror its freeShipping/total/threshold
+// fields. Empty/false until the first fetchShippingRates() call resolves
+// (which needs a complete shipping address -- see its own comment).
+let currentShippingRates = [];
+let currentFreeShipping = false;
+let currentFreeShippingTotal = null;
+let currentFreeShippingThreshold = null;
+let ratesRequestInFlight = false;
 
 function renderShippingMethods() {
   const list = document.getElementById('shipping-method-list');
-  list.innerHTML = SHIPPING_METHODS.map(function(method, i) {
+  if (currentFreeShipping) {
+    list.innerHTML = '<label class="shipping-method-option">' +
+      '<span class="shipping-method-option-left">' +
+        '<input type="radio" name="shipping-method" value="free" checked disabled>' +
+        '<span class="shipping-method-name">Free Shipping</span>' +
+      '</span>' +
+      '<span class="shipping-method-price">$0.00</span>' +
+    '</label>';
+    return;
+  }
+  if (currentShippingRates.length === 0) {
+    list.innerHTML = '<p class="fulfillment-section-note">Enter your shipping address above to see shipping options.</p>';
+    return;
+  }
+  list.innerHTML = currentShippingRates.map(function(rate, i) {
+    var value = rate.carrier + '|' + rate.service;
     return '<label class="shipping-method-option">' +
       '<span class="shipping-method-option-left">' +
-        '<input type="radio" name="shipping-method" value="' + method.id + '"' + (i === 0 ? ' checked' : '') + '>' +
-        '<span class="shipping-method-name">' + method.label + '</span>' +
+        '<input type="radio" name="shipping-method" value="' + escapeForHtml(value) + '"' + (i === 0 ? ' checked' : '') + '>' +
+        '<span class="shipping-method-name">' + escapeForHtml(rate.label) + '</span>' +
       '</span>' +
-      '<span class="shipping-method-price">$' + method.cost.toFixed(2) + '</span>' +
+      '<span class="shipping-method-price">$' + rate.cost.toFixed(2) + '</span>' +
     '</label>';
   }).join('');
 }
 
-function getSelectedShippingMethod() {
-  const checked = document.querySelector('input[name="shipping-method"]:checked');
-  return SHIPPING_METHODS.find(function(m) { return m.id === (checked && checked.value); }) || SHIPPING_METHODS[0];
+// textContent round-trip, not string concatenation -- same safe-escape
+// pattern admin.html's escapeForHtml() uses, needed here since rate.label
+// ultimately comes from a carrier API response, not code we control.
+function escapeForHtml(s) {
+  var div = document.createElement('div');
+  div.textContent = s || '';
+  return div.innerHTML;
 }
+
+function getSelectedShippingMethod() {
+  if (currentFreeShipping) {
+    return { carrier: null, service: null, label: 'Free Shipping', cost: 0 };
+  }
+  const checked = document.querySelector('input[name="shipping-method"]:checked');
+  if (!checked) return { carrier: null, service: null, label: '', cost: 0 };
+  const [carrier, service] = checked.value.split('|');
+  return currentShippingRates.find(function(r) { return r.carrier === carrier && r.service === service; })
+    || { carrier: null, service: null, label: '', cost: 0 };
+}
+
+// hasCompleteShippingAddress()/fetchShippingRates() live further down,
+// inside the same block as shipFields/emailInput (the "cart has items"
+// branch below) -- both need direct access to those, same scope
+// applyShippingSource() already relies on for the same reason.
 
 // storeCreditBalanceCents is populated by loadStoreCreditBalance() below
 // (signed-in customers only) -- 0 until then, so this is a no-op for guests
 // and before that fetch resolves.
 let storeCreditBalanceCents = 0;
-
-// null until loadFreeShippingThreshold() below resolves (or forever, if
-// it fails) -- renderOrderSummary()'s free-shipping message stays hidden
-// in that case rather than showing a wrong/guessed dollar figure.
-let freeShippingThreshold = null;
 
 // Recomputes the subtotal-after-coupon + shipping total, independent of
 // whatever store credit is currently entered -- shared by
@@ -756,22 +794,25 @@ function renderOrderSummary() {
   const shippingMethod = getSelectedShippingMethod();
   const preCreditTotal = total + shippingMethod.cost;
 
-  // Qualifying total is the post-discount merchandise total (same "total"
-  // calculateCartTotals() already produces) -- deliberately not reduced by
-  // store credit (a payment method, not a discount on the order's size)
-  // and not including shipping itself (that would be circular). Hidden
-  // entirely rather than shown wrong if the threshold fetch never
-  // resolved -- see loadFreeShippingThreshold()'s own comment.
+  // Driven entirely by the last fetchShippingRates() response
+  // (currentFreeShipping/currentFreeShippingTotal/
+  // currentFreeShippingThreshold) rather than re-deriving a total here --
+  // that's the same server-authoritative total/threshold the rate list
+  // (and the actual charge at submission) use, so this message can never
+  // disagree with whether shipping is actually free. Hidden until that
+  // fetch has resolved at least once (needs a complete shipping address --
+  // see hasCompleteShippingAddress()), rather than guessing from a
+  // client-side total in the meantime.
   const freeShippingEl = document.getElementById('free-shipping-message');
   if (freeShippingEl) {
-    if (freeShippingThreshold == null) {
+    if (currentFreeShippingThreshold == null || currentFreeShippingTotal == null) {
       freeShippingEl.style.display = 'none';
-    } else if (total >= freeShippingThreshold) {
+    } else if (currentFreeShipping) {
       freeShippingEl.textContent = "You qualify for free shipping!";
       freeShippingEl.className = 'free-shipping-message qualified';
       freeShippingEl.style.display = 'block';
     } else {
-      const remaining = freeShippingThreshold - total;
+      const remaining = currentFreeShippingThreshold - currentFreeShippingTotal;
       freeShippingEl.textContent = 'Add $' + remaining.toFixed(2) + ' more to get FREE shipping!';
       freeShippingEl.className = 'free-shipping-message';
       freeShippingEl.style.display = 'block';
@@ -835,16 +876,6 @@ function loadStoreCreditBalance() {
 
 // Not gated on being signed in -- unlike store credit/coupons, the free-
 // shipping threshold applies to guest and signed-in checkouts alike.
-function loadFreeShippingThreshold() {
-  return fetch('/api/content/free-shipping-threshold')
-    .then(function(res) { return res.ok ? res.json() : { threshold: null }; })
-    .then(function(data) {
-      freeShippingThreshold = data.threshold;
-      renderOrderSummary();
-    })
-    .catch(function() {});
-}
-
 // NEW endpoint -- see the backend handoff spec. The coupon itself is
 // chosen on cart.html now (selector + manual entry both live there) --
 // this page just needs to know this customer's available coupons well
@@ -944,6 +975,56 @@ if (cart.length === 0) {
     });
   }
 
+  // All required shipping fields present -- same fields checkout submission
+  // itself requires (see requiredOk further down), just checked earlier so
+  // we don't waste a rate-shopping call (or worse, a carrier API call) on
+  // an address that's still being typed.
+  function hasCompleteShippingAddress() {
+    return !!(shipFields.name.value.trim() && shipFields.line1.value.trim() && shipFields.city.value.trim()
+      && shipFields.state.value.trim() && shipFields.zip.value.trim() && shipFields.country.value.trim());
+  }
+
+  // Calls POST /api/shipping/rates with the current cart + shipping address
+  // + whatever coupon is applied, and updates both the rate list and the
+  // free-shipping message from that one response -- deliberately the same
+  // server-authoritative total/threshold for both, rather than the message
+  // re-deriving its own total client-side and risking disagreeing with
+  // whether shipping is actually free (see routes/shipping.js's own
+  // comment on why these two numbers must never drift apart).
+  function fetchShippingRates() {
+    if (!hasCompleteShippingAddress() || ratesRequestInFlight) return;
+    ratesRequestInFlight = true;
+    const shippingAddress = {
+      name: shipFields.name.value.trim(),
+      line1: shipFields.line1.value.trim(),
+      line2: shipFields.line2.value.trim(),
+      city: shipFields.city.value.trim(),
+      state: shipFields.state.value.trim(),
+      zip: shipFields.zip.value.trim(),
+      country: shipFields.country.value.trim(),
+    };
+    const items = cart.map(function(item) { return { productId: item.productId, qty: item.qty }; });
+    const discountCode = (localStorage.getItem('forgewell_promo_code') || '').trim() || undefined;
+
+    fetch('/api/shipping/rates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: items, shippingAddress: shippingAddress, discountCode: discountCode }),
+    })
+      .then(function(res) { return res.ok ? res.json() : null; })
+      .then(function(data) {
+        ratesRequestInFlight = false;
+        if (!data) return;
+        currentFreeShipping = !!data.freeShipping;
+        currentShippingRates = Array.isArray(data.rates) ? data.rates : [];
+        currentFreeShippingTotal = typeof data.total === 'number' ? data.total : null;
+        currentFreeShippingThreshold = typeof data.threshold === 'number' ? data.threshold : null;
+        renderShippingMethods();
+        renderOrderSummary();
+      })
+      .catch(function() { ratesRequestInFlight = false; });
+  }
+
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res) { return res.ok ? res.json() : null; })
     .then(function(customer) {
@@ -967,6 +1048,7 @@ if (cart.length === 0) {
           applyShippingSource(defaultAddress);
           savedAddressSelect.value = defaultAddress.id;
           savedAddressDeleteBtn.style.display = '';
+          fetchShippingRates();
           return;
         }
         // No saved address book entry yet -- fall back to the most recent
@@ -980,6 +1062,7 @@ if (cart.length === 0) {
           .then(function(orders) {
             if (Array.isArray(orders) && orders.length > 0) {
               applyShippingSource(orders[0].shipping_address);
+              fetchShippingRates();
             }
           })
           .catch(function() {});
@@ -1001,6 +1084,7 @@ if (cart.length === 0) {
       if (shipFields[key]) shipFields[key].value = address[key] || '';
     });
     savedAddressDeleteBtn.style.display = '';
+    fetchShippingRates();
   });
 
   savedAddressDeleteBtn.addEventListener('click', function() {
@@ -1017,8 +1101,17 @@ if (cart.length === 0) {
 
   renderShippingMethods();
   renderOrderSummary();
-  loadFreeShippingThreshold();
+  // Catches an address that arrived via localStorage restore (the
+  // earlier synchronous fill above) or a saved address the account-based
+  // autofill flow already applied before this line runs -- the async
+  // branches of that flow (loadSavedAddresses()/order-history fallback)
+  // each also call fetchShippingRates() themselves once they resolve,
+  // since they finish after this point.
+  fetchShippingRates();
   document.getElementById('shipping-method-list').addEventListener('change', renderOrderSummary);
+  ['name', 'line1', 'city', 'state', 'zip', 'country'].forEach(function(key) {
+    shipFields[key].addEventListener('blur', fetchShippingRates);
+  });
 
   // Typing a specific amount and checking "Apply all" both funnel through
   // renderOrderSummary() -> syncStoreCreditAmount(), which is the single
@@ -1063,6 +1156,16 @@ if (cart.length === 0) {
     }
     shippingError.classList.remove('show');
 
+    // Same shipping method the rate list/order summary are already
+    // showing -- carrier+service only (never a cost) so
+    // routes/checkout.js can re-quote and charge the real, freshly-quoted
+    // price rather than trusting whatever this page last fetched.
+    const selectedShipping = getSelectedShippingMethod();
+    if (!currentFreeShipping && !selectedShipping.carrier) {
+      window.alert('Please select a shipping method before placing your order.');
+      return;
+    }
+
     localStorage.setItem('forgewell_checkout_email', email);
     localStorage.setItem('forgewell_shipping_address', JSON.stringify(shippingAddress));
 
@@ -1098,7 +1201,8 @@ if (cart.length === 0) {
           customerEmail: email,
           shippingAddress: shippingAddress,
           discountCode: promoCode || undefined,
-          storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined
+          storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined,
+          shippingMethod: currentFreeShipping ? undefined : { carrier: selectedShipping.carrier, service: selectedShipping.service }
         })
       });
       const data = await res.json();
