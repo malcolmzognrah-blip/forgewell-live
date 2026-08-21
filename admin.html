@@ -386,7 +386,10 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     </div>
 
     <div class="inbox-detail" id="inbox-detail">
-      <button type="button" class="inbox-back-btn" id="inbox-back-btn">&larr; Back to list</button>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button type="button" class="inbox-back-btn" id="inbox-back-btn">&larr; Back to list</button>
+        <button type="button" class="coa-delete-btn" id="inbox-delete-btn">Delete</button>
+      </div>
       <div class="inbox-detail-header">
         <p class="inbox-detail-subject" id="inbox-detail-subject"></p>
         <p class="inbox-detail-meta" id="inbox-detail-meta"></p>
@@ -2322,6 +2325,30 @@ document.getElementById('inbox-tbody').addEventListener('click', function(e) {
 document.getElementById('inbox-back-btn').addEventListener('click', function() {
   closeInboxDetail();
   loadInboxMessages();
+});
+
+// Permanently deletes from the actual mailbox via IMAP (see
+// deleteMessage()'s own comment in lib/imapClient.js for why this can't
+// just be a local hide/archive) -- confirm() first since there's no undo.
+document.getElementById('inbox-delete-btn').addEventListener('click', function() {
+  if (!inboxCurrentMessage) return;
+  if (!window.confirm('Delete this email? This permanently removes it from the mailbox and cannot be undone.')) return;
+  var btn = this;
+  btn.disabled = true;
+  fetch('/api/admin/inbox/messages/' + encodeURIComponent(inboxCurrentMessage.uid) + '?folder=' + encodeURIComponent(inboxCurrentMessage.folder), {
+    method: 'DELETE', credentials: 'include',
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) { window.alert(r.d.error || 'Could not delete message.'); return; }
+      closeInboxDetail();
+      loadInboxMessages();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.alert('Could not delete message.');
+    });
 });
 
 document.getElementById('inbox-reply-btn').addEventListener('click', function() {
