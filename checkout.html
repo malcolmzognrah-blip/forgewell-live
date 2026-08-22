@@ -239,7 +239,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-payment-method-option.disabled{ cursor:not-allowed; opacity:0.6; }
 .checkout-payment-method-option-left{ display:flex; align-items:center; gap:12px; }
 .checkout-payment-method-option input[type="radio"]{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
+.checkout-payment-method-option-text{ display:flex; flex-direction:column; gap:2px; }
 .checkout-payment-method-name{ font-weight:700; font-size:0.85rem; color:var(--navy-dark); }
+.checkout-payment-method-incentive{ font-size:0.72rem; font-weight:700; color:var(--green); }
 .checkout-payment-method-badge{
   font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
   color:var(--gray); background:var(--panel); border:1px solid var(--line);
@@ -407,13 +409,19 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <label class="checkout-payment-method-option">
             <span class="checkout-payment-method-option-left">
               <input type="radio" name="payment-method" value="payram" checked>
-              <span class="checkout-payment-method-name">PayRam (Crypto)</span>
+              <span class="checkout-payment-method-option-text">
+                <span class="checkout-payment-method-name">Card to Crypto</span>
+                <span class="checkout-payment-method-incentive">Earn $10 store credit when you pay this way</span>
+              </span>
             </span>
           </label>
           <label class="checkout-payment-method-option disabled">
             <span class="checkout-payment-method-option-left">
               <input type="radio" name="payment-method" value="ach" disabled>
-              <span class="checkout-payment-method-name">Bank Transfer (ACH)</span>
+              <span class="checkout-payment-method-option-text">
+                <span class="checkout-payment-method-name">Bank Transfer (ACH)</span>
+                <span class="checkout-payment-method-incentive">Earn $10 store credit when you pay this way</span>
+              </span>
             </span>
             <span class="checkout-payment-method-badge">Coming Soon</span>
           </label>
@@ -1675,11 +1683,12 @@ if (cart.length === 0) {
           discountCode: promoCode || undefined,
           storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined,
           shippingMethod: { carrier: selectedShipping.carrier, service: selectedShipping.service },
-          // Only PayRam's radio can actually be checked today -- Bank
-          // Transfer/Card are disabled inputs (see the Payment Method
-          // block above), so this can never resolve to anything else
-          // yet. Read generically rather than hardcoded to 'payram' so
-          // this needs no further changes once ACH/Card are enabled.
+          // Only the "Card to Crypto" (value="payram") radio can
+          // actually be checked today -- Bank Transfer/Card are disabled
+          // inputs (see the Payment Method block above), so this can
+          // never resolve to anything else yet. Read generically rather
+          // than hardcoded to 'payram' so this needs no further changes
+          // once ACH/Card are enabled.
           paymentMethod: (document.querySelector('input[name="payment-method"]:checked') || {}).value || 'payram',
         })
       });
