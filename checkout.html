@@ -264,9 +264,11 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
         <label class="checkout-field-label" for="checkout-ship-name">Full name</label>
         <input type="text" id="checkout-ship-name" placeholder="Jane Smith" autocomplete="name">
+        <p id="checkout-ship-name-error" class="checkout-field-error">Full name is required.</p>
 
         <label class="checkout-field-label" for="checkout-ship-line1">Address</label>
         <input type="text" id="checkout-ship-line1" placeholder="123 Main St" autocomplete="address-line1">
+        <p id="checkout-ship-line1-error" class="checkout-field-error">Address is required.</p>
 
         <label class="checkout-field-label" for="checkout-ship-line2">Apt / Suite (optional)</label>
         <input type="text" id="checkout-ship-line2" placeholder="Apt 4B" autocomplete="address-line2">
@@ -275,10 +277,12 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <div>
             <label class="checkout-field-label" for="checkout-ship-city">City</label>
             <input type="text" id="checkout-ship-city" placeholder="Wichita" autocomplete="address-level2">
+            <p id="checkout-ship-city-error" class="checkout-field-error">City is required.</p>
           </div>
           <div>
             <label class="checkout-field-label" for="checkout-ship-state">State</label>
             <input type="text" id="checkout-ship-state" placeholder="KS" autocomplete="address-level1">
+            <p id="checkout-ship-state-error" class="checkout-field-error">State is required.</p>
           </div>
         </div>
 
@@ -286,14 +290,14 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <div>
             <label class="checkout-field-label" for="checkout-ship-zip">ZIP code</label>
             <input type="text" id="checkout-ship-zip" placeholder="67202" autocomplete="postal-code">
+            <p id="checkout-ship-zip-error" class="checkout-field-error">ZIP code is required.</p>
           </div>
           <div>
             <label class="checkout-field-label" for="checkout-ship-country">Country</label>
             <input type="text" id="checkout-ship-country" placeholder="US" autocomplete="country" value="US">
+            <p id="checkout-ship-country-error" class="checkout-field-error">Country is required.</p>
           </div>
         </div>
-
-        <p id="checkout-shipping-error" class="checkout-field-error">Please fill in all required shipping fields.</p>
 
         <div class="checkout-save-address-block" id="checkout-save-address-block">
           <label class="checkout-save-address-row">
@@ -987,7 +991,6 @@ if (cart.length === 0) {
 } else {
   const emailInput = document.getElementById('checkout-email-input');
   const emailError = document.getElementById('checkout-email-error');
-  const shippingError = document.getElementById('checkout-shipping-error');
   const shipFields = {
     name: document.getElementById('checkout-ship-name'),
     line1: document.getElementById('checkout-ship-line1'),
@@ -996,6 +999,15 @@ if (cart.length === 0) {
     state: document.getElementById('checkout-ship-state'),
     zip: document.getElementById('checkout-ship-zip'),
     country: document.getElementById('checkout-ship-country'),
+  };
+  // line2 has no error element -- it's the one optional shipping field.
+  const shipFieldErrors = {
+    name: document.getElementById('checkout-ship-name-error'),
+    line1: document.getElementById('checkout-ship-line1-error'),
+    city: document.getElementById('checkout-ship-city-error'),
+    state: document.getElementById('checkout-ship-state-error'),
+    zip: document.getElementById('checkout-ship-zip-error'),
+    country: document.getElementById('checkout-ship-country-error'),
   };
 
   // Autofill from whatever was saved on a previous successful checkout
@@ -1011,6 +1023,93 @@ if (cart.length === 0) {
 
   function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  // ============================================================
+  // Per-field shipping address validation. Presence is required for all
+  // six (matches lib/orderPricing.js's REQUIRED_SHIPPING_FIELDS on the
+  // backend, checked again server-side in routes/checkout.js as the real
+  // gate -- this is a UX improvement in front of that, not a replacement
+  // for it). ZIP/state/country FORMAT checks are new here -- the backend
+  // has never validated those beyond non-empty -- scoped to what the
+  // live UPS/FedEx rate calls (routes/shipping.js, fetchShippingRates()
+  // below) actually need to not outright reject the request: a
+  // malformed ZIP or a state that isn't a real 2-letter code is exactly
+  // the kind of bad data that would otherwise reach those APIs.
+  // State/ZIP format is only enforced when country is US -- this site's
+  // shipping is US-domestic in practice (SHIP_FROM_COUNTRY=US, no
+  // country picker, just a free-text field defaulting to "US"), and
+  // there's no reliable general rule for arbitrary countries' postal
+  // formats to check instead, so a non-US country only gets a presence
+  // check on state/zip, same as before.
+  const US_STATE_CODES = [
+    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+    'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+    'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR','VI','GU','AS','MP','AA','AE','AP',
+  ];
+
+  function isUsCountry() {
+    return shipFields.country.value.trim().toUpperCase() === 'US';
+  }
+
+  const shipFieldValidators = {
+    name: function(v) { return v.trim() ? null : 'Full name is required.'; },
+    line1: function(v) { return v.trim() ? null : 'Address is required.'; },
+    city: function(v) { return v.trim() ? null : 'City is required.'; },
+    state: function(v) {
+      if (!v.trim()) return 'State is required.';
+      if (isUsCountry() && US_STATE_CODES.indexOf(v.trim().toUpperCase()) === -1) {
+        return 'Enter a valid 2-letter state code (e.g. KS).';
+      }
+      return null;
+    },
+    zip: function(v) {
+      if (!v.trim()) return 'ZIP code is required.';
+      if (isUsCountry() && !/^\d{5}(-\d{4})?$/.test(v.trim())) {
+        return 'Enter a valid ZIP code (e.g. 12345 or 12345-6789).';
+      }
+      return null;
+    },
+    country: function(v) {
+      if (!v.trim()) return 'Country is required.';
+      if (!/^[A-Za-z]{2}$/.test(v.trim())) return 'Enter a valid 2-letter country code (e.g. US).';
+      return null;
+    },
+  };
+
+  // Shows/hides that one field's error and returns whether it's valid --
+  // the "loud" check, used on blur and on submit.
+  function validateShipField(key) {
+    const message = shipFieldValidators[key](shipFields[key].value);
+    if (message) {
+      shipFieldErrors[key].textContent = message;
+      shipFieldErrors[key].classList.add('show');
+      return false;
+    }
+    shipFieldErrors[key].classList.remove('show');
+    return true;
+  }
+
+  function validateAllShipFields() {
+    // Not .every() with early-exit -- every field's error needs to show
+    // at once (a customer who left three fields blank should see three
+    // messages after one submit attempt, not fix them one at a time).
+    let allValid = true;
+    Object.keys(shipFieldValidators).forEach(function(key) {
+      if (!validateShipField(key)) allValid = false;
+    });
+    return allValid;
+  }
+
+  // Silent (no error display) full-validity check -- the gate in front
+  // of fetchShippingRates() further down, so a still-being-typed or
+  // malformed address never reaches the live carrier rate call, not
+  // just an empty one (same fields, stricter than the old presence-only
+  // version this replaces).
+  function hasCompleteShippingAddress() {
+    return Object.keys(shipFieldValidators).every(function(key) {
+      return !shipFieldValidators[key](shipFields[key].value);
+    });
   }
 
   // ============================================================
@@ -1063,15 +1162,6 @@ if (cart.length === 0) {
     Object.keys(shipFields).forEach(function(key) {
       if (shipFields[key] && source[key]) shipFields[key].value = source[key];
     });
-  }
-
-  // All required shipping fields present -- same fields checkout submission
-  // itself requires (see requiredOk further down), just checked earlier so
-  // we don't waste a rate-shopping call (or worse, a carrier API call) on
-  // an address that's still being typed.
-  function hasCompleteShippingAddress() {
-    return !!(shipFields.name.value.trim() && shipFields.line1.value.trim() && shipFields.city.value.trim()
-      && shipFields.state.value.trim() && shipFields.zip.value.trim() && shipFields.country.value.trim());
   }
 
   // Calls POST /api/shipping/rates with the current cart + shipping address
@@ -1216,7 +1306,24 @@ if (cart.length === 0) {
     document.getElementById('shipping-fast-column').style.display = this.checked ? '' : 'none';
   });
   ['name', 'line1', 'city', 'state', 'zip', 'country'].forEach(function(key) {
-    shipFields[key].addEventListener('blur', fetchShippingRates);
+    shipFields[key].addEventListener('blur', function() {
+      validateShipField(key);
+      // State/ZIP validity depends on Country's current value (see
+      // shipFieldValidators.state/zip above) -- re-check State/ZIP too
+      // whenever Country itself is the field that just changed, so
+      // switching from a non-US country doesn't leave a stale "valid"
+      // ZIP shown for a code that's no longer being format-checked
+      // against a specific country, or vice versa.
+      if (key === 'country') {
+        if (shipFields.state.value.trim()) validateShipField('state');
+        if (shipFields.zip.value.trim()) validateShipField('zip');
+      }
+      fetchShippingRates();
+    });
+  });
+  emailInput.addEventListener('blur', function() {
+    const email = emailInput.value.trim();
+    if (email) emailError.classList.toggle('show', !isValidEmail(email));
   });
 
   // Typing a specific amount and checking "Apply all" both funnel through
@@ -1253,14 +1360,12 @@ if (cart.length === 0) {
       zip: shipFields.zip.value.trim(),
       country: shipFields.country.value.trim(),
     };
-    // line2 is optional — everything else required, matches checkout.js validation
-    const requiredOk = shippingAddress.name && shippingAddress.line1 && shippingAddress.city
-      && shippingAddress.state && shippingAddress.zip && shippingAddress.country;
-    if (!requiredOk) {
-      shippingError.classList.add('show');
-      return;
-    }
-    shippingError.classList.remove('show');
+    // Shows every invalid field's specific error at once (see
+    // validateAllShipFields()'s own comment) and blocks submission --
+    // matches lib/orderPricing.js's REQUIRED_SHIPPING_FIELDS on presence,
+    // plus the ZIP/state/country format checks that only exist here
+    // client-side (see shipFieldValidators above).
+    if (!validateAllShipFields()) return;
 
     // Same shipping method the rate list/order summary are already
     // showing -- carrier+service only (never a cost) so
