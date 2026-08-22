@@ -158,6 +158,22 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
   border:1.5px solid var(--line); border-radius:8px; font-size:0.88rem;
   font-family:'Quicksand',sans-serif; color:#333; background:#fff;
 }
+/* Real entered text (#333, dark) vs. an unfilled field's example text
+   must read as visibly different -- there was no ::placeholder rule at
+   all here before, so every text/email input fell back to whatever the
+   browser's own default placeholder color happened to be, which isn't
+   guaranteed to look distinct from #333 (and visibly didn't in
+   practice, per the reported bug). var(--gray) matches the color this
+   site already uses elsewhere for de-emphasized text.
+   #checkout-ship-state is a <select>, not an <input> -- ::placeholder
+   doesn't apply to it, so its own "Select a state..." option (the only
+   option with an empty value) is grayed out the same way via :has(),
+   without needing the `required` attribute (which would turn on the
+   browser's native validation UI, not something this page uses) or any
+   JS -- purely a CSS placeholder-style effect, no behavior change. */
+.checkout-section input[type="email"]::placeholder,
+.checkout-section input[type="text"]::placeholder{ color:var(--gray); opacity:1; }
+.checkout-section select:has(option:checked[value=""]){ color:var(--gray); }
 .checkout-section input:focus,
 .checkout-section select:focus{ outline:none; border-color:var(--navy); }
 .checkout-field-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
