@@ -1766,7 +1766,36 @@ if (cart.length === 0) {
         // pending_payment, not paid. It's cleared on order-confirmation.html
         // once polling actually observes status === 'paid', so backing out
         // of PayRam (or the payment failing) leaves the cart intact.
-        window.location.href = data.payment.paymentUrl;
+        //
+        // PayRam's own API has no returnUrl/cancelUrl/logoUrl parameter at
+        // all (checked the SDK's InitiatePaymentRequest type directly --
+        // it only accepts customerEmail/customerId/amountInUSD), so there's
+        // no way to make PayRam's hosted page redirect back to us or carry
+        // our branding. Opening it in a NEW tab instead of navigating this
+        // one away sidesteps that limitation entirely: this tab goes to
+        // order-confirmation.html (already Forgewell-branded, already
+        // polling GET /api/checkout/:orderId for the webhook-confirmed
+        // status) and just sits there waiting, so "return to checkout"
+        // happens automatically -- the customer finishes or abandons
+        // payment in the PayRam tab, then switches back to (or the browser
+        // returns them to) this one, no cooperation from PayRam required.
+        // window.open() can be popup-blocked, especially on Safari, since
+        // this fires from inside an async function rather than
+        // synchronously in the click handler -- falls back to the old
+        // same-tab redirect if so, so checkout never silently stalls.
+        // Deliberately no 'noopener' here: the popup-blocked fallback
+        // below depends on window.open()'s return value reliably being
+        // null when blocked, which 'noopener' makes browser-inconsistent
+        // (some return a restricted-but-non-null reference either way) --
+        // the small opener-reference exposure to a reputable payment
+        // provider's own hosted page is an acceptable, standard tradeoff
+        // for that reliability.
+        var payramWindow = window.open(data.payment.paymentUrl, '_blank');
+        if (!payramWindow) {
+          window.location.href = data.payment.paymentUrl;
+          return;
+        }
+        window.location.href = '/order-confirmation.html';
         return;
       }
 
