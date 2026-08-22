@@ -141,17 +141,39 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 }
 .checkout-field-label:first-child{ margin-top:0; }
 .checkout-section input[type="email"],
-.checkout-section input[type="text"]{
+.checkout-section input[type="text"],
+.checkout-section select{
   width:100%; box-sizing:border-box; padding:11px 12px;
   border:1.5px solid var(--line); border-radius:8px; font-size:0.88rem;
-  font-family:'Quicksand',sans-serif; color:#333;
+  font-family:'Quicksand',sans-serif; color:#333; background:#fff;
 }
-.checkout-section input:focus{ outline:none; border-color:var(--navy); }
+.checkout-section input:focus,
+.checkout-section select:focus{ outline:none; border-color:var(--navy); }
 .checkout-field-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .checkout-field-error{
   color:#c0392b; font-size:0.75rem; margin:6px 0 0; display:none;
 }
 .checkout-field-error.show{ display:block; }
+
+.checkout-address-error{
+  display:none; font-size:0.82rem; color:#c0392b; background:#FBEAEA;
+  border:1px solid #E4B8B4; border-radius:6px; padding:10px 12px; margin:10px 0 0;
+}
+.checkout-address-error.show{ display:block; }
+
+.checkout-address-suggestion{
+  display:none; font-size:0.85rem; color:var(--navy-dark); background:var(--panel);
+  border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin:10px 0 0;
+}
+.checkout-address-suggestion.show{ display:block; }
+.checkout-address-suggestion strong{ display:block; margin-bottom:4px; }
+.checkout-address-suggestion-actions{ margin-top:10px; display:flex; gap:8px; }
+.checkout-address-suggestion-btn{
+  padding:8px 14px; border-radius:6px; font-size:0.8rem; font-weight:700;
+  cursor:pointer; border:1.5px solid var(--navy); font-family:'Quicksand',sans-serif;
+}
+.checkout-address-suggestion-btn.primary{ background:var(--navy); color:#fff; }
+.checkout-address-suggestion-btn.secondary{ background:#fff; color:var(--navy); }
 
 .checkout-saved-address-block{ display:none; margin-bottom:16px; }
 .checkout-saved-address-block.show{ display:block; }
@@ -281,7 +303,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           </div>
           <div>
             <label class="checkout-field-label" for="checkout-ship-state">State</label>
-            <input type="text" id="checkout-ship-state" placeholder="KS" autocomplete="address-level1">
+            <select id="checkout-ship-state" autocomplete="address-level1">
+              <option value="">Select a state...</option>
+            </select>
             <p id="checkout-ship-state-error" class="checkout-field-error">State is required.</p>
           </div>
         </div>
@@ -296,6 +320,16 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
             <label class="checkout-field-label" for="checkout-ship-country">Country</label>
             <input type="text" id="checkout-ship-country" placeholder="US" autocomplete="country" value="US">
             <p id="checkout-ship-country-error" class="checkout-field-error">Country is required.</p>
+          </div>
+        </div>
+
+        <div class="checkout-address-error" id="checkout-address-error"></div>
+        <div class="checkout-address-suggestion" id="checkout-address-suggestion">
+          <strong>We found a similar valid address:</strong>
+          <span id="checkout-address-suggestion-text"></span>
+          <div class="checkout-address-suggestion-actions">
+            <button type="button" class="checkout-address-suggestion-btn primary" id="checkout-address-suggestion-use">Use this address</button>
+            <button type="button" class="checkout-address-suggestion-btn secondary" id="checkout-address-suggestion-keep">Keep as entered</button>
           </div>
         </div>
 
@@ -739,6 +773,17 @@ let currentFreeShipping = false;
 let currentFreeShippingTotal = null;
 let currentFreeShippingThreshold = null;
 let ratesRequestInFlight = false;
+// Set by validateAddressThenFetchRates() below -- true only when the
+// carrier address-validation check has actually run and come back
+// invalid (a true carrier-consensus reject, not "couldn't be checked").
+// Read by the final submit handler to block that click client-side too,
+// on top of the real enforced gate already in routes/checkout.js's POST /.
+let addressCarrierInvalid = false;
+// JSON of the last address the carrier check actually ran against, so
+// blurring a field the customer didn't change (or re-blurring the same
+// field) doesn't re-fire the validate-address request or re-show a
+// suggestion the customer already dismissed for this exact address.
+let lastValidatedAddressKey = null;
 
 function renderShippingOptionsInto(el, rates, emptyMessage) {
   if (rates.length === 0) {
@@ -1010,6 +1055,41 @@ if (cart.length === 0) {
     country: document.getElementById('checkout-ship-country-error'),
   };
 
+  // Standard 2-letter USPS codes, including DC, the 5 territories, and
+  // the 3 military "state" codes (AA/AE/AP) -- same set the backend's
+  // carrier address-validation calls (lib/shipping/ups.js,
+  // lib/shipping/fedex.js) send a StateOrProvinceCode/PoliticalDivision1
+  // for, so a value from this dropdown is always one those APIs
+  // recognize. Drives both the #checkout-ship-state <select>'s options
+  // (populated just below) and shipFieldValidators.state's format check
+  // further down. Populated here, BEFORE the localStorage-restore block
+  // right after this -- that block sets shipFields.state.value from a
+  // saved address, which is a no-op on a <select> with no <option>
+  // elements yet to match against.
+  const US_STATES = [
+    ['AL','Alabama'], ['AK','Alaska'], ['AZ','Arizona'], ['AR','Arkansas'], ['CA','California'],
+    ['CO','Colorado'], ['CT','Connecticut'], ['DE','Delaware'], ['FL','Florida'], ['GA','Georgia'],
+    ['HI','Hawaii'], ['ID','Idaho'], ['IL','Illinois'], ['IN','Indiana'], ['IA','Iowa'],
+    ['KS','Kansas'], ['KY','Kentucky'], ['LA','Louisiana'], ['ME','Maine'], ['MD','Maryland'],
+    ['MA','Massachusetts'], ['MI','Michigan'], ['MN','Minnesota'], ['MS','Mississippi'], ['MO','Missouri'],
+    ['MT','Montana'], ['NE','Nebraska'], ['NV','Nevada'], ['NH','New Hampshire'], ['NJ','New Jersey'],
+    ['NM','New Mexico'], ['NY','New York'], ['NC','North Carolina'], ['ND','North Dakota'], ['OH','Ohio'],
+    ['OK','Oklahoma'], ['OR','Oregon'], ['PA','Pennsylvania'], ['RI','Rhode Island'], ['SC','South Carolina'],
+    ['SD','South Dakota'], ['TN','Tennessee'], ['TX','Texas'], ['UT','Utah'], ['VT','Vermont'],
+    ['VA','Virginia'], ['WA','Washington'], ['WV','West Virginia'], ['WI','Wisconsin'], ['WY','Wyoming'],
+    ['DC','District of Columbia'], ['PR','Puerto Rico'], ['VI','U.S. Virgin Islands'], ['GU','Guam'],
+    ['AS','American Samoa'], ['MP','Northern Mariana Islands'],
+    ['AA','Armed Forces Americas'], ['AE','Armed Forces Europe'], ['AP','Armed Forces Pacific'],
+  ];
+  const US_STATE_CODES = US_STATES.map(function(s) { return s[0]; });
+
+  US_STATES.forEach(function(s) {
+    const opt = document.createElement('option');
+    opt.value = s[0];
+    opt.textContent = s[0] + ' — ' + s[1];
+    shipFields.state.appendChild(opt);
+  });
+
   // Autofill from whatever was saved on a previous successful checkout
   const savedEmail = localStorage.getItem('forgewell_checkout_email');
   const savedShipping = JSON.parse(localStorage.getItem('forgewell_shipping_address') || 'null');
@@ -1042,12 +1122,6 @@ if (cart.length === 0) {
   // there's no reliable general rule for arbitrary countries' postal
   // formats to check instead, so a non-US country only gets a presence
   // check on state/zip, same as before.
-  const US_STATE_CODES = [
-    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-    'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-    'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR','VI','GU','AS','MP','AA','AE','AP',
-  ];
-
   function isUsCountry() {
     return shipFields.country.value.trim().toUpperCase() === 'US';
   }
@@ -1164,6 +1238,18 @@ if (cart.length === 0) {
     });
   }
 
+  function currentShippingAddress() {
+    return {
+      name: shipFields.name.value.trim(),
+      line1: shipFields.line1.value.trim(),
+      line2: shipFields.line2.value.trim(),
+      city: shipFields.city.value.trim(),
+      state: shipFields.state.value.trim(),
+      zip: shipFields.zip.value.trim(),
+      country: shipFields.country.value.trim(),
+    };
+  }
+
   // Calls POST /api/shipping/rates with the current cart + shipping address
   // + whatever coupon is applied, and updates both the rate list and the
   // free-shipping message from that one response -- deliberately the same
@@ -1174,15 +1260,7 @@ if (cart.length === 0) {
   function fetchShippingRates() {
     if (!hasCompleteShippingAddress() || ratesRequestInFlight) return;
     ratesRequestInFlight = true;
-    const shippingAddress = {
-      name: shipFields.name.value.trim(),
-      line1: shipFields.line1.value.trim(),
-      line2: shipFields.line2.value.trim(),
-      city: shipFields.city.value.trim(),
-      state: shipFields.state.value.trim(),
-      zip: shipFields.zip.value.trim(),
-      country: shipFields.country.value.trim(),
-    };
+    const shippingAddress = currentShippingAddress();
     const items = cart.map(function(item) { return { productId: item.productId, qty: item.qty }; });
     const discountCode = (localStorage.getItem('forgewell_promo_code') || '').trim() || undefined;
 
@@ -1205,6 +1283,119 @@ if (cart.length === 0) {
       })
       .catch(function() { ratesRequestInFlight = false; });
   }
+
+  const addressErrorEl = document.getElementById('checkout-address-error');
+  const addressSuggestionEl = document.getElementById('checkout-address-suggestion');
+  const addressSuggestionTextEl = document.getElementById('checkout-address-suggestion-text');
+  let pendingSuggestedAddress = null;
+
+  function hideAddressValidationUi() {
+    addressErrorEl.classList.remove('show');
+    addressErrorEl.textContent = '';
+    addressSuggestionEl.classList.remove('show');
+    pendingSuggestedAddress = null;
+  }
+
+  function formatAddressForDisplay(addr) {
+    return [addr.line1, addr.line2, addr.city + ', ' + addr.state + ' ' + addr.zip].filter(Boolean).join(', ');
+  }
+
+  // Real carrier deliverability check (UPS/FedEx via POST
+  // /api/shipping/validate-address), run BEFORE fetchShippingRates() so
+  // an address that turns out undeliverable never even reaches the live
+  // rate-shopping call -- see routes/shipping.js's own comment on why
+  // that ordering makes sense (no point quoting shipping for an address
+  // that isn't real). This endpoint is only the live-typing UI feedback
+  // path; routes/checkout.js's POST / re-runs the identical check
+  // server-side as the actual enforced gate, so a customer can never
+  // bypass this by skipping straight to submit.
+  //
+  // Skips re-calling the endpoint (and re-showing/re-hiding a
+  // suggestion the customer already saw) when the address hasn't
+  // actually changed since the last check -- otherwise tabbing through
+  // six fields on blur would fire six identical carrier requests.
+  function validateAddressThenFetchRates() {
+    if (!hasCompleteShippingAddress()) {
+      hideAddressValidationUi();
+      addressCarrierInvalid = false;
+      return;
+    }
+    const address = currentShippingAddress();
+    const key = JSON.stringify(address);
+    if (key === lastValidatedAddressKey) {
+      fetchShippingRates();
+      return;
+    }
+
+    fetch('/api/shipping/validate-address', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shippingAddress: address }),
+    })
+      .then(function(res) { return res.ok ? res.json() : { checked: false, valid: true, suggested: null, message: null }; })
+      .then(function(result) {
+        // Re-read the address now, not the one captured in the closure
+        // above -- the customer may have kept typing while this request
+        // was in flight, in which case this response is stale and a
+        // fresher validateAddressThenFetchRates() call is already
+        // scheduled (from whichever blur fired after this one started)
+        // to supersede it.
+        if (JSON.stringify(currentShippingAddress()) !== key) return;
+        lastValidatedAddressKey = key;
+        hideAddressValidationUi();
+
+        if (!result.checked) {
+          // Neither carrier could be reached/is configured -- fall back
+          // to the format-only check that already ran (same "an outage
+          // must never block every checkout" reasoning as the backend).
+          addressCarrierInvalid = false;
+          fetchShippingRates();
+          return;
+        }
+        if (!result.valid) {
+          addressCarrierInvalid = true;
+          addressErrorEl.textContent = result.message || 'This shipping address could not be verified as deliverable. Please double-check it.';
+          addressErrorEl.classList.add('show');
+          // Deliberately does NOT call fetchShippingRates() -- quoting
+          // shipping for an address the carriers say isn't deliverable
+          // would be misleading, and the real submit is blocked below
+          // regardless.
+          return;
+        }
+        addressCarrierInvalid = false;
+        if (result.suggested) {
+          pendingSuggestedAddress = result.suggested;
+          addressSuggestionTextEl.textContent = formatAddressForDisplay(result.suggested);
+          addressSuggestionEl.classList.add('show');
+        }
+        // Valid either way (with or without a suggestion) -- a
+        // suggestion is an offer, not a block, so rate-shopping proceeds
+        // against whatever the customer currently has entered.
+        fetchShippingRates();
+      })
+      .catch(function() {
+        // Client-side network failure talking to our own backend --
+        // same fail-open reasoning as the "neither carrier reachable"
+        // branch above.
+        addressCarrierInvalid = false;
+        fetchShippingRates();
+      });
+  }
+
+  document.getElementById('checkout-address-suggestion-use').addEventListener('click', function() {
+    if (!pendingSuggestedAddress) return;
+    Object.keys(shipFields).forEach(function(key) {
+      if (shipFields[key] && pendingSuggestedAddress[key] !== undefined) {
+        shipFields[key].value = pendingSuggestedAddress[key];
+      }
+    });
+    hideAddressValidationUi();
+    lastValidatedAddressKey = null; // force a fresh check against the now-different address
+    validateAddressThenFetchRates();
+  });
+  document.getElementById('checkout-address-suggestion-keep').addEventListener('click', function() {
+    hideAddressValidationUi();
+  });
 
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res) { return res.ok ? res.json() : null; })
@@ -1229,7 +1420,7 @@ if (cart.length === 0) {
           applyShippingSource(defaultAddress);
           savedAddressSelect.value = defaultAddress.id;
           savedAddressDeleteBtn.style.display = '';
-          fetchShippingRates();
+          validateAddressThenFetchRates();
           return;
         }
         // No saved address book entry yet -- fall back to the most recent
@@ -1243,7 +1434,7 @@ if (cart.length === 0) {
           .then(function(orders) {
             if (Array.isArray(orders) && orders.length > 0) {
               applyShippingSource(orders[0].shipping_address);
-              fetchShippingRates();
+              validateAddressThenFetchRates();
             }
           })
           .catch(function() {});
@@ -1265,7 +1456,7 @@ if (cart.length === 0) {
       if (shipFields[key]) shipFields[key].value = address[key] || '';
     });
     savedAddressDeleteBtn.style.display = '';
-    fetchShippingRates();
+    validateAddressThenFetchRates();
   });
 
   savedAddressDeleteBtn.addEventListener('click', function() {
@@ -1286,9 +1477,9 @@ if (cart.length === 0) {
   // earlier synchronous fill above) or a saved address the account-based
   // autofill flow already applied before this line runs -- the async
   // branches of that flow (loadSavedAddresses()/order-history fallback)
-  // each also call fetchShippingRates() themselves once they resolve,
-  // since they finish after this point.
-  fetchShippingRates();
+  // each also call validateAddressThenFetchRates() themselves once they
+  // resolve, since they finish after this point.
+  validateAddressThenFetchRates();
   // Delegated on the shared wrapper -- standard and fast are two
   // separate lists (#shipping-standard-list/#shipping-fast-list) that
   // both get replaced by every renderShippingMethods() call, but they
@@ -1318,8 +1509,19 @@ if (cart.length === 0) {
         if (shipFields.state.value.trim()) validateShipField('state');
         if (shipFields.zip.value.trim()) validateShipField('zip');
       }
-      fetchShippingRates();
+      validateAddressThenFetchRates();
     });
+  });
+  // A <select> like #checkout-ship-state fires 'change' the instant a
+  // value is picked, well before it necessarily loses focus -- 'blur'
+  // alone (above) would leave the rate/validation refresh feeling
+  // delayed for a dropdown specifically, unlike a typed field. Safe to
+  // fire alongside the blur handler above: validateAddressThenFetchRates()
+  // is a no-op re-check (falls straight through to fetchShippingRates())
+  // whenever the address hasn't changed since the last call.
+  shipFields.state.addEventListener('change', function() {
+    validateShipField('state');
+    validateAddressThenFetchRates();
   });
   emailInput.addEventListener('blur', function() {
     const email = emailInput.value.trim();
@@ -1366,6 +1568,18 @@ if (cart.length === 0) {
     // plus the ZIP/state/country format checks that only exist here
     // client-side (see shipFieldValidators above).
     if (!validateAllShipFields()) return;
+
+    // Client-side courtesy check only -- routes/checkout.js's POST /
+    // always re-runs the real UPS/FedEx validation server-side
+    // regardless of this flag, so a customer can never bypass the check
+    // by racing this click past it. This just avoids an unnecessary
+    // round trip (and a less specific error) for the common case where
+    // the customer is still looking at the exact "not deliverable"
+    // message validateAddressThenFetchRates() already showed them.
+    if (addressCarrierInvalid) {
+      window.alert(addressErrorEl.textContent || 'This shipping address could not be verified as deliverable. Please double-check it before placing your order.');
+      return;
+    }
 
     // Same shipping method the rate list/order summary are already
     // showing -- carrier+service only (never a cost) so
