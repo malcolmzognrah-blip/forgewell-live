@@ -289,6 +289,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-fulfillment">Fulfillment Report</button>
     <button type="button" class="admin-tab" id="tab-products">Products</button>
     <button type="button" class="admin-tab" id="tab-content">Content</button>
+    <button type="button" class="admin-tab" id="tab-emails">Email Templates</button>
     <button type="button" class="admin-tab" id="tab-coupons">Coupons</button>
     <button type="button" class="admin-tab" id="tab-credit">Store Credit</button>
     <button type="button" class="admin-tab" id="tab-audit">Audit Log</button>
@@ -654,6 +655,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <button type="button" class="fulfillment-btn" id="content-company-address-save-btn" style="margin-top:8px;">Save</button>
       <span class="product-save-status" id="content-company-address-status"></span>
     </div>
+  </div>
+
+  <div class="admin-view coa-panel" id="view-emails">
+    <p class="fulfillment-section-note">Edits the subject/body of the emails this system sends. A fixed disclaimer/address/unsubscribe footer (where applicable) is always appended automatically and is not part of what's editable here.</p>
+    <div id="email-templates-list"></div>
   </div>
 
   <div class="admin-view coupons-panel" id="view-coupons">
@@ -1038,10 +1044,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
+  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
+  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -1061,6 +1067,7 @@ function showPromoTab() {
   showAdminTab('tab-promo', 'view-promo');
   loadPromoSubscriberCount();
   loadScheduledPromos();
+  prefillCampaignDraft('promo_campaign', 'promo-subject', 'promo-body');
 }
 
 function showCouponsTab() {
@@ -1404,6 +1411,94 @@ function showContentSubtab(subtabId, subviewId) {
   });
   document.getElementById(subtabId).classList.add('active');
   document.getElementById(subviewId).classList.add('active');
+}
+
+// ============================================================
+// Email Templates -- admin-editable subject/body for the emails this
+// system sends (see routes/admin.js's GET/PUT /email-templates,
+// backend repo). Four keys (order_confirmation, shipping_update,
+// back_in_stock, abandoned_cart) are real, always-substituted templates;
+// three (coupon_campaign, store_credit_campaign, promo_campaign) are
+// starting-draft-only -- their {{variables}} list is empty because
+// those emails' subject/body have always been typed fresh per send (see
+// prefillCampaignDraft() below, which pulls from the same list to
+// pre-fill those three composers elsewhere on this page).
+// ============================================================
+
+var emailTemplatesLoaded = false;
+var emailTemplatesByKey = {};
+
+function emailTemplateVariablesHtml(variables) {
+  if (!variables || variables.length === 0) {
+    return '<p style="font-size:0.78rem; color:var(--gray); margin:8px 0 0;">This template has no variables -- nothing here is substituted with live data.</p>';
+  }
+  return '<div style="margin:8px 0; padding:10px 12px; background:#F7F8F6; border:1px solid var(--line); border-radius:6px;">' +
+    '<div style="font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;">Available Variables</div>' +
+    variables.map(function(v) {
+      return '<div style="font-size:0.78rem; margin-bottom:3px;"><code style="background:#fff; border:1px solid var(--line); border-radius:3px; padding:1px 5px;">{{' + escapeHtml(v.name) + '}}</code> &mdash; ' + escapeHtml(v.description) + '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function renderEmailTemplates(list) {
+  document.getElementById('email-templates-list').innerHTML = list.map(function(t) {
+    return '<div class="content-item" data-email-template-key="' + t.key + '" style="margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--line);">' +
+      '<h3 style="margin:0 0 4px; font-size:0.95rem; color:var(--navy);">' + escapeHtml(t.label) + '</h3>' +
+      '<p style="margin:0 0 10px; font-size:0.8rem; color:var(--gray);">' + escapeHtml(t.description) + '</p>' +
+      emailTemplateVariablesHtml(t.variables) +
+      '<label style="display:block; margin-top:10px;">Subject</label>' +
+      '<input type="text" class="email-template-subject" value="' + escapeHtml(t.subject) + '" style="width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">' +
+      '<label style="display:block; margin-top:10px;">Body</label>' +
+      '<textarea class="email-template-body" style="width:100%; box-sizing:border-box; min-height:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;">' + escapeHtml(t.body) + '</textarea>' +
+      '<button type="button" class="fulfillment-btn email-template-save-btn" data-email-template-key="' + t.key + '" style="margin-top:10px;">Save</button>' +
+      '<span class="product-save-status" id="email-template-status-' + t.key + '"></span>' +
+    '</div>';
+  }).join('');
+}
+
+function loadEmailTemplates() {
+  if (emailTemplatesLoaded) return;
+  emailTemplatesLoaded = true;
+  fetch('/api/admin/email-templates', { credentials: 'include' })
+    .then(function(r) { return r.json(); })
+    .then(function(list) {
+      emailTemplatesByKey = {};
+      list.forEach(function(t) { emailTemplatesByKey[t.key] = t; });
+      renderEmailTemplates(list);
+    })
+    .catch(function() {});
+}
+
+function showEmailsTab() {
+  showAdminTab('tab-emails', 'view-emails');
+  loadEmailTemplates();
+}
+
+// Pre-fills one of the three starting-draft-only composers (Coupon Email
+// Campaign, Store Credit Campaign, Promotions) from its saved
+// email_templates row, if any -- but ONLY if both fields are still
+// blank, so this never clobbers whatever the admin already typed (e.g.
+// re-opening the Email Campaign form after already drafting a message,
+// or the coupon-select autofill in email-campaign-coupon-select's
+// 'change' handler above having already filled it in). Fetches fresh
+// rather than relying on emailTemplatesByKey being populated already --
+// an admin can open a campaign composer without ever visiting the Email
+// Templates tab first.
+function prefillCampaignDraft(key, subjectElId, bodyElId) {
+  var subjectEl = document.getElementById(subjectElId);
+  var bodyEl = document.getElementById(bodyElId);
+  if (subjectEl.value.trim() || bodyEl.value.trim()) return;
+  fetch('/api/admin/email-templates', { credentials: 'include' })
+    .then(function(r) { return r.json(); })
+    .then(function(list) {
+      var draft = list.find(function(t) { return t.key === key; });
+      if (!draft) return;
+      // Re-check on resolve, not just before the fetch -- the admin could
+      // have started typing while this was in flight.
+      if (!subjectEl.value.trim()) subjectEl.value = draft.subject;
+      if (!bodyEl.value.trim()) bodyEl.value = draft.body;
+    })
+    .catch(function() {});
 }
 
 function loadFulfillmentSchedule() {
@@ -1837,6 +1932,7 @@ document.getElementById('coupons-tbody').addEventListener('click', function(e) {
 
 document.getElementById('email-campaign-toggle-btn').addEventListener('click', function() {
   document.getElementById('email-campaign-form').classList.toggle('show');
+  prefillCampaignDraft('coupon_campaign', 'email-campaign-subject', 'email-campaign-body');
 });
 
 // Shortcut into the existing "+ New Coupon" form/button above rather than
@@ -2037,6 +2133,7 @@ document.getElementById('email-campaign-send-btn').addEventListener('click', fun
 
 document.getElementById('credit-campaign-toggle-btn').addEventListener('click', function() {
   document.getElementById('credit-campaign-form').classList.toggle('show');
+  prefillCampaignDraft('store_credit_campaign', 'credit-campaign-subject', 'credit-campaign-body');
 });
 
 var creditCampaignAllCount = 0;
@@ -2639,6 +2736,7 @@ document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
 document.getElementById('tab-fulfillment').addEventListener('click', showFulfillmentTab);
 document.getElementById('tab-products').addEventListener('click', showProductsTab);
 document.getElementById('tab-content').addEventListener('click', showContentTab);
+document.getElementById('tab-emails').addEventListener('click', showEmailsTab);
 document.getElementById('tab-coupons').addEventListener('click', showCouponsTab);
 document.getElementById('tab-credit').addEventListener('click', showCreditTab);
 document.getElementById('tab-audit').addEventListener('click', showAuditTab);
@@ -3136,6 +3234,41 @@ document.getElementById('content-shipping-policy-list').addEventListener('click'
       btn.disabled = false;
       statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
       statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// Delegated since the list is rebuilt on load, same as the Content tab's
+// about-us/faq/shipping-policy lists above.
+document.getElementById('email-templates-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.email-template-save-btn');
+  if (!btn) return;
+  var key = btn.getAttribute('data-email-template-key');
+  var item = document.querySelector('.content-item[data-email-template-key="' + key + '"]');
+  var statusEl = document.getElementById('email-template-status-' + key);
+  var body = {
+    subject: item.querySelector('.email-template-subject').value,
+    body: item.querySelector('.email-template-body').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/email-templates/' + encodeURIComponent(key), {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+      if (r.ok && emailTemplatesByKey[key]) {
+        emailTemplatesByKey[key].subject = r.d.subject;
+        emailTemplatesByKey[key].body = r.d.body;
+      }
     })
     .catch(function() {
       btn.disabled = false;
