@@ -1137,7 +1137,7 @@ function loadAuditLog() {
       document.getElementById('audit-log-tbody').innerHTML = entries.map(function(e) {
         return '<tr>' +
           '<td>' + formatDate(e.created_at) + '</td>' +
-          '<td>' + (e.admin_username ? escapeHtml(e.admin_username) : '<span style="color:var(--gray)">(deleted user)</span>') + '</td>' +
+          '<td>' + (e.admin_username ? escapeHtml(e.admin_username) : (e.admin_user_id ? '<span style="color:var(--gray)">(deleted user)</span>' : '<span style="color:var(--gray)">(system)</span>')) + '</td>' +
           '<td><code>' + escapeHtml(e.action) + '</code></td>' +
           '<td>' + escapeHtml(e.target_type || '') + (e.target_id ? ' <code>' + escapeHtml(e.target_id) + '</code>' : '') + '</td>' +
           '<td style="font-size:0.78rem;">' + auditChangeSummary(e) + '</td>' +

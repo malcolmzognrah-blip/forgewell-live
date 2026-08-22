@@ -227,6 +227,24 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .shipping-faster-toggle input{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
 .checkout-store-credit-block{ margin-bottom:14px; }
 .checkout-store-credit-balance{ font-size:0.82rem; font-weight:700; color:var(--navy-dark); margin-bottom:8px; }
+
+.checkout-payment-method-block{ margin-bottom:14px; }
+.checkout-payment-method-label{ font-size:0.75rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px; }
+.checkout-payment-method-option{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  border:1.5px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:8px;
+  background:#fff; cursor:pointer;
+}
+.checkout-payment-method-option:has(input:checked){ border-color:var(--navy); background:var(--panel); }
+.checkout-payment-method-option.disabled{ cursor:not-allowed; opacity:0.6; }
+.checkout-payment-method-option-left{ display:flex; align-items:center; gap:12px; }
+.checkout-payment-method-option input[type="radio"]{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
+.checkout-payment-method-name{ font-weight:700; font-size:0.85rem; color:var(--navy-dark); }
+.checkout-payment-method-badge{
+  font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
+  color:var(--gray); background:var(--panel); border:1px solid var(--line);
+  border-radius:100px; padding:3px 9px; white-space:nowrap;
+}
 .checkout-store-credit-amount-row{ display:flex; align-items:center; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; overflow:hidden; }
 .checkout-store-credit-amount-row span{ padding:9px 0 9px 10px; font-size:0.82rem; color:#444; font-family:'Quicksand',sans-serif; }
 .checkout-store-credit-amount-row input{ flex:1; min-width:0; border:none; padding:9px 10px 9px 2px; font-family:'Quicksand',sans-serif; font-size:0.82rem; color:#333; }
@@ -383,6 +401,31 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <span>Order Total</span>
           <span id="checkout-total">$0.00</span>
         </div>
+
+        <div class="checkout-payment-method-block">
+          <div class="checkout-payment-method-label">Payment Method</div>
+          <label class="checkout-payment-method-option">
+            <span class="checkout-payment-method-option-left">
+              <input type="radio" name="payment-method" value="payram" checked>
+              <span class="checkout-payment-method-name">PayRam (Crypto)</span>
+            </span>
+          </label>
+          <label class="checkout-payment-method-option disabled">
+            <span class="checkout-payment-method-option-left">
+              <input type="radio" name="payment-method" value="ach" disabled>
+              <span class="checkout-payment-method-name">Bank Transfer (ACH)</span>
+            </span>
+            <span class="checkout-payment-method-badge">Coming Soon</span>
+          </label>
+          <label class="checkout-payment-method-option disabled">
+            <span class="checkout-payment-method-option-left">
+              <input type="radio" name="payment-method" value="card" disabled>
+              <span class="checkout-payment-method-name">Credit / Debit Card</span>
+            </span>
+            <span class="checkout-payment-method-badge">Coming Soon</span>
+          </label>
+        </div>
+
         <button type="button" id="checkout-place-order-btn" class="checkout-place-order-btn">Place Order</button>
         <a href="/cart.html" class="checkout-back-link">&larr; Back to Cart</a>
       </div>
@@ -1631,7 +1674,13 @@ if (cart.length === 0) {
           shippingAddress: shippingAddress,
           discountCode: promoCode || undefined,
           storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined,
-          shippingMethod: { carrier: selectedShipping.carrier, service: selectedShipping.service }
+          shippingMethod: { carrier: selectedShipping.carrier, service: selectedShipping.service },
+          // Only PayRam's radio can actually be checked today -- Bank
+          // Transfer/Card are disabled inputs (see the Payment Method
+          // block above), so this can never resolve to anything else
+          // yet. Read generically rather than hardcoded to 'payram' so
+          // this needs no further changes once ACH/Card are enabled.
+          paymentMethod: (document.querySelector('input[name="payment-method"]:checked') || {}).value || 'payram',
         })
       });
       const data = await res.json();
