@@ -659,7 +659,24 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 
   <div class="admin-view coa-panel" id="view-emails">
     <p class="fulfillment-section-note">Edits the subject/body of the emails this system sends. A fixed disclaimer/address/unsubscribe footer (where applicable) is always appended automatically and is not part of what's editable here.</p>
-    <div id="email-templates-list"></div>
+
+    <div class="content-subtabs">
+      <button type="button" class="content-subtab active" id="email-subtab-order-confirmation">Order Confirmation</button>
+      <button type="button" class="content-subtab" id="email-subtab-shipping-update">Shipping Update</button>
+      <button type="button" class="content-subtab" id="email-subtab-back-in-stock">Back-in-Stock</button>
+      <button type="button" class="content-subtab" id="email-subtab-abandoned-cart">Abandoned Cart</button>
+      <button type="button" class="content-subtab" id="email-subtab-coupon-campaign">Coupon Campaign</button>
+      <button type="button" class="content-subtab" id="email-subtab-store-credit-campaign">Store Credit Campaign</button>
+      <button type="button" class="content-subtab" id="email-subtab-promo-campaign">Promo / Newsletter</button>
+    </div>
+
+    <div class="content-subview active" id="email-subview-order-confirmation"><div id="email-template-order_confirmation"></div></div>
+    <div class="content-subview" id="email-subview-shipping-update"><div id="email-template-shipping_update"></div></div>
+    <div class="content-subview" id="email-subview-back-in-stock"><div id="email-template-back_in_stock"></div></div>
+    <div class="content-subview" id="email-subview-abandoned-cart"><div id="email-template-abandoned_cart"></div></div>
+    <div class="content-subview" id="email-subview-coupon-campaign"><div id="email-template-coupon_campaign"></div></div>
+    <div class="content-subview" id="email-subview-store-credit-campaign"><div id="email-template-store_credit_campaign"></div></div>
+    <div class="content-subview" id="email-subview-promo-campaign"><div id="email-template-promo_campaign"></div></div>
   </div>
 
   <div class="admin-view coupons-panel" id="view-coupons">
@@ -1440,20 +1457,29 @@ function emailTemplateVariablesHtml(variables) {
   '</div>';
 }
 
+// Each template renders into its own per-key container (one per
+// content-subview -- see the markup above) instead of one long stacked
+// list, so switching sub-tabs shows exactly one template's editor at a
+// time.
+function emailTemplateEditorHtml(t) {
+  return '<div class="content-item" data-email-template-key="' + t.key + '">' +
+    '<h3 style="margin:0 0 4px; font-size:0.95rem; color:var(--navy);">' + escapeHtml(t.label) + '</h3>' +
+    '<p style="margin:0 0 10px; font-size:0.8rem; color:var(--gray);">' + escapeHtml(t.description) + '</p>' +
+    emailTemplateVariablesHtml(t.variables) +
+    '<label style="display:block; margin-top:10px;">Subject</label>' +
+    '<input type="text" class="email-template-subject" value="' + escapeHtml(t.subject) + '" style="width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">' +
+    '<label style="display:block; margin-top:10px;">Body</label>' +
+    '<textarea class="email-template-body" style="width:100%; box-sizing:border-box; min-height:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;">' + escapeHtml(t.body) + '</textarea>' +
+    '<button type="button" class="fulfillment-btn email-template-save-btn" data-email-template-key="' + t.key + '" style="margin-top:10px;">Save</button>' +
+    '<span class="product-save-status" id="email-template-status-' + t.key + '"></span>' +
+  '</div>';
+}
+
 function renderEmailTemplates(list) {
-  document.getElementById('email-templates-list').innerHTML = list.map(function(t) {
-    return '<div class="content-item" data-email-template-key="' + t.key + '" style="margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--line);">' +
-      '<h3 style="margin:0 0 4px; font-size:0.95rem; color:var(--navy);">' + escapeHtml(t.label) + '</h3>' +
-      '<p style="margin:0 0 10px; font-size:0.8rem; color:var(--gray);">' + escapeHtml(t.description) + '</p>' +
-      emailTemplateVariablesHtml(t.variables) +
-      '<label style="display:block; margin-top:10px;">Subject</label>' +
-      '<input type="text" class="email-template-subject" value="' + escapeHtml(t.subject) + '" style="width:100%; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">' +
-      '<label style="display:block; margin-top:10px;">Body</label>' +
-      '<textarea class="email-template-body" style="width:100%; box-sizing:border-box; min-height:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;">' + escapeHtml(t.body) + '</textarea>' +
-      '<button type="button" class="fulfillment-btn email-template-save-btn" data-email-template-key="' + t.key + '" style="margin-top:10px;">Save</button>' +
-      '<span class="product-save-status" id="email-template-status-' + t.key + '"></span>' +
-    '</div>';
-  }).join('');
+  list.forEach(function(t) {
+    var container = document.getElementById('email-template-' + t.key);
+    if (container) container.innerHTML = emailTemplateEditorHtml(t);
+  });
 }
 
 function loadEmailTemplates() {
@@ -1472,6 +1498,20 @@ function loadEmailTemplates() {
 function showEmailsTab() {
   showAdminTab('tab-emails', 'view-emails');
   loadEmailTemplates();
+}
+
+// Sub-navigation within the Email Templates tab -- one sub-tab per
+// template, same active/inactive toggle pattern as showContentSubtab()
+// above, just scoped to this tab's own subtab/subview set.
+function showEmailsSubtab(subtabId, subviewId) {
+  ['email-subtab-order-confirmation', 'email-subtab-shipping-update', 'email-subtab-back-in-stock', 'email-subtab-abandoned-cart', 'email-subtab-coupon-campaign', 'email-subtab-store-credit-campaign', 'email-subtab-promo-campaign'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  ['email-subview-order-confirmation', 'email-subview-shipping-update', 'email-subview-back-in-stock', 'email-subview-abandoned-cart', 'email-subview-coupon-campaign', 'email-subview-store-credit-campaign', 'email-subview-promo-campaign'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById(subtabId).classList.add('active');
+  document.getElementById(subviewId).classList.add('active');
 }
 
 // Pre-fills one of the three starting-draft-only composers (Coupon Email
@@ -2737,6 +2777,28 @@ document.getElementById('tab-fulfillment').addEventListener('click', showFulfill
 document.getElementById('tab-products').addEventListener('click', showProductsTab);
 document.getElementById('tab-content').addEventListener('click', showContentTab);
 document.getElementById('tab-emails').addEventListener('click', showEmailsTab);
+
+document.getElementById('email-subtab-order-confirmation').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-order-confirmation', 'email-subview-order-confirmation');
+});
+document.getElementById('email-subtab-shipping-update').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-shipping-update', 'email-subview-shipping-update');
+});
+document.getElementById('email-subtab-back-in-stock').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-back-in-stock', 'email-subview-back-in-stock');
+});
+document.getElementById('email-subtab-abandoned-cart').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-abandoned-cart', 'email-subview-abandoned-cart');
+});
+document.getElementById('email-subtab-coupon-campaign').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-coupon-campaign', 'email-subview-coupon-campaign');
+});
+document.getElementById('email-subtab-store-credit-campaign').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-store-credit-campaign', 'email-subview-store-credit-campaign');
+});
+document.getElementById('email-subtab-promo-campaign').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-promo-campaign', 'email-subview-promo-campaign');
+});
 document.getElementById('tab-coupons').addEventListener('click', showCouponsTab);
 document.getElementById('tab-credit').addEventListener('click', showCreditTab);
 document.getElementById('tab-audit').addEventListener('click', showAuditTab);
@@ -3242,9 +3304,11 @@ document.getElementById('content-shipping-policy-list').addEventListener('click'
     });
 });
 
-// Delegated since the list is rebuilt on load, same as the Content tab's
-// about-us/faq/shipping-policy lists above.
-document.getElementById('email-templates-list').addEventListener('click', function(e) {
+// Delegated on the whole tab (each template's editor lives in its own
+// per-key container across 7 subviews -- see renderEmailTemplates()
+// above), same "delegate since content is rebuilt on load" reasoning as
+// the Content tab's about-us/faq/shipping-policy lists.
+document.getElementById('view-emails').addEventListener('click', function(e) {
   var btn = e.target.closest('.email-template-save-btn');
   if (!btn) return;
   var key = btn.getAttribute('data-email-template-key');
