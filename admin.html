@@ -220,6 +220,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .credit-search-results{ margin-bottom:20px; }
 .credit-customer-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; font-size:0.82rem; cursor:pointer; }
 .credit-customer-row:hover{ background:var(--panel); }
+.credit-campaign-selected-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; font-size:0.82rem; background:var(--panel); }
+.credit-campaign-selected-row button{ background:none; border:none; color:var(--gray); cursor:pointer; font-size:0.9rem; padding:0 4px; }
+.credit-campaign-selected-row button:hover{ color:#c0392b; }
 .credit-selected-customer{ border:1.5px solid var(--line); border-radius:10px; padding:16px 20px; background:var(--panel); }
 .credit-selected-customer h3{ font-size:0.9rem; color:var(--navy-dark); margin:0 0 4px; }
 .credit-selected-balance{ font-size:1.3rem; font-weight:700; color:var(--navy); margin-bottom:14px; }
@@ -657,6 +660,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="filters">
       <button type="button" id="coupons-new-toggle-btn">+ New Coupon</button>
       <button type="button" id="email-campaign-toggle-btn">+ Email Campaign</button>
+      <button type="button" id="credit-campaign-toggle-btn">+ Store Credit Campaign</button>
     </div>
 
     <div class="product-create-form" id="coupon-create-form">
@@ -746,6 +750,85 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         </thead>
         <tbody id="email-campaign-history-tbody"></tbody>
       </table>
+    </div>
+
+    <!-- Bulk-issues REAL store credit to a chosen set of customers AND
+    emails them an announcement, in one action -- unlike the Email
+    Campaign above (which never touches a customer record), this DOES
+    modify real account balances. Every recipient gets an actual
+    store_credit_transactions row + admin_audit_log entry, written the
+    exact same way POST /store-credit/issue (the Store Credit tab's
+    manual single-customer form) already does -- this is that same
+    operation run in a loop, not a parallel implementation. The
+    announcement email reuses the same fixed disclaimer/address/
+    unsubscribe footer and [[image:...]] insert-image support as the
+    Email Campaign above (see lib/emailTemplates.js's shared
+    renderCampaignEmail(), backend repo). Real money in play, so Send Now
+    requires a confirm() showing the exact recipient count and total
+    dollar amount before anything happens -- see that handler below. -->
+    <div style="margin-top:32px; padding-top:20px; border-top:1px solid var(--line);">
+      <div class="product-create-form" id="credit-campaign-form">
+        <label>Recipients</label>
+        <div style="display:flex; gap:18px; margin-bottom:10px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; text-transform:none; font-size:0.85rem; margin:0;">
+            <input type="radio" name="credit-campaign-recipient-mode" id="credit-campaign-mode-all" value="all" checked style="width:auto;"> All customers (marketing emails enabled)
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; text-transform:none; font-size:0.85rem; margin:0;">
+            <input type="radio" name="credit-campaign-recipient-mode" id="credit-campaign-mode-selected" value="selected" style="width:auto;"> Specific customers
+          </label>
+        </div>
+
+        <div id="credit-campaign-selected-picker" style="display:none; margin-bottom:14px;">
+          <div class="credit-search-row">
+            <input type="text" id="credit-campaign-customer-search-input" placeholder="Customer email...">
+            <button type="button" id="credit-campaign-customer-search-btn">Search</button>
+          </div>
+          <div class="credit-search-results" id="credit-campaign-search-results"></div>
+          <div id="credit-campaign-selected-list"></div>
+          <p class="fulfillment-section-note" id="credit-campaign-selected-empty">No customers selected yet -- search above and click a result to add them.</p>
+        </div>
+
+        <label>Amount Per Customer (USD)</label>
+        <input type="number" step="0.01" min="0.01" id="credit-campaign-amount">
+
+        <label>Subject</label>
+        <input type="text" id="credit-campaign-subject">
+
+        <label>Body</label>
+        <textarea id="credit-campaign-body"></textarea>
+        <div style="margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="product-edit-toggle-btn" id="credit-campaign-image-btn">+ Insert Image</button>
+          <input type="file" id="credit-campaign-image-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+          <span class="product-save-status" id="credit-campaign-image-status"></span>
+        </div>
+        <div id="credit-campaign-image-preview" style="display:none; margin-top:8px;">
+          <img id="credit-campaign-image-preview-img" src="" alt="" style="max-width:200px; max-height:120px; border-radius:6px; border:1px solid var(--line); display:block;">
+        </div>
+        <p class="fulfillment-section-note">The credit amount is automatically added as a highlighted callout below your message. A fixed footer -- the standard research-use disclaimer, mailing address, and unsubscribe link -- is automatically appended on every send and can't be edited here.</p>
+
+        <p class="promo-subscriber-count" id="credit-campaign-summary"></p>
+
+        <div class="promo-actions">
+          <button type="button" class="promo-send-btn" id="credit-campaign-send-btn">Send Now</button>
+        </div>
+        <p class="promo-status" id="credit-campaign-send-status"></p>
+      </div>
+
+      <div style="margin-top:32px; padding-top:20px; border-top:1px solid var(--line);">
+        <h3 style="font-size:0.95rem; color:var(--navy-dark); margin:0 0 12px;">Store Credit Campaign History</h3>
+        <table class="products-table">
+          <thead>
+            <tr>
+              <th>Sent</th>
+              <th>Subject</th>
+              <th>Amount Each</th>
+              <th>Recipients</th>
+              <th>Sent By</th>
+            </tr>
+          </thead>
+          <tbody id="credit-campaign-history-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -985,6 +1068,8 @@ function showCouponsTab() {
   loadCoupons();
   loadEmailCampaignRecipientCount();
   loadEmailCampaignHistory();
+  loadCreditCampaignAllCount();
+  loadCreditCampaignHistory();
 }
 
 function showCreditTab() {
@@ -1933,6 +2018,275 @@ document.getElementById('email-campaign-send-btn').addEventListener('click', fun
       statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' customer(s).';
       statusEl.classList.add('show', 'success');
       loadEmailCampaignHistory();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not send.';
+      statusEl.classList.add('show', 'error');
+    });
+});
+
+// ============================================================
+// Store Credit Campaign -- bulk-issues REAL store credit to a chosen set
+// of customers AND emails them an announcement, via POST
+// /api/admin/campaigns/store-credit/send. Unlike the Email Campaign
+// above (which never touches a customer record), this modifies real
+// account balances -- Send Now below requires a confirm() showing the
+// exact recipient count and total dollar amount before anything happens.
+// ============================================================
+
+document.getElementById('credit-campaign-toggle-btn').addEventListener('click', function() {
+  document.getElementById('credit-campaign-form').classList.toggle('show');
+});
+
+var creditCampaignAllCount = 0;
+var creditCampaignSelected = []; // [{id, email, name}]
+
+// Same /api/admin/campaigns/recipient-count the Email Campaign section's
+// "This will be sent to N customers" line already uses -- both features
+// share the identical "all customers with marketing_opt_in = true" set.
+function loadCreditCampaignAllCount() {
+  fetch('/api/admin/campaigns/recipient-count', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+      creditCampaignAllCount = d.count || 0;
+      refreshCreditCampaignSummary();
+    })
+    .catch(function() {});
+}
+
+function currentCreditCampaignRecipientCount() {
+  var mode = document.querySelector('input[name="credit-campaign-recipient-mode"]:checked').value;
+  return mode === 'all' ? creditCampaignAllCount : creditCampaignSelected.length;
+}
+
+// Kept in sync with the confirm() dialog's own wording below -- an admin
+// should see the exact same numbers here before clicking Send Now as
+// they're asked to confirm.
+function refreshCreditCampaignSummary() {
+  var el = document.getElementById('credit-campaign-summary');
+  var count = currentCreditCampaignRecipientCount();
+  var amount = parseFloat(document.getElementById('credit-campaign-amount').value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    el.textContent = 'This will be sent to ' + count + ' customer' + (count === 1 ? '' : 's') + '. Enter an amount to see the total.';
+    return;
+  }
+  var total = amount * count;
+  el.textContent = 'This will issue $' + amount.toFixed(2) + ' to ' + count + ' customer' + (count === 1 ? '' : 's') +
+    ' -- total $' + total.toFixed(2) + ' in store credit.';
+}
+
+document.getElementById('credit-campaign-mode-all').addEventListener('change', function() {
+  document.getElementById('credit-campaign-selected-picker').style.display = 'none';
+  refreshCreditCampaignSummary();
+});
+document.getElementById('credit-campaign-mode-selected').addEventListener('change', function() {
+  document.getElementById('credit-campaign-selected-picker').style.display = 'block';
+  refreshCreditCampaignSummary();
+});
+document.getElementById('credit-campaign-amount').addEventListener('input', refreshCreditCampaignSummary);
+
+// Same GET /api/admin/customers?search= endpoint the Store Credit tab's
+// own single-customer picker uses (searchCreditCustomers() below) --
+// this version adds to a running multi-customer list instead of
+// selecting just one.
+function searchCreditCampaignCustomers() {
+  var query = document.getElementById('credit-campaign-customer-search-input').value.trim();
+  var resultsEl = document.getElementById('credit-campaign-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+  resultsEl.innerHTML = '<p style="color:var(--gray);font-size:0.82rem;">Searching...</p>';
+  fetch('/api/admin/customers?search=' + encodeURIComponent(query), { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(customers) {
+      if (!customers.length) {
+        resultsEl.innerHTML = '<p style="color:var(--gray);font-size:0.82rem;">No customers found.</p>';
+        return;
+      }
+      resultsEl.innerHTML = customers.map(function(c) {
+        return '<div class="credit-customer-row" data-customer-id="' + c.id + '" data-customer-email="' + escapeHtml(c.email) + '" data-customer-name="' + escapeHtml(c.name || '') + '">' +
+          '<span>' + escapeHtml(c.email) + (c.name ? ' — ' + escapeHtml(c.name) : '') + '</span>' +
+          '<span style="color:var(--gray);">+ Add</span>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<p style="color:var(--gray);font-size:0.82rem;">Could not search customers.</p>';
+    });
+}
+document.getElementById('credit-campaign-customer-search-btn').addEventListener('click', searchCreditCampaignCustomers);
+document.getElementById('credit-campaign-customer-search-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); searchCreditCampaignCustomers(); }
+});
+
+function renderCreditCampaignSelectedList() {
+  var listEl = document.getElementById('credit-campaign-selected-list');
+  var emptyEl = document.getElementById('credit-campaign-selected-empty');
+  if (creditCampaignSelected.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = creditCampaignSelected.map(function(c) {
+      return '<div class="credit-campaign-selected-row" data-customer-id="' + c.id + '">' +
+        '<span>' + escapeHtml(c.email) + (c.name ? ' — ' + escapeHtml(c.name) : '') + '</span>' +
+        '<button type="button" data-remove-id="' + c.id + '" aria-label="Remove">&times;</button>' +
+      '</div>';
+    }).join('');
+  }
+  refreshCreditCampaignSummary();
+}
+
+document.getElementById('credit-campaign-search-results').addEventListener('click', function(e) {
+  var row = e.target.closest('.credit-customer-row');
+  if (!row) return;
+  var id = row.getAttribute('data-customer-id');
+  if (creditCampaignSelected.some(function(c) { return c.id === id; })) return;
+  creditCampaignSelected.push({
+    id: id,
+    email: row.getAttribute('data-customer-email'),
+    name: row.getAttribute('data-customer-name'),
+  });
+  renderCreditCampaignSelectedList();
+});
+
+document.getElementById('credit-campaign-selected-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-remove-id]');
+  if (!btn) return;
+  var id = btn.getAttribute('data-remove-id');
+  creditCampaignSelected = creditCampaignSelected.filter(function(c) { return c.id !== id; });
+  renderCreditCampaignSelectedList();
+});
+
+// Insert Image -- identical mechanism to the Email Campaign composer's
+// own control above (same POST /api/admin/campaigns/image endpoint,
+// same [[image:URL]] token convention), just with its own element ids
+// since this is a separate composer/textarea.
+document.getElementById('credit-campaign-image-btn').addEventListener('click', function() {
+  document.getElementById('credit-campaign-image-input').click();
+});
+document.getElementById('credit-campaign-image-input').addEventListener('change', function() {
+  var input = this;
+  var file = input.files[0];
+  if (!file) return;
+  var statusEl = document.getElementById('credit-campaign-image-status');
+  statusEl.textContent = 'Uploading...';
+  statusEl.className = 'product-save-status';
+
+  var formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/admin/campaigns/image', {
+    method: 'POST', credentials: 'include', body: formData,
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      input.value = '';
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not upload image.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+
+      var textarea = document.getElementById('credit-campaign-body');
+      var token = '[[image:' + r.d.url + ']]';
+      var start = textarea.selectionStart != null ? textarea.selectionStart : textarea.value.length;
+      var end = textarea.selectionEnd != null ? textarea.selectionEnd : textarea.value.length;
+      textarea.value = textarea.value.slice(0, start) + token + textarea.value.slice(end);
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + token.length;
+
+      document.getElementById('credit-campaign-image-preview-img').src = r.d.url;
+      document.getElementById('credit-campaign-image-preview').style.display = 'block';
+
+      statusEl.textContent = 'Image inserted at cursor.';
+      statusEl.className = 'product-save-status success';
+    })
+    .catch(function() {
+      input.value = '';
+      statusEl.textContent = 'Could not upload image.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+function formatCreditCampaignSentAt(iso) {
+  return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function loadCreditCampaignHistory() {
+  var tbody = document.getElementById('credit-campaign-history-tbody');
+  fetch('/api/admin/campaigns/store-credit', { credentials: 'include' })
+    .then(function(res) { return res.json(); })
+    .then(function(campaigns) {
+      if (!Array.isArray(campaigns) || campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">No store credit campaigns sent yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = campaigns.map(function(c) {
+        return '<tr>' +
+          '<td>' + formatCreditCampaignSentAt(c.sent_at) + '</td>' +
+          '<td>' + escapeHtml(c.subject) + '</td>' +
+          '<td>' + formatCents(c.amount_cents) + '</td>' +
+          '<td>' + c.recipient_count + '</td>' +
+          '<td>' + (c.sent_by_username ? escapeHtml(c.sent_by_username) : '—') + '</td>' +
+        '</tr>';
+      }).join('');
+    })
+    .catch(function() {
+      tbody.innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">Could not load campaign history.</td></tr>';
+    });
+}
+
+document.getElementById('credit-campaign-send-btn').addEventListener('click', function() {
+  var btn = this;
+  var mode = document.querySelector('input[name="credit-campaign-recipient-mode"]:checked').value;
+  var amount = parseFloat(document.getElementById('credit-campaign-amount').value);
+  var subject = document.getElementById('credit-campaign-subject').value.trim();
+  var body = document.getElementById('credit-campaign-body').value.trim();
+  var statusEl = document.getElementById('credit-campaign-send-status');
+  statusEl.classList.remove('show', 'error', 'success');
+
+  if (!Number.isFinite(amount) || amount <= 0) { statusEl.textContent = 'Enter a valid amount.'; statusEl.classList.add('show', 'error'); return; }
+  if (!subject) { statusEl.textContent = 'Subject is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (!body) { statusEl.textContent = 'Body is required.'; statusEl.classList.add('show', 'error'); return; }
+  if (mode === 'selected' && creditCampaignSelected.length === 0) { statusEl.textContent = 'Select at least one customer.'; statusEl.classList.add('show', 'error'); return; }
+
+  var count = currentCreditCampaignRecipientCount();
+  if (count === 0) { statusEl.textContent = 'No recipients to send to.'; statusEl.classList.add('show', 'error'); return; }
+  var total = amount * count;
+
+  // The whole point of this confirm() -- real money, so the admin sees
+  // the exact scope (count + per-customer amount + total) before
+  // anything fires, not just a generic "are you sure?".
+  var confirmMsg = 'This will issue $' + amount.toFixed(2) + ' to ' + count + ' customer' + (count === 1 ? '' : 's') +
+    ' -- total $' + total.toFixed(2) + ' in store credit -- and email each of them an announcement. This cannot be undone. Continue?';
+  if (!window.confirm(confirmMsg)) return;
+
+  var payload = {
+    recipientMode: mode,
+    amountCents: Math.round(amount * 100),
+    subject: subject,
+    body: body,
+  };
+  if (mode === 'selected') payload.customerIds = creditCampaignSelected.map(function(c) { return c.id; });
+
+  btn.disabled = true;
+  fetch('/api/admin/campaigns/store-credit/send', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not send.';
+        statusEl.classList.add('show', 'error');
+        return;
+      }
+      statusEl.textContent = 'Issued credit to ' + r.d.issued + ' customer(s), emailed ' + r.d.sent + ' of ' + r.d.total + '.';
+      statusEl.classList.add('show', 'success');
+      loadCreditCampaignHistory();
     })
     .catch(function() {
       btn.disabled = false;
