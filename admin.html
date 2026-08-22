@@ -1472,6 +1472,13 @@ function emailTemplateEditorHtml(t) {
     '<textarea class="email-template-body" style="width:100%; box-sizing:border-box; min-height:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;">' + escapeHtml(t.body) + '</textarea>' +
     '<button type="button" class="fulfillment-btn email-template-save-btn" data-email-template-key="' + t.key + '" style="margin-top:10px;">Save</button>' +
     '<span class="product-save-status" id="email-template-status-' + t.key + '"></span>' +
+    '<div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--line);">' +
+      '<label style="display:block; margin-bottom:5px;">Send Test</label>' +
+      '<p style="margin:0 0 8px; font-size:0.78rem; color:var(--gray);">Sends the saved template above with sample placeholder data. Subject is prefixed &quot;[TEST]&quot; and no real order/coupon/credit/stock data is affected.</p>' +
+      '<input type="email" class="email-template-test-to" placeholder="Defaults to your admin email" style="width:100%; max-width:280px; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">' +
+      '<button type="button" class="fulfillment-btn email-template-test-btn" data-email-template-key="' + t.key + '">Send Test</button>' +
+      '<span class="product-save-status" id="email-template-test-status-' + t.key + '"></span>' +
+    '</div>' +
   '</div>';
 }
 
@@ -3337,6 +3344,41 @@ document.getElementById('view-emails').addEventListener('click', function(e) {
     .catch(function() {
       btn.disabled = false;
       statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// Sends whatever's CURRENTLY TYPED in the subject/body fields, not
+// necessarily saved yet -- lets an admin test a tweak before committing
+// it with the Save button above. Delegated on the same #view-emails
+// parent as the save handler, for the same "content rebuilt on load"
+// reason.
+document.getElementById('view-emails').addEventListener('click', function(e) {
+  var btn = e.target.closest('.email-template-test-btn');
+  if (!btn) return;
+  var key = btn.getAttribute('data-email-template-key');
+  var item = document.querySelector('.content-item[data-email-template-key="' + key + '"]');
+  var statusEl = document.getElementById('email-template-test-status-' + key);
+  var body = {
+    to: item.querySelector('.email-template-test-to').value.trim(),
+    subject: item.querySelector('.email-template-subject').value,
+    body: item.querySelector('.email-template-body').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = 'Sending...';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/email-templates/' + encodeURIComponent(key) + '/send-test', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? ('Test sent to ' + r.d.to + '.') : (r.d.error || 'Could not send test.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not send test.';
       statusEl.className = 'product-save-status error';
     });
 });
