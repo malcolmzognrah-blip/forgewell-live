@@ -544,6 +544,24 @@ async function loadProducts() {
 function saveCart() {
   localStorage.setItem('forgewell_cart', JSON.stringify(cart));
   updateCartIcon();
+  syncCartToServer();
+}
+
+// Best-effort mirror of the cart to the server, for the abandoned-cart
+// reminder job (lib/jobs.js, backend repo) to poll -- NOT the source of
+// truth for rendering the cart anywhere, localStorage still is.
+// Fire-and-forget: a signed-out visitor's call here just 401s and is
+// silently ignored, same "let the server enforce auth, client no-ops on
+// failure" pattern used elsewhere in this codebase -- cheaper than
+// checking sign-in state client-side first, and no worse than one extra
+// small request per cart action.
+function syncCartToServer() {
+  fetch('/api/cart/mine', {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: cart }),
+  }).catch(function() {});
 }
 
 function updateCartIcon() {
