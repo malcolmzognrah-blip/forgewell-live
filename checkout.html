@@ -130,7 +130,18 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-page-wrap h1{ color:var(--navy-dark); font-size:1.6rem; margin:0; }
 .checkout-continue-shopping-link{ color:var(--navy); font-weight:700; font-size:0.82rem; text-decoration:none; }
 .checkout-continue-shopping-link:hover{ text-decoration:underline; }
-.checkout-page-grid{ display:grid; grid-template-columns:1fr 340px; gap:32px; align-items:start; }
+/* widened from 340px (was too narrow for the summary column's Payment
+   Method section -- "Bank Transfer (ACH)"'s incentive line and "Coming
+   Soon" badge were cramped/wrapping badly at common desktop widths,
+   verified visually). The stacking breakpoint below was moved up from
+   800px to 940px to match -- at the old threshold, this wider fixed
+   column left the Contact & Shipping side of a still-two-column layout
+   uncomfortably narrow (verified: the State <select> text visibly
+   clipped around 820px) just before it would have stacked anyway, so
+   the breakpoint now stacks a bit earlier instead of ever rendering
+   that cramped intermediate width. Re-check both values together if
+   either one changes again. */
+.checkout-page-grid{ display:grid; grid-template-columns:1fr 440px; gap:32px; align-items:start; }
 
 .checkout-section{ border:1px solid var(--line); border-radius:10px; padding:20px 24px; margin-bottom:24px; }
 .checkout-section h2{ color:var(--navy-dark); font-size:1.05rem; margin:0 0 16px; }
@@ -262,7 +273,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-back-link{ display:block; text-align:center; margin-top:14px; color:var(--navy); font-size:0.8rem; text-decoration:none; }
 .checkout-back-link:hover{ text-decoration:underline; }
 
-@media (max-width:800px){
+@media (max-width:940px){
   .checkout-page-grid{ grid-template-columns:1fr; }
   .checkout-summary-card{ position:static; }
 }
