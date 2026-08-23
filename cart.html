@@ -637,7 +637,12 @@ function calculateCartTotals(cartItems, coupon) {
   let finalTotal = bulkTotal;
   let couponWon = false;
   let couponSavings = 0;
-  if (coupon) {
+  // free_shipping coupons have no real discountValue and never affect
+  // the subtotal -- their entire effect is on shipping, computed only on
+  // checkout.html (cart.html doesn't calculate shipping at all). Same
+  // split as routes/checkout.js's applyBulkDiscount(), which this
+  // function mirrors.
+  if (coupon && coupon.discountType !== 'free_shipping') {
     const couponTotal = couponDiscountedTotal(subtotal, coupon);
     if (couponTotal < finalTotal) {
       finalTotal = couponTotal;
@@ -730,6 +735,16 @@ function renderCartPage() {
   msgEl.classList.remove('error');
   if (!appliedCode || couponWon) {
     msgEl.textContent = '';
+  } else if (matchedCoupon && matchedCoupon.discountType === 'free_shipping') {
+    // couponWon is deliberately always false for this type (see
+    // calculateCartTotals()'s own comment -- it never affects the
+    // subtotal at all), so without this branch a valid free_shipping
+    // coupon would fall into the "doesn't beat your current discount"
+    // message below, which would be wrong -- it's not competing with
+    // anything, it just has nothing to show on THIS page. Its actual
+    // effect (zeroing standard shipping) only shows up on checkout.html,
+    // once a shipping address exists to rate-shop against.
+    msgEl.textContent = 'Coupon ' + matchedCoupon.code + ' applied -- free standard shipping will show at checkout.';
   } else if (matchedCoupon) {
     msgEl.textContent = "Coupon " + matchedCoupon.code + " doesn't beat your current discount, so it wasn't applied.";
   } else if (couponsKnown) {
@@ -770,9 +785,11 @@ document.addEventListener('click', function(e) {
 });
 
 function couponOptionLabel(c) {
-  var amount = c.discountType === 'percent'
-    ? Number(c.discountValue) + '% off'
-    : '$' + Number(c.discountValue).toFixed(2) + ' off';
+  var amount = c.discountType === 'free_shipping'
+    ? 'Free standard shipping'
+    : (c.discountType === 'percent'
+      ? Number(c.discountValue) + '% off'
+      : '$' + Number(c.discountValue).toFixed(2) + ' off');
   return c.code + ' — ' + amount;
 }
 

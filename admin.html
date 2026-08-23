@@ -699,9 +699,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <select id="new-coupon-type">
         <option value="percent">Percent off</option>
         <option value="fixed">Fixed amount off</option>
+        <option value="free_shipping">Free shipping</option>
       </select>
-      <label>Discount Value <span style="font-weight:400; text-transform:none;">(e.g. 15 for 15%, or 10 for $10)</span></label>
-      <input type="number" step="0.01" min="0" id="new-coupon-value">
+      <div id="new-coupon-value-group">
+        <label>Discount Value <span style="font-weight:400; text-transform:none;">(e.g. 15 for 15%, or 10 for $10)</span></label>
+        <input type="number" step="0.01" min="0" id="new-coupon-value">
+      </div>
       <label>Expires <span style="font-weight:400; text-transform:none;">(date &amp; time, optional)</span></label>
       <input type="datetime-local" id="new-coupon-expires">
       <label>Per-Customer Redemption Limit <span style="font-weight:400; text-transform:none;">(optional, default 1)</span></label>
@@ -1858,6 +1861,7 @@ function loadScheduledPromos() {
 var couponsAll = [];
 
 function couponDiscountLabel(c) {
+  if (c.discount_type === 'free_shipping') return 'Free Standard Shipping';
   return c.discount_type === 'percent'
     ? Number(c.discount_value) + '% off'
     : '$' + Number(c.discount_value).toFixed(2) + ' off';
@@ -1899,9 +1903,20 @@ document.getElementById('coupons-new-toggle-btn').addEventListener('click', func
   document.getElementById('coupon-create-form').classList.toggle('show');
 });
 
+// Free shipping has no meaningful discount_value -- the backend always
+// overwrites it with its own placeholder regardless of what's sent (see
+// routes/admin.js's FREE_SHIPPING_PLACEHOLDER_VALUE), so there's nothing
+// useful for an admin to enter here. Hiding the field instead of just
+// leaving validation looser avoids the more confusing alternative of an
+// admin typing a real number that then silently has no effect.
+document.getElementById('new-coupon-type').addEventListener('change', function() {
+  document.getElementById('new-coupon-value-group').style.display = this.value === 'free_shipping' ? 'none' : '';
+});
+
 document.getElementById('new-coupon-save-btn').addEventListener('click', function() {
   var btn = this;
   var statusEl = document.getElementById('new-coupon-status');
+  var isFreeShipping = document.getElementById('new-coupon-type').value === 'free_shipping';
   // <input type="datetime-local"> gives a timezone-less local string
   // ("2026-08-25T14:30") -- new Date(...) parses that as the browser's
   // local time, and toISOString() converts it to a real UTC timestamp, so
@@ -1912,12 +1927,14 @@ document.getElementById('new-coupon-save-btn').addEventListener('click', functio
   var body = {
     code: document.getElementById('new-coupon-code').value.trim().toUpperCase(),
     discount_type: document.getElementById('new-coupon-type').value,
-    discount_value: document.getElementById('new-coupon-value').value,
+    // Sent as-is for percent/fixed; ignored server-side (and not required
+    // here) for free_shipping -- see FREE_SHIPPING_PLACEHOLDER_VALUE.
+    discount_value: isFreeShipping ? undefined : document.getElementById('new-coupon-value').value,
     expires_at: expiresInput ? new Date(expiresInput).toISOString() : null,
     per_customer_limit: document.getElementById('new-coupon-limit').value || 1,
   };
-  if (!body.code || !body.discount_value) {
-    statusEl.textContent = 'Code and discount value are required.';
+  if (!body.code || (!isFreeShipping && !body.discount_value)) {
+    statusEl.textContent = isFreeShipping ? 'Code is required.' : 'Code and discount value are required.';
     statusEl.className = 'product-save-status error';
     return;
   }

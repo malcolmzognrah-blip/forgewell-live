@@ -856,7 +856,11 @@ function calculateCartTotals(cartItems, coupon) {
   let finalTotal = bulkTotal;
   let couponWon = false;
   let couponSavings = 0;
-  if (coupon) {
+  // free_shipping coupons have no real discountValue and never affect
+  // the subtotal -- their entire effect is on the shipping line (see
+  // currentCouponFreeShipping below), same split as routes/checkout.js's
+  // applyBulkDiscount() (which this function mirrors) now applies.
+  if (coupon && coupon.discountType !== 'free_shipping') {
     const couponTotal = couponDiscountedTotal(subtotal, coupon);
     if (couponTotal < finalTotal) {
       finalTotal = couponTotal;
@@ -909,6 +913,16 @@ let currentFastRates = [];
 let currentFreeShipping = false;
 let currentFreeShippingTotal = null;
 let currentFreeShippingThreshold = null;
+// Mirrors POST /api/shipping/rates' own couponFreeShipping field --
+// true when the applied coupon (forgewell_promo_code) is a free_shipping
+// type, independent of currentFreeShipping (the cart-total-threshold
+// trigger). currentStandardRates' entries already have cost=0 from the
+// backend whenever EITHER trigger applies (see routes/shipping.js's own
+// comment) -- this flag exists purely so the UI can tell the two apart
+// and show a coupon-specific message instead of the threshold one,
+// rather than affecting what's actually charged (already correct either
+// way from the rates response itself).
+let currentCouponFreeShipping = false;
 // Single source of truth for two related things: (1) the loading/
 // disabled UI (see showShippingRatesLoading()/showShippingRatesError()
 // further down), and (2) since the frontend-race fix, whether a NEW
@@ -960,10 +974,24 @@ function renderShippingOptionsInto(el, rates, emptyMessage) {
   // one radio group.
   el.innerHTML = rates.map(function(rate) {
     var value = rate.carrier + '|' + rate.service;
+    // Coupon-driven free shipping only ever applies to the standard tier
+    // (see routes/shipping.js/routes/checkout.js's own comments), so a
+    // cost=0 fast-tier rate could only ever come from some future
+    // mechanism, not this one -- the tier check here is just staying
+    // consistent with that rule rather than assuming it. Distinguishing
+    // "(Free -- coupon applied)" from the plain "(Free!)" the threshold-
+    // based free shipping already used matters here specifically: without
+    // it, a customer would have no way to tell a coupon just worked from
+    // their cart simply crossing the admin-configured free-shipping
+    // threshold.
+    var freeLabel = '';
+    if (rate.cost === 0 && rate.tier === 'standard') {
+      freeLabel = currentCouponFreeShipping ? ' (Free — coupon applied)' : ' (Free!)';
+    }
     return '<label class="shipping-method-option">' +
       '<span class="shipping-method-option-left">' +
         '<input type="radio" name="shipping-method" value="' + escapeForHtml(value) + '">' +
-        '<span class="shipping-method-name">' + escapeForHtml(rate.label) + (rate.cost === 0 ? ' (Free!)' : '') + '</span>' +
+        '<span class="shipping-method-name">' + escapeForHtml(rate.label) + freeLabel + '</span>' +
       '</span>' +
       '<span class="shipping-method-price">$' + rate.cost.toFixed(2) + '</span>' +
     '</label>';
@@ -1132,6 +1160,15 @@ function renderOrderSummary() {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Discount</span><span>-$' + bulkSavings.toFixed(2) + '</span></div>';
   }
   html += '<div class="checkout-summary-line"><span>Shipping</span><span>$' + shippingMethod.cost.toFixed(2) + '</span></div>';
+  // A free_shipping coupon only ever zeroes the standard-tier rate (see
+  // routes/shipping.js/routes/checkout.js) -- called out explicitly here
+  // when the customer currently has a fast/expedited option selected
+  // instead, so a coupon that appears to have "done nothing" on this
+  // pick isn't a silent surprise (it's still fully applied, just to a
+  // tier they didn't choose this time).
+  if (matchedCoupon && matchedCoupon.discountType === 'free_shipping' && shippingMethod.tier === 'fast') {
+    html += '<p class="fulfillment-section-note">Your free-shipping coupon applies to standard shipping only -- this faster option is charged at its normal rate.</p>';
+  }
   if (creditToApply > 0) {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Store Credit</span><span>-$' + creditToApply.toFixed(2) + '</span></div>';
   }
@@ -1149,6 +1186,15 @@ function renderOrderSummary() {
   if (!appliedCode) {
     noteEl.style.display = 'none';
   } else if (couponWon) {
+    noteEl.style.display = 'block';
+    noteEl.innerHTML = '<a href="/cart.html">Change coupon on cart page</a>';
+  } else if (matchedCoupon && matchedCoupon.discountType === 'free_shipping') {
+    // couponWon is deliberately always false for this type (it never
+    // competes for the subtotal at all -- see calculateCartTotals()'s own
+    // comment), so without this branch a valid free_shipping coupon would
+    // fall into the "doesn't beat your current discount" message below,
+    // which is wrong here -- its effect just shows up on the shipping
+    // line/radio options above instead of this note.
     noteEl.style.display = 'block';
     noteEl.innerHTML = '<a href="/cart.html">Change coupon on cart page</a>';
   } else if (matchedCoupon) {
@@ -1478,6 +1524,7 @@ if (cart.length === 0) {
         ratesFetchInFlight = false;
         if (!data) { endShippingCalculationError(); return; }
         currentFreeShipping = !!data.freeShipping;
+        currentCouponFreeShipping = !!data.couponFreeShipping;
         currentStandardRates = Array.isArray(data.standardRates) ? data.standardRates : [];
         currentFastRates = Array.isArray(data.fastRates) ? data.fastRates : [];
         currentFreeShippingTotal = typeof data.total === 'number' ? data.total : null;
