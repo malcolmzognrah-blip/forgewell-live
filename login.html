@@ -195,6 +195,12 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 .auth-error.show{ display:block; }
 .auth-success{ text-align:center; }
 .auth-success a.back-link{ display:inline-block; margin-top:16px; color:var(--navy); font-weight:700; text-decoration:none; font-size:0.85rem; }
+.forgot-password-link{ display:block; text-align:center; margin-top:14px; color:var(--navy); font-weight:700; text-decoration:none; font-size:0.8rem; background:none; border:none; cursor:pointer; font-family:'Quicksand',sans-serif; padding:0; }
+.forgot-password-link:hover{ text-decoration:underline; }
+.auth-form-back-link{ display:block; text-align:center; margin-top:14px; color:var(--gray); text-decoration:none; font-size:0.8rem; }
+.auth-form-back-link:hover{ text-decoration:underline; }
+.auth-success-note{ color:#1F7A34; font-size:0.85rem; margin-top:14px; text-align:center; display:none; }
+.auth-success-note.show{ display:block; }
 .google-signin-btn{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; box-sizing:border-box; padding:12px; background:#fff; color:#3c4043; border:1.5px solid var(--line); border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Quicksand',sans-serif; text-decoration:none; }
 .google-signin-btn:hover{ background:var(--panel); }
 .auth-divider{ display:flex; align-items:center; gap:12px; margin:18px 0; color:var(--gray); font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
@@ -239,6 +245,17 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
     <input type="password" id="login-password" autocomplete="current-password" required>
     <button type="submit" class="auth-submit-btn" id="login-submit-btn">Log In</button>
     <p class="auth-error" id="login-error"></p>
+    <button type="button" class="forgot-password-link" id="forgot-password-link">Forgot password?</button>
+  </form>
+
+  <form class="auth-form" id="forgot-form">
+    <label class="auth-field-label" for="forgot-email">Email</label>
+    <input type="email" id="forgot-email" autocomplete="email" required>
+    <p style="font-size:0.72rem;color:var(--gray);margin:4px 0 0;">We'll email you a link to reset your password if an account exists for that address.</p>
+    <button type="submit" class="auth-submit-btn" id="forgot-submit-btn">Send Reset Link</button>
+    <p class="auth-error" id="forgot-error"></p>
+    <p class="auth-success-note" id="forgot-success"></p>
+    <a href="#" class="auth-form-back-link" id="back-to-login-link">&larr; Back to Log In</a>
   </form>
 
   <form class="auth-form" id="signup-form">
@@ -651,6 +668,33 @@ updateCartIcon();
   tabLogin.addEventListener('click', function() { showTab('login'); });
   tabSignup.addEventListener('click', function() { showTab('signup'); });
 
+  // Forgot-password isn't a third tab (it's not a peer destination like
+  // Log In/Sign Up -- it's a sub-flow reached only from the login form
+  // and always returns to it), so it gets its own show/hide pair rather
+  // than a third branch in showTab() above.
+  var forgotForm = document.getElementById('forgot-form');
+  var forgotLink = document.getElementById('forgot-password-link');
+  var backToLoginLink = document.getElementById('back-to-login-link');
+  var authTabsEl = document.querySelector('.auth-tabs');
+
+  function showForgotForm() {
+    authTabsEl.style.display = 'none';
+    loginForm.classList.remove('active');
+    signupForm.classList.remove('active');
+    forgotForm.classList.add('active');
+    heading.textContent = 'Reset your password';
+    sub.textContent = "Enter the email on your account and we'll send you a reset link.";
+  }
+  function hideForgotForm() {
+    authTabsEl.style.display = '';
+    forgotForm.classList.remove('active');
+    document.getElementById('forgot-error').classList.remove('show');
+    document.getElementById('forgot-success').classList.remove('show');
+    showTab('login');
+  }
+  forgotLink.addEventListener('click', function() { showForgotForm(); });
+  backToLoginLink.addEventListener('click', function(e) { e.preventDefault(); hideForgotForm(); });
+
   function showSuccess(customer) {
     // Updates the header's account icon (Sign In -> Hi, [name]) immediately
     // rather than leaving it stale until the next page load/navigation --
@@ -733,6 +777,46 @@ updateCartIcon();
       .catch(function() {
         btn.disabled = false;
         btn.textContent = 'Log In';
+        errorEl.textContent = 'Something went wrong. Please try again.';
+        errorEl.classList.add('show');
+      });
+  });
+
+  forgotForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = document.getElementById('forgot-submit-btn');
+    var errorEl = document.getElementById('forgot-error');
+    var successEl = document.getElementById('forgot-success');
+    errorEl.classList.remove('show');
+    successEl.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('forgot-email').value }),
+    })
+      .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+      .then(function(result) {
+        btn.disabled = false;
+        btn.textContent = 'Send Reset Link';
+        // The API always responds generically (ok:true with the same
+        // message) regardless of whether the email exists, on purpose --
+        // see routes/auth.js's forgot-password handler. A non-ok response
+        // here only happens for something like a network-level failure
+        // the server never actually saw, not "email not found".
+        if (!result.ok) {
+          errorEl.textContent = 'Something went wrong. Please try again.';
+          errorEl.classList.add('show');
+          return;
+        }
+        successEl.textContent = result.data.message || "If an account exists for that email, we've sent a password reset link.";
+        successEl.classList.add('show');
+      })
+      .catch(function() {
+        btn.disabled = false;
+        btn.textContent = 'Send Reset Link';
         errorEl.textContent = 'Something went wrong. Please try again.';
         errorEl.classList.add('show');
       });

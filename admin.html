@@ -665,6 +665,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <button type="button" class="content-subtab" id="email-subtab-shipping-update">Shipping Update</button>
       <button type="button" class="content-subtab" id="email-subtab-back-in-stock">Back-in-Stock</button>
       <button type="button" class="content-subtab" id="email-subtab-abandoned-cart">Abandoned Cart</button>
+      <button type="button" class="content-subtab" id="email-subtab-password-reset">Password Reset</button>
+      <button type="button" class="content-subtab" id="email-subtab-welcome-email">Welcome Email</button>
+      <button type="button" class="content-subtab" id="email-subtab-contact-auto-reply">Contact Auto-Reply</button>
       <button type="button" class="content-subtab" id="email-subtab-coupon-campaign">Coupon Campaign</button>
       <button type="button" class="content-subtab" id="email-subtab-store-credit-campaign">Store Credit Campaign</button>
       <button type="button" class="content-subtab" id="email-subtab-promo-campaign">Promo / Newsletter</button>
@@ -674,6 +677,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="content-subview" id="email-subview-shipping-update"><div id="email-template-shipping_update"></div></div>
     <div class="content-subview" id="email-subview-back-in-stock"><div id="email-template-back_in_stock"></div></div>
     <div class="content-subview" id="email-subview-abandoned-cart"><div id="email-template-abandoned_cart"></div></div>
+    <div class="content-subview" id="email-subview-password-reset"><div id="email-template-password_reset"></div></div>
+    <div class="content-subview" id="email-subview-welcome-email"><div id="email-template-welcome_email"></div></div>
+    <div class="content-subview" id="email-subview-contact-auto-reply"><div id="email-template-contact_auto_reply"></div></div>
     <div class="content-subview" id="email-subview-coupon-campaign"><div id="email-template-coupon_campaign"></div></div>
     <div class="content-subview" id="email-subview-store-credit-campaign"><div id="email-template-store_credit_campaign"></div></div>
     <div class="content-subview" id="email-subview-promo-campaign"><div id="email-template-promo_campaign"></div></div>
@@ -1511,10 +1517,10 @@ function showEmailsTab() {
 // template, same active/inactive toggle pattern as showContentSubtab()
 // above, just scoped to this tab's own subtab/subview set.
 function showEmailsSubtab(subtabId, subviewId) {
-  ['email-subtab-order-confirmation', 'email-subtab-shipping-update', 'email-subtab-back-in-stock', 'email-subtab-abandoned-cart', 'email-subtab-coupon-campaign', 'email-subtab-store-credit-campaign', 'email-subtab-promo-campaign'].forEach(function(id) {
+  ['email-subtab-order-confirmation', 'email-subtab-shipping-update', 'email-subtab-back-in-stock', 'email-subtab-abandoned-cart', 'email-subtab-password-reset', 'email-subtab-welcome-email', 'email-subtab-contact-auto-reply', 'email-subtab-coupon-campaign', 'email-subtab-store-credit-campaign', 'email-subtab-promo-campaign'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['email-subview-order-confirmation', 'email-subview-shipping-update', 'email-subview-back-in-stock', 'email-subview-abandoned-cart', 'email-subview-coupon-campaign', 'email-subview-store-credit-campaign', 'email-subview-promo-campaign'].forEach(function(id) {
+  ['email-subview-order-confirmation', 'email-subview-shipping-update', 'email-subview-back-in-stock', 'email-subview-abandoned-cart', 'email-subview-password-reset', 'email-subview-welcome-email', 'email-subview-contact-auto-reply', 'email-subview-coupon-campaign', 'email-subview-store-credit-campaign', 'email-subview-promo-campaign'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -2796,6 +2802,15 @@ document.getElementById('email-subtab-back-in-stock').addEventListener('click', 
 });
 document.getElementById('email-subtab-abandoned-cart').addEventListener('click', function() {
   showEmailsSubtab('email-subtab-abandoned-cart', 'email-subview-abandoned-cart');
+});
+document.getElementById('email-subtab-password-reset').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-password-reset', 'email-subview-password-reset');
+});
+document.getElementById('email-subtab-welcome-email').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-welcome-email', 'email-subview-welcome-email');
+});
+document.getElementById('email-subtab-contact-auto-reply').addEventListener('click', function() {
+  showEmailsSubtab('email-subtab-contact-auto-reply', 'email-subview-contact-auto-reply');
 });
 document.getElementById('email-subtab-coupon-campaign').addEventListener('click', function() {
   showEmailsSubtab('email-subtab-coupon-campaign', 'email-subview-coupon-campaign');
