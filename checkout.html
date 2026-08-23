@@ -172,8 +172,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
    browser's native validation UI, not something this page uses) or any
    JS -- purely a CSS placeholder-style effect, no behavior change. */
 .checkout-section input[type="email"]::placeholder,
-.checkout-section input[type="text"]::placeholder{ color:var(--gray); opacity:1; }
-.checkout-section select:has(option:checked[value=""]){ color:var(--gray); }
+.checkout-section input[type="text"]::placeholder{ color:var(--gray); opacity:1; font-style:italic; }
+.checkout-section select:has(option:checked[value=""]){ color:var(--gray); font-style:italic; }
 .checkout-section input:focus,
 .checkout-section select:focus{ outline:none; border-color:var(--navy); }
 .checkout-field-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -360,20 +360,20 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         <p id="checkout-email-error" class="checkout-field-error">Please enter a valid email address.</p>
 
         <label class="checkout-field-label" for="checkout-ship-name">Full name</label>
-        <input type="text" id="checkout-ship-name" placeholder="Jane Smith" autocomplete="name">
+        <input type="text" id="checkout-ship-name" placeholder="Full name" autocomplete="name">
         <p id="checkout-ship-name-error" class="checkout-field-error">Full name is required.</p>
 
         <label class="checkout-field-label" for="checkout-ship-line1">Address</label>
-        <input type="text" id="checkout-ship-line1" placeholder="123 Main St" autocomplete="address-line1">
+        <input type="text" id="checkout-ship-line1" placeholder="Street address" autocomplete="address-line1">
         <p id="checkout-ship-line1-error" class="checkout-field-error">Address is required.</p>
 
         <label class="checkout-field-label" for="checkout-ship-line2">Apt / Suite (optional)</label>
-        <input type="text" id="checkout-ship-line2" placeholder="Apt 4B" autocomplete="address-line2">
+        <input type="text" id="checkout-ship-line2" placeholder="Apt, suite, unit (optional)" autocomplete="address-line2">
 
         <div class="checkout-field-row">
           <div>
             <label class="checkout-field-label" for="checkout-ship-city">City</label>
-            <input type="text" id="checkout-ship-city" placeholder="Wichita" autocomplete="address-level2">
+            <input type="text" id="checkout-ship-city" placeholder="City" autocomplete="address-level2">
             <p id="checkout-ship-city-error" class="checkout-field-error">City is required.</p>
           </div>
           <div>
@@ -388,7 +388,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         <div class="checkout-field-row">
           <div>
             <label class="checkout-field-label" for="checkout-ship-zip">ZIP code</label>
-            <input type="text" id="checkout-ship-zip" placeholder="67202" autocomplete="postal-code">
+            <input type="text" id="checkout-ship-zip" placeholder="ZIP code" autocomplete="postal-code">
             <p id="checkout-ship-zip-error" class="checkout-field-error">ZIP code is required.</p>
           </div>
           <div>
