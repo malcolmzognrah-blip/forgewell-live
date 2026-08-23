@@ -125,11 +125,25 @@ function renderNotFound() {
   `;
 }
 
-function statusDisplay(status) {
-  if (status === 'paid') return { icon: 'check', title: 'Payment confirmed!', sub: 'Your order is being processed.' };
-  if (status === 'pending_payment') return { icon: 'clock', title: 'Awaiting payment confirmation', sub: 'Finish payment in the tab that opened, then just leave this page open — it will update automatically once your payment is confirmed.' };
-  if (status === 'cancelled') return { icon: 'x', title: 'Order cancelled', sub: 'This order was cancelled or the payment did not complete.' };
+function statusDisplay(status, timedOut) {
+  if (status === 'paid') return { icon: 'check', title: 'Thank you for your order!', sub: 'Your payment is confirmed and your order is being processed.' };
+  if (status === 'pending_payment' && timedOut) return { icon: 'clock', title: 'Still confirming your payment', sub: "This is taking longer than expected. If your payment goes through, you'll still get a confirmation email — your cart is safely saved either way if you'd rather return to checkout." };
+  if (status === 'pending_payment') return { icon: 'clock', title: 'Confirming your payment…', sub: 'Finish payment in the tab that opened, then just leave this page open — it will update automatically once your payment is confirmed.' };
+  if (status === 'partially_paid') return { icon: 'clock', title: 'Partial payment received', sub: 'We received only part of the expected payment. Please contact support with your order ID below before trying again — a new checkout would create a separate order rather than complete this one.' };
+  if (status === 'cancelled') return { icon: 'x', title: 'Payment did not go through', sub: 'This order was cancelled or the payment was not completed. Your cart is still saved — you can return to checkout to try again.' };
   return { icon: 'clock', title: 'Order status: ' + escapeHtml(status), sub: '' };
+}
+
+// Only branch that decides the bottom-of-page link/action. Kept separate
+// from statusDisplay() since the two vary somewhat independently (e.g.
+// pending_payment has two different sub-messages above but only gets a
+// link in the timedOut case).
+function ctaHtml(order, timedOut) {
+  if (order.status === 'paid') return '<a href="/shop.html" class="shop-link">Continue shopping &rarr;</a>';
+  if (order.status === 'cancelled') return '<a href="/checkout.html" class="shop-link">Return to checkout &rarr;</a>';
+  if (order.status === 'pending_payment' && timedOut) return '<a href="/checkout.html" class="shop-link">Return to checkout &rarr;</a>';
+  if (order.status === 'pending_payment') return ''; // still actively polling -- no link yet
+  return '<a href="/shop.html" class="shop-link">&larr; Back to shop</a>'; // partially_paid / unknown status: neutral fallback
 }
 
 function iconSvg(kind) {
@@ -142,8 +156,8 @@ function iconSvg(kind) {
   return '<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="#1B4B8C"/><path d="M32 18v16l10 6" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 
-function renderOrder(order) {
-  const s = statusDisplay(order.status);
+function renderOrder(order, timedOut) {
+  const s = statusDisplay(order.status, timedOut);
   // The cart survives checkout.html's redirect to PayRam unpaid (see
   // checkout.html) specifically so backing out leaves it intact -- this is
   // the one place it actually gets cleared, once payment is confirmed.
@@ -204,7 +218,7 @@ function renderOrder(order) {
       ${addressHtml}
     </div>
 
-    <a href="/shop.html" class="shop-link">&larr; Back to shop</a>
+    ${ctaHtml(order, timedOut)}
   `;
 }
 
@@ -219,13 +233,15 @@ async function pollOrder(orderId) {
       return;
     }
     const order = await res.json();
-    renderOrder(order);
-
+    pollCount++;
     // Keep polling while payment is still pending, so the page updates
     // itself once the webhook confirms the payment — up to roughly
-    // 5 minutes, then stop so we don't poll forever.
-    pollCount++;
-    if (order.status === 'pending_payment' && pollCount < 60) {
+    // 5 minutes, then stop so we don't poll forever. willContinuePolling
+    // doubles as the signal for whether this is the final pending_payment
+    // render (timedOut) -- same 60-attempt cutoff as before, not changed.
+    const willContinuePolling = order.status === 'pending_payment' && pollCount < 60;
+    renderOrder(order, order.status === 'pending_payment' && !willContinuePolling);
+    if (willContinuePolling) {
       pollTimer = setTimeout(() => pollOrder(orderId), 5000);
     }
   } catch (err) {
