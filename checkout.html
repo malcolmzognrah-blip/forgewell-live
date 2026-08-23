@@ -182,6 +182,27 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 }
 .checkout-field-error.show{ display:block; }
 
+/* Browser/password-manager autofill sets these fields' values without
+   dispatching input/change (and often without ever focusing every field
+   it fills), so neither an input/change nor a blur listener reliably
+   fires for every field in an autofilled batch -- see the
+   'animationstart' listener below, which is what actually reacts to
+   this. This animation itself is visually a no-op (0 duration, no
+   keyframe properties) -- it exists purely so :-webkit-autofill matching
+   a field gives JS something to listen for. Chrome/Edge/Safari all
+   support -webkit-autofill; there's no equivalent in Firefox, which
+   falls back to the polling safety net in the script block instead. */
+@keyframes onAutoFillStart{ from{} to{} }
+#checkout-ship-name:-webkit-autofill,
+#checkout-ship-line1:-webkit-autofill,
+#checkout-ship-line2:-webkit-autofill,
+#checkout-ship-city:-webkit-autofill,
+#checkout-ship-state:-webkit-autofill,
+#checkout-ship-zip:-webkit-autofill,
+#checkout-ship-country:-webkit-autofill{
+  animation-name:onAutoFillStart; animation-duration:0.001s;
+}
+
 .checkout-address-error{
   display:none; font-size:0.82rem; color:#c0392b; background:#FBEAEA;
   border:1px solid #E4B8B4; border-radius:6px; padding:10px 12px; margin:10px 0 0;
@@ -1629,6 +1650,47 @@ if (cart.length === 0) {
     validateShipField('state');
     validateAddressThenFetchRates();
   });
+  // Browser/password-manager autofill can fill some or all of these
+  // fields without ever focusing them (e.g. Safari's AutoFill keyboard
+  // button, or a fill triggered from a field that isn't one of these) --
+  // the blur listeners above never fire in that case, so shipping rates
+  // silently never (re)calculate. The :-webkit-autofill CSS rule above
+  // fires per-field the instant THAT field is autofilled, independent of
+  // focus; 'animationstart' is the standard, well-documented way to
+  // detect it (no native 'autofill' DOM event exists). One shared handler
+  // across all seven fields is fine, even though a browser autofilling an
+  // address typically fills several of them in the same batch --
+  // validateAddressThenFetchRates() already no-ops (past its own
+  // lastValidatedAddressKey check) when the address hasn't actually
+  // changed since the last call, so this doesn't multiply live carrier
+  // calls.
+  Object.keys(shipFields).forEach(function(key) {
+    if (!shipFields[key]) return;
+    shipFields[key].addEventListener('animationstart', function(e) {
+      if (e.animationName === 'onAutoFillStart') validateAddressThenFetchRates();
+    });
+  });
+  // Fallback safety net for whatever the animationstart trick above
+  // misses -- Firefox has no -webkit-autofill equivalent, and some
+  // password-manager browser extensions set values in ways that don't
+  // trigger a browser's own autofill styling/pseudo-class at all. Cheap:
+  // every tick just re-derives the address and compares it to the last
+  // snapshot -- validateAddressThenFetchRates() (and any actual network
+  // call) only runs when that comparison shows a real difference, so an
+  // untouched form costs nothing beyond stringifying seven short field
+  // values once a second.
+  // Seeded with the current values (already covered by the synchronous
+  // validateAddressThenFetchRates() call at init, above) rather than null,
+  // so the first tick doesn't immediately re-fire for an address that
+  // hasn't actually changed since page load.
+  let lastPolledAddressSnapshot = JSON.stringify(currentShippingAddress());
+  setInterval(function() {
+    const snapshot = JSON.stringify(currentShippingAddress());
+    if (snapshot !== lastPolledAddressSnapshot) {
+      lastPolledAddressSnapshot = snapshot;
+      validateAddressThenFetchRates();
+    }
+  }, 1000);
   emailInput.addEventListener('blur', function() {
     const email = emailInput.value.trim();
     if (email) emailError.classList.toggle('show', !isValidEmail(email));
