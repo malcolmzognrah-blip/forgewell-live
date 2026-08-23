@@ -287,6 +287,13 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-place-order-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .checkout-place-order-btn:hover{ background:var(--navy-dark); }
 .checkout-back-link{ display:block; text-align:center; margin-top:14px; color:var(--navy); font-size:0.8rem; text-decoration:none; }
+.payram-redirect-overlay{ display:none; position:fixed; inset:0; z-index:9999; background:rgba(18,48,86,0.92); color:#fff; align-items:center; justify-content:center; text-align:center; padding:20px; box-sizing:border-box; }
+.payram-redirect-overlay.open{ display:flex; }
+.payram-redirect-box{ max-width:360px; }
+.payram-redirect-box p{ font-size:0.95rem; margin:0 0 18px; }
+.payram-redirect-spinner{ width:32px; height:32px; margin:0 auto 18px; border:3px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:payram-spin 0.8s linear infinite; }
+@keyframes payram-spin{ to{ transform:rotate(360deg); } }
+.payram-redirect-cancel-link{ display:inline-block; color:#fff; font-size:0.85rem; text-decoration:underline; }
 .checkout-back-link:hover{ text-decoration:underline; }
 
 @media (max-width:940px){
@@ -465,6 +472,21 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         <a href="/cart.html" class="checkout-back-link">&larr; Back to Cart</a>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Shown right before redirecting to PayRam's hosted payment page (see
+     the checkout-place-order-btn click handler). PayRam's initiatePayment
+     API has no cancel_url/return_url of its own to send the customer back
+     to us if they back out or the redirect itself never fires, so this is
+     our own fallback way off the PayRam step -- the order stays
+     pending_payment (cart is untouched) until/unless the webhook marks it
+     paid, so returning to checkout from here is always safe. -->
+<div id="payram-redirect-overlay" class="payram-redirect-overlay">
+  <div class="payram-redirect-box">
+    <div class="payram-redirect-spinner"></div>
+    <p>Redirecting you to PayRam to complete your payment&hellip;</p>
+    <a href="/checkout.html" class="payram-redirect-cancel-link">Cancel and return to checkout</a>
   </div>
 </div>
 
@@ -1767,35 +1789,27 @@ if (cart.length === 0) {
         // once polling actually observes status === 'paid', so backing out
         // of PayRam (or the payment failing) leaves the cart intact.
         //
-        // PayRam's own API has no returnUrl/cancelUrl/logoUrl parameter at
-        // all (checked the SDK's InitiatePaymentRequest type directly --
-        // it only accepts customerEmail/customerId/amountInUSD), so there's
-        // no way to make PayRam's hosted page redirect back to us or carry
-        // our branding. Opening it in a NEW tab instead of navigating this
-        // one away sidesteps that limitation entirely: this tab goes to
-        // order-confirmation.html (already Forgewell-branded, already
-        // polling GET /api/checkout/:orderId for the webhook-confirmed
-        // status) and just sits there waiting, so "return to checkout"
-        // happens automatically -- the customer finishes or abandons
-        // payment in the PayRam tab, then switches back to (or the browser
-        // returns them to) this one, no cooperation from PayRam required.
-        // window.open() can be popup-blocked, especially on Safari, since
-        // this fires from inside an async function rather than
-        // synchronously in the click handler -- falls back to the old
-        // same-tab redirect if so, so checkout never silently stalls.
-        // Deliberately no 'noopener' here: the popup-blocked fallback
-        // below depends on window.open()'s return value reliably being
-        // null when blocked, which 'noopener' makes browser-inconsistent
-        // (some return a restricted-but-non-null reference either way) --
-        // the small opener-reference exposure to a reputable payment
-        // provider's own hosted page is an acceptable, standard tradeoff
-        // for that reliability.
-        var payramWindow = window.open(data.payment.paymentUrl, '_blank');
-        if (!payramWindow) {
-          window.location.href = data.payment.paymentUrl;
-          return;
-        }
-        window.location.href = '/order-confirmation.html';
+        // Same-tab redirect, not a new tab -- keeps the customer in one
+        // continuous flow instead of splitting it across two tabs. PayRam's
+        // own initiatePayment API has no returnUrl/cancelUrl/logoUrl
+        // parameter at all (confirmed against the actual request the SDK
+        // sends: POST /api/v1/payment with a body serializer that only
+        // emits customerEmail/customerId/amountInUSD -- any other field
+        // passed in is silently dropped, not just untyped), so there's no
+        // way to make PayRam's hosted page redirect back to us, carry our
+        // branding, or hand back the reference/invoice ID on success.
+        // order-confirmation.html already accounts for this: it reads
+        // forgewell_last_order_id (set just above, before this redirect)
+        // rather than expecting anything in the URL PayRam sends the
+        // customer back with, and polls GET /api/checkout/:orderId for the
+        // webhook-confirmed status.
+        //
+        // The #payram-redirect-overlay shown here is our fallback "cancel"
+        // path in place of a cancel_url PayRam doesn't support -- covers
+        // the moment before window.location.href actually navigates away
+        // (including if it never does, e.g. an invalid paymentUrl).
+        document.getElementById('payram-redirect-overlay').classList.add('open');
+        window.location.href = data.payment.paymentUrl;
         return;
       }
 
