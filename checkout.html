@@ -465,7 +465,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
             <span class="checkout-payment-method-option-left">
               <input type="radio" name="payment-method" value="payram" checked>
               <span class="checkout-payment-method-option-text">
-                <span class="checkout-payment-method-name">Card to Crypto</span>
+                <span class="checkout-payment-method-name">PayRam</span>
                 <span class="checkout-payment-method-incentive">Earn $10 store credit when you pay this way</span>
               </span>
             </span>
@@ -1800,7 +1800,7 @@ if (cart.length === 0) {
           discountCode: promoCode || undefined,
           storeCreditCents: storeCreditCentsToApply > 0 ? storeCreditCentsToApply : undefined,
           shippingMethod: { carrier: selectedShipping.carrier, service: selectedShipping.service },
-          // Only the "Card to Crypto" (value="payram") radio can
+          // Only the "PayRam" (value="payram") radio can
           // actually be checked today -- Bank Transfer/Card are disabled
           // inputs (see the Payment Method block above), so this can
           // never resolve to anything else yet. Read generically rather
