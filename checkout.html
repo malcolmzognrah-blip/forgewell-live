@@ -1384,9 +1384,32 @@ if (cart.length === 0) {
   // re-deriving its own total client-side and risking disagreeing with
   // whether shipping is actually free (see routes/shipping.js's own
   // comment on why these two numbers must never drift apart).
+  // Loading/error UI for the window a fetchShippingRates() call is in
+  // flight (or has just failed) -- shipping-standard-list/shipping-fast-list
+  // are the same two elements renderShippingOptionsInto() normally owns, so
+  // a real response's renderShippingMethods() call overwrites either state
+  // with actual rates the same way it already overwrites the "enter your
+  // address" empty message.
+  function showShippingRatesLoading() {
+    var loadingHtml = '<p class="fulfillment-section-note">Calculating shipping&hellip;</p>';
+    document.getElementById('shipping-standard-list').innerHTML = loadingHtml;
+    document.getElementById('shipping-fast-list').innerHTML = loadingHtml;
+    document.getElementById('checkout-place-order-btn').disabled = true;
+  }
+
+  // Left disabled -- there's no valid shipping cost to check out against
+  // until a later fetchShippingRates() call succeeds and re-enables it.
+  function showShippingRatesError() {
+    var errorHtml = '<p class="fulfillment-section-note">Unable to calculate shipping &mdash; please verify your address.</p>';
+    document.getElementById('shipping-standard-list').innerHTML = errorHtml;
+    document.getElementById('shipping-fast-list').innerHTML = errorHtml;
+    document.getElementById('checkout-place-order-btn').disabled = true;
+  }
+
   function fetchShippingRates() {
     if (!hasCompleteShippingAddress() || ratesRequestInFlight) return;
     ratesRequestInFlight = true;
+    showShippingRatesLoading();
     const shippingAddress = currentShippingAddress();
     const items = cart.map(function(item) { return { productId: item.productId, qty: item.qty }; });
     const discountCode = (localStorage.getItem('forgewell_promo_code') || '').trim() || undefined;
@@ -1399,7 +1422,7 @@ if (cart.length === 0) {
       .then(function(res) { return res.ok ? res.json() : null; })
       .then(function(data) {
         ratesRequestInFlight = false;
-        if (!data) return;
+        if (!data) { showShippingRatesError(); return; }
         currentFreeShipping = !!data.freeShipping;
         currentStandardRates = Array.isArray(data.standardRates) ? data.standardRates : [];
         currentFastRates = Array.isArray(data.fastRates) ? data.fastRates : [];
@@ -1407,8 +1430,13 @@ if (cart.length === 0) {
         currentFreeShippingThreshold = typeof data.threshold === 'number' ? data.threshold : null;
         renderShippingMethods();
         renderOrderSummary();
+        document.getElementById('checkout-place-order-btn').disabled = false;
       })
-      .catch(function() { ratesRequestInFlight = false; });
+      .catch(function(err) {
+        console.error('Failed to fetch shipping rates:', err);
+        ratesRequestInFlight = false;
+        showShippingRatesError();
+      });
   }
 
   const addressErrorEl = document.getElementById('checkout-address-error');
@@ -1507,6 +1535,20 @@ if (cart.length === 0) {
         addressCarrierInvalid = false;
         fetchShippingRates();
       });
+  }
+
+  // Collapses the blur/select-change/animationstart/poll triggers wired
+  // below into a single validateAddressThenFetchRates() call ~400ms after
+  // the last of them -- tabbing through several fields, or a browser
+  // autofilling a handful of them in one fast burst, would otherwise fire
+  // one validate+rate-shop round trip per field/event instead of one for
+  // the whole batch. validateAddressThenFetchRates() itself is untouched
+  // (still dedupes via lastValidatedAddressKey/ratesRequestInFlight) --
+  // this only delays *when* it's called, not what it does.
+  let validateAddressDebounceTimer = null;
+  function debouncedValidateAddressThenFetchRates() {
+    clearTimeout(validateAddressDebounceTimer);
+    validateAddressDebounceTimer = setTimeout(validateAddressThenFetchRates, 400);
   }
 
   document.getElementById('checkout-address-suggestion-use').addEventListener('click', function() {
@@ -1636,7 +1678,7 @@ if (cart.length === 0) {
         if (shipFields.state.value.trim()) validateShipField('state');
         if (shipFields.zip.value.trim()) validateShipField('zip');
       }
-      validateAddressThenFetchRates();
+      debouncedValidateAddressThenFetchRates();
     });
   });
   // A <select> like #checkout-ship-state fires 'change' the instant a
@@ -1648,7 +1690,7 @@ if (cart.length === 0) {
   // whenever the address hasn't changed since the last call.
   shipFields.state.addEventListener('change', function() {
     validateShipField('state');
-    validateAddressThenFetchRates();
+    debouncedValidateAddressThenFetchRates();
   });
   // Browser/password-manager autofill can fill some or all of these
   // fields without ever focusing them (e.g. Safari's AutoFill keyboard
@@ -1667,7 +1709,7 @@ if (cart.length === 0) {
   Object.keys(shipFields).forEach(function(key) {
     if (!shipFields[key]) return;
     shipFields[key].addEventListener('animationstart', function(e) {
-      if (e.animationName === 'onAutoFillStart') validateAddressThenFetchRates();
+      if (e.animationName === 'onAutoFillStart') debouncedValidateAddressThenFetchRates();
     });
   });
   // Fallback safety net for whatever the animationstart trick above
@@ -1688,7 +1730,7 @@ if (cart.length === 0) {
     const snapshot = JSON.stringify(currentShippingAddress());
     if (snapshot !== lastPolledAddressSnapshot) {
       lastPolledAddressSnapshot = snapshot;
-      validateAddressThenFetchRates();
+      debouncedValidateAddressThenFetchRates();
     }
   }, 1000);
   emailInput.addEventListener('blur', function() {
