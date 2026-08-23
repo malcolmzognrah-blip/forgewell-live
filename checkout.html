@@ -909,11 +909,15 @@ let currentFastRates = [];
 let currentFreeShipping = false;
 let currentFreeShippingTotal = null;
 let currentFreeShippingThreshold = null;
-// Single source of truth for the loading/disabled UI (see
-// showShippingRatesLoading()/showShippingRatesError() further down) --
-// true from the moment validateAddressThenFetchRates() starts real work
-// (the validate-address leg) until the chain reaches a terminal state
-// (fetchShippingRates() resolving, or an earlier leg failing/rejecting).
+// Single source of truth for two related things: (1) the loading/
+// disabled UI (see showShippingRatesLoading()/showShippingRatesError()
+// further down), and (2) since the frontend-race fix, whether a NEW
+// debounced trigger is even allowed to start a chain at all (see
+// debouncedValidateAddressThenFetchRates() -- a trigger firing while this
+// is already true is dropped outright, not queued). True from the moment
+// validateAddressThenFetchRates() starts real work (the validate-address
+// leg) until the chain reaches a terminal state (fetchShippingRates()
+// resolving, or an earlier leg failing/rejecting).
 // Deliberately NOT also used to guard against a second /api/shipping/rates
 // call (see ratesFetchInFlight below) -- validateAddressThenFetchRates()
 // itself sets this true before its own validate-address fetch even starts,
@@ -922,11 +926,15 @@ let currentFreeShippingThreshold = null;
 // wrongly no-op on its own chain's hand-off.
 let shippingCalculationInFlight = false;
 // Guards specifically against two concurrent POST /api/shipping/rates
-// calls (e.g. a poll tick landing while a slow validate-address round trip
-// for the same not-yet-relabeled address is still in flight, so a second
-// validateAddressThenFetchRates() chain reaches fetchShippingRates() before
-// the first one does) -- narrower and separate from
-// shippingCalculationInFlight on purpose, see that flag's own comment.
+// calls -- narrower and separate from shippingCalculationInFlight on
+// purpose, see that flag's own comment. Mostly a belt-and-suspenders
+// safety net now that debouncedValidateAddressThenFetchRates() already
+// stops a new *debounced* trigger from starting a second chain, but the
+// two call sites that bypass that wrapper entirely (the one-time
+// synchronous call at page init, and the "use suggested address" button)
+// still funnel into fetchShippingRates() the same as everything else, so
+// this stays as the last line of defense against an actual duplicate
+// carrier-rate network call regardless of which path reached it.
 let ratesFetchInFlight = false;
 // Set by validateAddressThenFetchRates() below -- true only when the
 // carrier address-validation check has actually run and come back
@@ -1524,11 +1532,21 @@ if (cart.length === 0) {
     }
     const address = currentShippingAddress();
     const key = JSON.stringify(address);
-    if (key === lastValidatedAddressKey) {
-      beginShippingCalculation();
-      fetchShippingRates();
-      return;
-    }
+    // Nothing to do -- this exact address was already validated and
+    // rate-shopped, so the currently-rendered rates/button state stay as
+    // they are. Used to re-call fetchShippingRates() here on every match
+    // (e.g. so a coupon/discount code entered after the address was
+    // already validated would still refresh the total), but that's
+    // dropped for now in favor of simplicity: with no backend caching and
+    // /api/shipping/rates currently hitting UPS/FedEx sandbox, re-shopping
+    // live on every re-blur/poll match of an UNCHANGED address was
+    // independently reproducing the "same address, different carrier"
+    // symptom the overlapping-request race fix (above) doesn't cover,
+    // since this path was never actually racing anything -- it was just
+    // redundant. If a discount-code-driven refresh is needed later, that
+    // should be its own explicit check (e.g. hashing cart+discountCode)
+    // rather than reusing this address-only key.
+    if (key === lastValidatedAddressKey) return;
 
     // Disables the button and shows "Calculating..." for the validate-
     // address leg too, not just the fetchShippingRates() leg below --
@@ -1618,13 +1636,49 @@ if (cart.length === 0) {
   // the last of them -- tabbing through several fields, or a browser
   // autofilling a handful of them in one fast burst, would otherwise fire
   // one validate+rate-shop round trip per field/event instead of one for
-  // the whole batch. validateAddressThenFetchRates() itself still dedupes
-  // via lastValidatedAddressKey/ratesFetchInFlight/shippingCalculationInFlight
-  // -- this only delays *when* it's called, not what it does.
+  // the whole batch.
+  //
+  // That alone only collapses events that land within 400ms of EACH
+  // OTHER -- it has no idea whether a full validate-address -> rates
+  // chain from an EARLIER trigger (measured taking anywhere from ~0.5s to
+  // several seconds against live carrier APIs) is still in flight. A
+  // trigger landing more than 400ms after the last one -- entirely
+  // plausible from two staggered autofill events, or a blur landing
+  // after a poll tick -- would otherwise start a completely independent
+  // second chain for the same still-unchanged address, since
+  // lastValidatedAddressKey isn't written until a chain's own
+  // validate-address call resolves (see validateAddressThenFetchRates()
+  // below), so a second chain starting before the first resolves doesn't
+  // see itself as redundant. Confirmed live: this produced 2-3 real,
+  // fully independent POST /api/shipping/rates calls for one identical
+  // address within a single checkout session, and since
+  // /api/shipping/rates re-shops UPS/FedEx live on every call with no
+  // caching, whichever of those redundant calls happened to resolve LAST
+  // silently overwrote the page with its own (possibly different)
+  // cheapest-carrier result -- not necessarily the most-recently-
+  // triggered one.
+  //
+  // The guard below closes that gap: if shippingCalculationInFlight is
+  // still true when this timer fires, a chain is already running for
+  // (what was, at minimum, very recently) this same address, so this
+  // trigger is dropped outright -- not queued, not retried. This is a
+  // deliberate simplification, not an oversight: the alternative
+  // (queueing a pending re-check) is real complexity for a case that's
+  // already covered in practice -- any further real change to the
+  // address fires its own blur/change/animationstart, and the poll
+  // re-checks every 1s regardless, so the next genuine edit re-triggers
+  // normally once the flag clears. The one theoretical gap is an address
+  // that changes exactly once during another chain's in-flight window
+  // and is never touched again before submit -- validateAllShipFields()
+  // and the addressCarrierInvalid submit-time check still guard
+  // correctness there, just not with a freshly re-shopped rate.
   let validateAddressDebounceTimer = null;
   function debouncedValidateAddressThenFetchRates() {
     clearTimeout(validateAddressDebounceTimer);
-    validateAddressDebounceTimer = setTimeout(validateAddressThenFetchRates, 400);
+    validateAddressDebounceTimer = setTimeout(function() {
+      if (shippingCalculationInFlight) return;
+      validateAddressThenFetchRates();
+    }, 400);
   }
 
   document.getElementById('checkout-address-suggestion-use').addEventListener('click', function() {
