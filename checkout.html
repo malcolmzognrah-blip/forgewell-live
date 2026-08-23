@@ -307,6 +307,16 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .checkout-place-order-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .checkout-place-order-btn:hover{ background:var(--navy-dark); }
+/* Set via the native disabled property (checkout.html's
+   beginShippingCalculation()/endShippingCalculationError()/fetchShippingRates()
+   -- not a class toggle), so :disabled is the correct selector here. The
+   :hover override keeps the dimmed background even while the pointer sits
+   over the button mid-hover -- Chrome/Firefox still match :hover on a
+   disabled button for styling purposes even though it blocks the actual
+   click, so without this a hover during the loading window would
+   incorrectly flash back to the enabled look. */
+.checkout-place-order-btn:disabled,
+.checkout-place-order-btn:disabled:hover{ background:var(--navy); opacity:0.5; cursor:not-allowed; }
 .checkout-back-link{ display:block; text-align:center; margin-top:14px; color:var(--navy); font-size:0.8rem; text-decoration:none; }
 .payram-redirect-overlay{ display:none; position:fixed; inset:0; z-index:9999; background:rgba(18,48,86,0.92); color:#fff; align-items:center; justify-content:center; text-align:center; padding:20px; box-sizing:border-box; }
 .payram-redirect-overlay.open{ display:flex; }
