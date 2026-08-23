@@ -899,7 +899,25 @@ let currentFastRates = [];
 let currentFreeShipping = false;
 let currentFreeShippingTotal = null;
 let currentFreeShippingThreshold = null;
-let ratesRequestInFlight = false;
+// Single source of truth for the loading/disabled UI (see
+// showShippingRatesLoading()/showShippingRatesError() further down) --
+// true from the moment validateAddressThenFetchRates() starts real work
+// (the validate-address leg) until the chain reaches a terminal state
+// (fetchShippingRates() resolving, or an earlier leg failing/rejecting).
+// Deliberately NOT also used to guard against a second /api/shipping/rates
+// call (see ratesFetchInFlight below) -- validateAddressThenFetchRates()
+// itself sets this true before its own validate-address fetch even starts,
+// so by the time it hands off to fetchShippingRates() this flag is already
+// true; guarding fetchShippingRates() on this same flag would make it
+// wrongly no-op on its own chain's hand-off.
+let shippingCalculationInFlight = false;
+// Guards specifically against two concurrent POST /api/shipping/rates
+// calls (e.g. a poll tick landing while a slow validate-address round trip
+// for the same not-yet-relabeled address is still in flight, so a second
+// validateAddressThenFetchRates() chain reaches fetchShippingRates() before
+// the first one does) -- narrower and separate from
+// shippingCalculationInFlight on purpose, see that flag's own comment.
+let ratesFetchInFlight = false;
 // Set by validateAddressThenFetchRates() below -- true only when the
 // carrier address-validation check has actually run and come back
 // invalid (a true carrier-consensus reject, not "couldn't be checked").
@@ -1406,9 +1424,27 @@ if (cart.length === 0) {
     document.getElementById('checkout-place-order-btn').disabled = true;
   }
 
+  // Entry point for the whole validate-address -> fetch-rates chain --
+  // called from the top of validateAddressThenFetchRates() (i.e. as soon
+  // as the debounce timer actually fires, not at raw blur/change/
+  // animationstart time) so the button disables for the full round trip,
+  // not just the fetchShippingRates() leg at the end of it.
+  function beginShippingCalculation() {
+    shippingCalculationInFlight = true;
+    showShippingRatesLoading();
+  }
+
+  // Terminal failure shared by every leg that can end the chain without
+  // ever reaching a successful fetchShippingRates() response -- keeps one
+  // consistent disabled+error UX regardless of which leg failed.
+  function endShippingCalculationError() {
+    shippingCalculationInFlight = false;
+    showShippingRatesError();
+  }
+
   function fetchShippingRates() {
-    if (!hasCompleteShippingAddress() || ratesRequestInFlight) return;
-    ratesRequestInFlight = true;
+    if (!hasCompleteShippingAddress() || ratesFetchInFlight) return;
+    ratesFetchInFlight = true;
     showShippingRatesLoading();
     const shippingAddress = currentShippingAddress();
     const items = cart.map(function(item) { return { productId: item.productId, qty: item.qty }; });
@@ -1421,8 +1457,8 @@ if (cart.length === 0) {
     })
       .then(function(res) { return res.ok ? res.json() : null; })
       .then(function(data) {
-        ratesRequestInFlight = false;
-        if (!data) { showShippingRatesError(); return; }
+        ratesFetchInFlight = false;
+        if (!data) { endShippingCalculationError(); return; }
         currentFreeShipping = !!data.freeShipping;
         currentStandardRates = Array.isArray(data.standardRates) ? data.standardRates : [];
         currentFastRates = Array.isArray(data.fastRates) ? data.fastRates : [];
@@ -1430,12 +1466,13 @@ if (cart.length === 0) {
         currentFreeShippingThreshold = typeof data.threshold === 'number' ? data.threshold : null;
         renderShippingMethods();
         renderOrderSummary();
+        shippingCalculationInFlight = false;
         document.getElementById('checkout-place-order-btn').disabled = false;
       })
       .catch(function(err) {
         console.error('Failed to fetch shipping rates:', err);
-        ratesRequestInFlight = false;
-        showShippingRatesError();
+        ratesFetchInFlight = false;
+        endShippingCalculationError();
       });
   }
 
@@ -1478,9 +1515,20 @@ if (cart.length === 0) {
     const address = currentShippingAddress();
     const key = JSON.stringify(address);
     if (key === lastValidatedAddressKey) {
+      beginShippingCalculation();
       fetchShippingRates();
       return;
     }
+
+    // Disables the button and shows "Calculating..." for the validate-
+    // address leg too, not just the fetchShippingRates() leg below --
+    // this is the actual fix for the button staying clickable through the
+    // debounce + validate-address round trip (see the investigation this
+    // change follows). fetchShippingRates() has its own, narrower
+    // ratesFetchInFlight guard for the rates-endpoint call specifically;
+    // shippingCalculationInFlight (set here) is the single flag the
+    // button/loading UI actually reads across both legs.
+    beginShippingCalculation();
 
     fetch('/api/shipping/validate-address', {
       method: 'POST',
@@ -1494,7 +1542,12 @@ if (cart.length === 0) {
         // was in flight, in which case this response is stale and a
         // fresher validateAddressThenFetchRates() call is already
         // scheduled (from whichever blur fired after this one started)
-        // to supersede it.
+        // to supersede it. Deliberately returns before touching
+        // shippingCalculationInFlight or the button/loading UI -- the
+        // fresher call already called beginShippingCalculation() itself
+        // and owns clearing that state when IT resolves; touching it here
+        // would let this stale response re-enable the button (or show a
+        // false error) while the real, still-in-flight check continues.
         if (JSON.stringify(currentShippingAddress()) !== key) return;
         lastValidatedAddressKey = key;
         hideAddressValidationUi();
@@ -1514,7 +1567,15 @@ if (cart.length === 0) {
           // Deliberately does NOT call fetchShippingRates() -- quoting
           // shipping for an address the carriers say isn't deliverable
           // would be misleading, and the real submit is blocked below
-          // regardless.
+          // regardless. Still has to end the chain via
+          // endShippingCalculationError() rather than just returning,
+          // though -- this branch never reaches fetchShippingRates(), so
+          // without this the button/rate-list would be stuck showing
+          // "Calculating shipping..." forever. addressErrorEl above stays
+          // as the more specific message; the rate-list's generic
+          // fallback text is still accurate here (no valid shipping cost
+          // exists for this address).
+          endShippingCalculationError();
           return;
         }
         addressCarrierInvalid = false;
@@ -1528,10 +1589,15 @@ if (cart.length === 0) {
         // against whatever the customer currently has entered.
         fetchShippingRates();
       })
-      .catch(function() {
+      .catch(function(err) {
         // Client-side network failure talking to our own backend --
         // same fail-open reasoning as the "neither carrier reachable"
-        // branch above.
+        // branch above. Falls through to fetchShippingRates(), which is
+        // still what ends the chain (success re-enables the button, a
+        // further failure there converges on endShippingCalculationError()
+        // via its own catch) -- shippingCalculationInFlight stays true
+        // until then, so the button stays correctly disabled either way.
+        console.error('Failed to validate shipping address:', err);
         addressCarrierInvalid = false;
         fetchShippingRates();
       });
@@ -1542,9 +1608,9 @@ if (cart.length === 0) {
   // the last of them -- tabbing through several fields, or a browser
   // autofilling a handful of them in one fast burst, would otherwise fire
   // one validate+rate-shop round trip per field/event instead of one for
-  // the whole batch. validateAddressThenFetchRates() itself is untouched
-  // (still dedupes via lastValidatedAddressKey/ratesRequestInFlight) --
-  // this only delays *when* it's called, not what it does.
+  // the whole batch. validateAddressThenFetchRates() itself still dedupes
+  // via lastValidatedAddressKey/ratesFetchInFlight/shippingCalculationInFlight
+  // -- this only delays *when* it's called, not what it does.
   let validateAddressDebounceTimer = null;
   function debouncedValidateAddressThenFetchRates() {
     clearTimeout(validateAddressDebounceTimer);
