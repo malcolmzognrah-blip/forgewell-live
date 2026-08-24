@@ -283,6 +283,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 <div class="admin-wrap" id="admin-wrap">
   <div class="admin-tabs">
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
+    <button type="button" class="admin-tab" id="tab-payments">Payments</button>
     <button type="button" class="admin-tab" id="tab-coas">COA</button>
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
@@ -343,6 +344,26 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </tr>
     </thead>
     <tbody id="orders-tbody"></tbody>
+  </table>
+  </div>
+  </div>
+
+  <div class="admin-view" id="view-payments">
+  <p class="result-count" id="payments-result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Reference ID</th>
+        <th>Payment Method</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Paid At</th>
+      </tr>
+    </thead>
+    <tbody id="payments-tbody"></tbody>
   </table>
   </div>
   </div>
@@ -1109,6 +1130,48 @@ function loadOrders() {
     });
 }
 
+// Payments tab -- same underlying order data as the Orders tab
+// (GET /api/admin/orders, no filters), just a payment-focused column
+// selection (reference_id/payment_method/paid_at) instead of the
+// fulfillment-focused one, and sorted by paid_at descending (most
+// recent payment first) rather than the Orders tab's created_at-DESC --
+// this is a payments log, so when something was actually paid matters
+// more here than when the order was placed. Orders never paid (or paid
+// via store credit alone, which sets reference_id to NULL -- see
+// routes/checkout.js's fully-covered-by-store-credit path -- and skips
+// PayRam entirely) sort to the bottom via the null-paid_at fallback.
+function loadPayments() {
+  fetch('/api/admin/orders', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json();
+    })
+    .then(function(orders) {
+      if (!orders) return;
+      var sorted = orders.slice().sort(function(a, b) {
+        if (!a.paid_at && !b.paid_at) return 0;
+        if (!a.paid_at) return 1;
+        if (!b.paid_at) return -1;
+        return new Date(b.paid_at) - new Date(a.paid_at);
+      });
+      document.getElementById('payments-result-count').textContent = sorted.length + ' order' + (sorted.length === 1 ? '' : 's');
+      document.getElementById('payments-tbody').innerHTML = sorted.map(function(o) {
+        return '<tr>' +
+          '<td><code title="' + escapeForAttr(o.id) + '">' + (o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...') + '</code></td>' +
+          '<td>' + o.customer_email + '</td>' +
+          '<td>' + (o.reference_id ? '<code>' + escapeForHtml(o.reference_id) + '</code>' : '—') + '</td>' +
+          '<td>' + (o.payment_method ? escapeForHtml(o.payment_method) : '—') + '</td>' +
+          '<td>$' + Number(o.total).toFixed(2) + '</td>' +
+          '<td><span class="order-status-pill ' + statusClass(o.status) + '">' + o.status.replace('_', ' ') + '</span></td>' +
+          '<td>' + (o.paid_at ? formatDate(o.paid_at) : '—') + '</td>' +
+        '</tr>';
+      }).join('');
+    })
+    .catch(function() {
+      document.getElementById('payments-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load payments.</td></tr>';
+    });
+}
+
 function showLogin() {
   document.getElementById('login-wrap').style.display = 'block';
   document.getElementById('admin-wrap').style.display = 'none';
@@ -1123,10 +1186,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -1135,6 +1198,11 @@ function showAdminTab(tabId, viewId) {
 
 function showOrdersTab() {
   showAdminTab('tab-orders', 'view-orders');
+}
+
+function showPaymentsTab() {
+  showAdminTab('tab-payments', 'view-payments');
+  loadPayments();
 }
 
 function showCoaTab() {
@@ -2893,6 +2961,7 @@ document.getElementById('filter-time-from').addEventListener('keydown', function
 document.getElementById('filter-time-to').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
+document.getElementById('tab-payments').addEventListener('click', showPaymentsTab);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
