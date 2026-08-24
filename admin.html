@@ -1875,7 +1875,17 @@ function renderCoupons() {
       '<td><span class="coupon-status-pill ' + (c.active ? 'active' : 'inactive') + '">' + (c.active ? 'Active' : 'Inactive') + '</span></td>' +
       '<td>' + (c.redemption_count != null ? c.redemption_count : '—') + '</td>' +
       '<td>' + (c.expires_at ? formatDate(c.expires_at) : '—') + '</td>' +
-      '<td><button type="button" class="product-edit-toggle-btn coupon-toggle-active-btn" data-code="' + c.code + '">' + (c.active ? 'Deactivate' : 'Activate') + '</button></td>' +
+      '<td><button type="button" class="product-edit-toggle-btn coupon-toggle-active-btn" data-code="' + c.code + '">' + (c.active ? 'Deactivate' : 'Activate') + '</button>' +
+        // Omitted entirely (not just disabled) once a coupon has any
+        // redemptions -- the backend's DELETE unconditionally rejects
+        // that case (orders.coupon_code_fkey has no ON DELETE clause),
+        // so a visible-but-doomed button would just be a confusing extra
+        // click for no reason. Deactivate stays as the only management
+        // option for a used coupon.
+        (c.redemption_count === 0
+          ? ' <button type="button" class="product-edit-toggle-btn coupon-delete-btn" data-code="' + c.code + '">Delete</button>'
+          : '') +
+      '</td>' +
     '</tr>';
   }).join('');
   populateEmailCampaignCouponSelect();
@@ -1970,18 +1980,48 @@ document.getElementById('new-coupon-save-btn').addEventListener('click', functio
 
 // Delegated -- #coupons-tbody is fully rebuilt by every renderCoupons() call.
 document.getElementById('coupons-tbody').addEventListener('click', function(e) {
-  var btn = e.target.closest('.coupon-toggle-active-btn');
-  if (!btn) return;
-  var code = btn.getAttribute('data-code');
-  var coupon = couponsAll.find(function(c) { return c.code === code; });
-  btn.disabled = true;
-  fetch('/api/admin/coupons/' + encodeURIComponent(code), {
-    method: 'PATCH', credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ active: !coupon.active }),
-  })
-    .then(function() { loadCoupons(); })
-    .catch(function() { btn.disabled = false; });
+  var toggleBtn = e.target.closest('.coupon-toggle-active-btn');
+  if (toggleBtn) {
+    var code = toggleBtn.getAttribute('data-code');
+    var coupon = couponsAll.find(function(c) { return c.code === code; });
+    toggleBtn.disabled = true;
+    fetch('/api/admin/coupons/' + encodeURIComponent(code), {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: !coupon.active }),
+    })
+      .then(function() { loadCoupons(); })
+      .catch(function() { toggleBtn.disabled = false; });
+    return;
+  }
+
+  var deleteBtn = e.target.closest('.coupon-delete-btn');
+  if (deleteBtn) {
+    var deleteCode = deleteBtn.getAttribute('data-code');
+    if (!window.confirm('Delete coupon ' + deleteCode + '? This cannot be undone.')) return;
+    deleteBtn.disabled = true;
+    fetch('/api/admin/coupons/' + encodeURIComponent(deleteCode), {
+      method: 'DELETE', credentials: 'include',
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        if (!r.ok) {
+          // Most likely the race-condition fallback on the backend (an
+          // order used this exact code between page load and this
+          // click) -- redemption_count === 0 is what actually gated
+          // showing this button at all, so an ordinary rejection
+          // shouldn't happen in normal use.
+          deleteBtn.disabled = false;
+          window.alert(r.d.error || 'Could not delete coupon.');
+          return;
+        }
+        loadCoupons();
+      })
+      .catch(function() {
+        deleteBtn.disabled = false;
+        window.alert('Could not delete coupon.');
+      });
+  }
 });
 
 // ============================================================
