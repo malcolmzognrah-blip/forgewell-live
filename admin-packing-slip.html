@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Packing Slip — Forgewell</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" href="/favicon.png">
+<style>
+@font-face { font-family:'Quicksand'; src:url('/fonts/quicksand-variable.woff2') format('woff2'); font-weight:300 700; font-display:swap; }
+:root{ --navy:#1B4B8C; --navy-dark:#123056; --gray:#6b6b6b; --line:#E4E4E0; }
+*{box-sizing:border-box;}
+body{ margin:0; background:#fff; color:#222; font-family:'Quicksand',-apple-system,sans-serif; }
+
+/* No header.html/footer.html and no admin nav here on purpose -- this is
+   a single-order print target opened from admin.html's orders table (see
+   that file's own "Print Packing Slip" button), not a page a customer or
+   logged-out visitor ever lands on. Same "deliberately left out of the
+   shared header/footer system" precedent CLAUDE.md documents for
+   order-confirmation.html/admin.html -- this page needs neither the
+   customer-facing header nor the full admin chrome, just the slip
+   content and a Print button, and no admin-panel bleed into the printed
+   page (see .no-print / @media print below). */
+main{ max-width:680px; margin:0 auto; padding:32px 24px 60px; }
+
+.slip-header{ display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid var(--navy); padding-bottom:16px; margin-bottom:24px; }
+.slip-header .brand{ font-weight:800; font-size:1.3rem; }
+.slip-header .brand .forge{ color:var(--navy); }
+.slip-header .brand .well{ color:#3FA34D; }
+.slip-header .doc-title{ text-align:right; }
+.slip-header .doc-title h1{ margin:0; font-size:1.1rem; color:var(--navy-dark); }
+.slip-header .doc-title .order-id{ font-family:monospace; font-size:0.8rem; color:var(--gray); margin-top:4px; }
+
+.slip-section{ margin-bottom:22px; }
+.slip-section h2{ font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--gray); margin:0 0 8px; }
+.slip-columns{ display:flex; gap:32px; }
+.slip-columns > div{ flex:1; min-width:0; }
+.address-block, .meta-block{ font-size:0.92rem; line-height:1.6; }
+.meta-block .row{ display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
+.meta-block .row span:first-child{ color:var(--gray); }
+
+table.items-table{ width:100%; border-collapse:collapse; font-size:0.9rem; }
+table.items-table th{ text-align:left; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.03em; color:var(--gray); border-bottom:1px solid var(--line); padding:6px 8px; }
+table.items-table td{ padding:8px; border-bottom:1px solid var(--line); }
+table.items-table th:last-child, table.items-table td:last-child{ text-align:right; }
+
+.no-print{ margin:0 0 24px; }
+.print-btn{ background:var(--navy); color:#fff; border:none; border-radius:6px; padding:10px 18px; font-weight:700; font-size:0.9rem; font-family:'Quicksand',sans-serif; cursor:pointer; }
+.print-btn:hover{ background:var(--navy-dark); }
+
+.state-message{ text-align:center; color:var(--gray); padding:60px 20px; font-size:0.95rem; }
+
+@media print{
+  .no-print{ display:none !important; }
+  main{ padding:0; max-width:none; }
+  body{ margin:0; }
+}
+</style>
+</head>
+<body>
+
+<main>
+  <div class="no-print">
+    <button type="button" class="print-btn" id="print-btn">Print</button>
+  </div>
+  <div id="slip-root">
+    <p class="state-message">Loading order&hellip;</p>
+  </div>
+</main>
+
+<script>
+function escapeForHtml(s) {
+  var div = document.createElement('div');
+  div.textContent = s || '';
+  return div.innerHTML;
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatAddress(addr) {
+  if (!addr) return '<span style="color:var(--gray)">No shipping address on file.</span>';
+  var lines = [
+    escapeForHtml(addr.name),
+    escapeForHtml(addr.line1),
+    addr.line2 ? escapeForHtml(addr.line2) : null,
+    escapeForHtml(addr.city) + ', ' + escapeForHtml(addr.state) + ' ' + escapeForHtml(addr.zip),
+    escapeForHtml(addr.country),
+  ].filter(Boolean);
+  return lines.join('<br>');
+}
+
+// carrier/service/label are all NULL for any order placed before this
+// feature existed (see orders-shipping-method-migration.sql's own
+// comment -- no backfill is possible), and label alone is also NULL if
+// this order somehow predates them but not carrier/service, so this
+// falls back field-by-field rather than assuming all three are always
+// present or always absent together.
+function formatShippingMethod(order) {
+  if (order.shipping_label) return escapeForHtml(order.shipping_label);
+  if (order.shipping_carrier || order.shipping_service) {
+    return escapeForHtml([order.shipping_carrier, order.shipping_service].filter(Boolean).join(' '));
+  }
+  return '—';
+}
+
+function renderSlip(order) {
+  var items = (order.line_items || []).map(function(item) {
+    return '<tr><td>' + escapeForHtml(item.name) + '</td><td>' + escapeForHtml(String(item.qty)) + '</td></tr>';
+  }).join('');
+
+  document.getElementById('slip-root').innerHTML =
+    '<div class="slip-header">' +
+      '<div class="brand"><span class="forge">FORGE</span><span class="well">WELL</span></div>' +
+      '<div class="doc-title">' +
+        '<h1>Packing Slip</h1>' +
+        '<div class="order-id">Order ' + escapeForHtml(order.id) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="slip-section slip-columns">' +
+      '<div>' +
+        '<h2>Ship To</h2>' +
+        '<div class="address-block">' + formatAddress(order.shipping_address) + '</div>' +
+      '</div>' +
+      '<div>' +
+        '<h2>Order Info</h2>' +
+        '<div class="meta-block">' +
+          '<div class="row"><span>Customer</span><span>' + escapeForHtml(order.customer_name || order.customer_email) + '</span></div>' +
+          '<div class="row"><span>Date Placed</span><span>' + formatDate(order.created_at) + '</span></div>' +
+          '<div class="row"><span>Shipping Method</span><span>' + formatShippingMethod(order) + '</span></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="slip-section">' +
+      '<h2>Items</h2>' +
+      '<table class="items-table"><thead><tr><th>Product</th><th>Qty</th></tr></thead><tbody>' + items + '</tbody></table>' +
+    '</div>';
+}
+
+document.getElementById('print-btn').addEventListener('click', function() { window.print(); });
+
+var orderId = new URLSearchParams(window.location.search).get('order');
+if (!orderId) {
+  document.getElementById('slip-root').innerHTML = '<p class="state-message">No order specified.</p>';
+} else {
+  fetch('/api/admin/orders/' + encodeURIComponent(orderId), { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) {
+        document.getElementById('slip-root').innerHTML = '<p class="state-message">Not logged in as admin. Open this from the admin panel.</p>';
+        return null;
+      }
+      if (res.status === 404) {
+        document.getElementById('slip-root').innerHTML = '<p class="state-message">Order not found.</p>';
+        return null;
+      }
+      return res.ok ? res.json() : Promise.reject(new Error('Failed to load order'));
+    })
+    .then(function(order) { if (order) renderSlip(order); })
+    .catch(function() {
+      document.getElementById('slip-root').innerHTML = '<p class="state-message">Could not load this order.</p>';
+    });
+}
+</script>
+
+</body>
+</html>

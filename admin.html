@@ -324,6 +324,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" id="filter-date-apply-btn">Apply Filter</button>
   </div>
   <p class="result-count" id="result-count"></p>
+  <div style="overflow-x:auto;">
   <table class="orders-table">
     <thead>
       <tr>
@@ -332,13 +333,18 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         <th>Account</th>
         <th>Items</th>
         <th>Total</th>
+        <th>Ship $</th>
+        <th>Ship To</th>
+        <th>Method</th>
         <th>Status</th>
         <th>Fulfillment</th>
         <th>Date</th>
+        <th></th>
       </tr>
     </thead>
     <tbody id="orders-tbody"></tbody>
   </table>
+  </div>
   </div>
 
   <div class="admin-view coa-panel" id="view-coas">
@@ -920,6 +926,43 @@ function formatDate(iso) {
 function statusClass(s) { return s === 'paid' ? 'paid' : s === 'pending_payment' ? 'pending_payment' : 'other'; }
 var FULFILLMENT_STATUSES = ['pending', 'processing', 'shipped', 'delivered'];
 
+// escapeForHtml() (further down) only escapes &/</> -- safe for text-node
+// content, not for embedding inside a double-quoted attribute value like
+// the title="" tooltip below, where a literal " in a customer-entered
+// address field could otherwise break out of the attribute. Only needed
+// here since this is the only place in this file that puts
+// user-originated text inside an attribute rather than text content.
+function escapeForAttr(s) { return escapeForHtml(s).replace(/"/g, '&quot;'); }
+
+// City/state is enough to identify an order at a glance in the table;
+// the full address (needed for anything more, e.g. actually verifying
+// it) is one hover away via the title tooltip rather than a full column
+// -- a complete multi-line address doesn't fit a table cell without
+// either wrapping badly or making the row very tall. The packing slip
+// (Packing Slip link, same row) is the actual place a full address is
+// meant to be read/printed from.
+function orderShipToSummary(addr) {
+  if (!addr) return '—';
+  var summary = [addr.city, addr.state].filter(Boolean).join(', ') || '—';
+  var full = [addr.name, addr.line1, addr.line2, [addr.city, addr.state, addr.zip].filter(Boolean).join(' '), addr.country]
+    .filter(Boolean).join(', ');
+  return '<span title="' + escapeForAttr(full) + '">' + escapeForHtml(summary) + '</span>';
+}
+
+// carrier/service/label are all NULL for any order placed before this
+// column existed (no backfill is possible -- see
+// orders-shipping-method-migration.sql's own comment), so this is the
+// normal, expected case for older orders, not an error state -- shown as
+// a plain em dash rather than blank so it doesn't read as a loading
+// glitch.
+function orderShippingMethodLabel(o) {
+  if (o.shipping_label) return escapeForHtml(o.shipping_label);
+  if (o.shipping_carrier || o.shipping_service) {
+    return escapeForHtml([o.shipping_carrier, o.shipping_service].filter(Boolean).join(' '));
+  }
+  return '—';
+}
+
 function showAdmin(username) {
   document.getElementById('login-wrap').style.display = 'none';
   document.getElementById('admin-wrap').style.display = 'block';
@@ -1040,6 +1083,9 @@ function loadOrders() {
           '<td>' + (o.customer_name || (o.customer_id ? o.customer_id.slice(0,8) : '<span style="color:var(--gray)">guest</span>')) + '</td>' +
           '<td class="order-items-cell">' + items + '</td>' +
           '<td>$' + Number(o.total).toFixed(2) + '</td>' +
+          '<td>' + (o.shipping_cost != null ? '$' + Number(o.shipping_cost).toFixed(2) : '—') + '</td>' +
+          '<td>' + orderShipToSummary(o.shipping_address) + '</td>' +
+          '<td>' + orderShippingMethodLabel(o) + '</td>' +
           '<td><span class="order-status-pill ' + statusClass(o.status) + '">' + o.status.replace('_', ' ') + '</span></td>' +
           '<td class="order-fulfillment-cell">' +
             '<select class="order-fulfillment-select" data-order-id="' + o.id + '">' + fulfillmentOptions + '</select>' +
@@ -1048,11 +1094,12 @@ function loadOrders() {
             '<div class="order-save-status" id="order-save-status-' + o.id + '"></div>' +
           '</td>' +
           '<td>' + formatDate(o.created_at) + '</td>' +
+          '<td><a href="/admin-packing-slip.html?order=' + encodeURIComponent(o.id) + '" target="_blank" rel="noopener">Packing Slip</a></td>' +
         '</tr>';
       }).join('');
     })
     .catch(function() {
-      document.getElementById('orders-tbody').innerHTML = '<tr><td colspan="8" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
+      document.getElementById('orders-tbody').innerHTML = '<tr><td colspan="12" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
     });
 }
 
