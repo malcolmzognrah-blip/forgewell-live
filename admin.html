@@ -283,7 +283,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 <div class="admin-wrap" id="admin-wrap">
   <div class="admin-tabs">
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
-    <button type="button" class="admin-tab" id="tab-payments">Payments</button>
+    <button type="button" class="admin-tab" id="tab-payments">PayRam</button>
     <button type="button" class="admin-tab" id="tab-coas">COA</button>
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
@@ -349,6 +349,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view" id="view-payments">
+  <div class="filters">
+    <input type="text" id="payments-search" placeholder="Search by order number or reference ID...">
+    <input type="date" id="payments-date-from" title="Paid from">
+    <input type="date" id="payments-date-to" title="Paid to">
+  </div>
   <p class="result-count" id="payments-result-count"></p>
   <div style="overflow-x:auto;">
   <table class="orders-table">
@@ -1130,7 +1135,8 @@ function loadOrders() {
     });
 }
 
-// Payments tab -- same underlying order data as the Orders tab
+// PayRam tab (internal id/function names kept as "payments" -- display
+// label only) -- same underlying order data as the Orders tab
 // (GET /api/admin/orders, no filters), just a payment-focused column
 // selection (reference_id/payment_method/paid_at) instead of the
 // fulfillment-focused one, and sorted by paid_at descending (most
@@ -1140,6 +1146,13 @@ function loadOrders() {
 // via store credit alone, which sets reference_id to NULL -- see
 // routes/checkout.js's fully-covered-by-store-credit path -- and skips
 // PayRam entirely) sort to the bottom via the null-paid_at fallback.
+//
+// Fetched once into paymentsOrdersCache; the search box and date-range
+// inputs below re-filter that same array client-side (renderPayments())
+// rather than re-fetching -- same "no new endpoint needed" reasoning
+// the whole tab was built on.
+var paymentsOrdersCache = [];
+
 function loadPayments() {
   fetch('/api/admin/orders', { credentials: 'include' })
     .then(function(res) {
@@ -1148,28 +1161,71 @@ function loadPayments() {
     })
     .then(function(orders) {
       if (!orders) return;
-      var sorted = orders.slice().sort(function(a, b) {
+      paymentsOrdersCache = orders.slice().sort(function(a, b) {
         if (!a.paid_at && !b.paid_at) return 0;
         if (!a.paid_at) return 1;
         if (!b.paid_at) return -1;
         return new Date(b.paid_at) - new Date(a.paid_at);
       });
-      document.getElementById('payments-result-count').textContent = sorted.length + ' order' + (sorted.length === 1 ? '' : 's');
-      document.getElementById('payments-tbody').innerHTML = sorted.map(function(o) {
-        return '<tr>' +
-          '<td><code title="' + escapeForAttr(o.id) + '">' + (o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...') + '</code></td>' +
-          '<td>' + o.customer_email + '</td>' +
-          '<td>' + (o.reference_id ? '<code>' + escapeForHtml(o.reference_id) + '</code>' : '—') + '</td>' +
-          '<td>' + (o.payment_method ? escapeForHtml(o.payment_method) : '—') + '</td>' +
-          '<td>$' + Number(o.total).toFixed(2) + '</td>' +
-          '<td><span class="order-status-pill ' + statusClass(o.status) + '">' + o.status.replace('_', ' ') + '</span></td>' +
-          '<td>' + (o.paid_at ? formatDate(o.paid_at) : '—') + '</td>' +
-        '</tr>';
-      }).join('');
+      renderPayments();
     })
     .catch(function() {
       document.getElementById('payments-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load payments.</td></tr>';
     });
+}
+
+// Applies the search box (order_number, falling back to reference_id)
+// and paid-at date range to paymentsOrdersCache, AND'd together, and
+// re-renders the table + result count from the filtered set. Never
+// re-fetches -- called on every keystroke (debounced) and date-input
+// change.
+function renderPayments() {
+  var q = document.getElementById('payments-search').value.trim().toLowerCase();
+  var fromVal = document.getElementById('payments-date-from').value;
+  var toVal = document.getElementById('payments-date-to').value;
+  var fromDate = fromVal ? new Date(fromVal + 'T00:00:00') : null;
+  var toDate = toVal ? new Date(toVal + 'T23:59:59.999') : null;
+
+  var filtered = paymentsOrdersCache.filter(function(o) {
+    if (q) {
+      var orderNumber = (o.order_number || '').toLowerCase();
+      var referenceId = (o.reference_id || '').toLowerCase();
+      if (orderNumber.indexOf(q) === -1 && referenceId.indexOf(q) === -1) return false;
+    }
+    if (fromDate || toDate) {
+      // No paid_at means nothing to match a date range against -- only
+      // excluded while a date filter is actually active (see this
+      // function's own header comment).
+      if (!o.paid_at) return false;
+      var paidAt = new Date(o.paid_at);
+      if (fromDate && paidAt < fromDate) return false;
+      if (toDate && paidAt > toDate) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('payments-result-count').textContent = filtered.length + ' order' + (filtered.length === 1 ? '' : 's');
+  document.getElementById('payments-tbody').innerHTML = filtered.map(function(o) {
+    return '<tr>' +
+      '<td><code title="' + escapeForAttr(o.id) + '">' + (o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...') + '</code></td>' +
+      '<td>' + o.customer_email + '</td>' +
+      '<td>' + (o.reference_id ? '<code>' + escapeForHtml(o.reference_id) + '</code>' : '—') + '</td>' +
+      '<td>' + (o.payment_method ? escapeForHtml(o.payment_method) : '—') + '</td>' +
+      '<td>$' + Number(o.total).toFixed(2) + '</td>' +
+      '<td><span class="order-status-pill ' + statusClass(o.status) + '">' + o.status.replace('_', ' ') + '</span></td>' +
+      '<td>' + (o.paid_at ? formatDate(o.paid_at) : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// Same clearTimeout/setTimeout debounce shape as checkout.html's
+// debouncedValidateAddressThenFetchRates() -- lighter delay here since
+// this only re-filters an already-fetched local array, not a network
+// round trip.
+var paymentsSearchDebounceTimer = null;
+function debouncedRenderPayments() {
+  clearTimeout(paymentsSearchDebounceTimer);
+  paymentsSearchDebounceTimer = setTimeout(renderPayments, 200);
 }
 
 function showLogin() {
@@ -2962,6 +3018,9 @@ document.getElementById('filter-time-to').addEventListener('keydown', function(e
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('tab-payments').addEventListener('click', showPaymentsTab);
+document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
+document.getElementById('payments-date-from').addEventListener('change', renderPayments);
+document.getElementById('payments-date-to').addEventListener('change', renderPayments);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
