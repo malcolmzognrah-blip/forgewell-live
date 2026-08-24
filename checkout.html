@@ -445,6 +445,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
             <div id="shipping-fast-list"></div>
           </div>
         </div>
+        <p class="fulfillment-section-note" id="carrier-partial-notice" style="display:none;">Showing available rates — one carrier is temporarily unavailable.</p>
       </div>
     </div>
 
@@ -1476,6 +1477,7 @@ if (cart.length === 0) {
     var loadingHtml = '<p class="fulfillment-section-note">Calculating shipping&hellip;</p>';
     document.getElementById('shipping-standard-list').innerHTML = loadingHtml;
     document.getElementById('shipping-fast-list').innerHTML = loadingHtml;
+    document.getElementById('carrier-partial-notice').style.display = 'none';
     document.getElementById('checkout-place-order-btn').disabled = true;
   }
 
@@ -1485,6 +1487,7 @@ if (cart.length === 0) {
     var errorHtml = '<p class="fulfillment-section-note">Unable to calculate shipping &mdash; please verify your address.</p>';
     document.getElementById('shipping-standard-list').innerHTML = errorHtml;
     document.getElementById('shipping-fast-list').innerHTML = errorHtml;
+    document.getElementById('carrier-partial-notice').style.display = 'none';
     document.getElementById('checkout-place-order-btn').disabled = true;
   }
 
@@ -1529,6 +1532,11 @@ if (cart.length === 0) {
         currentFastRates = Array.isArray(data.fastRates) ? data.fastRates : [];
         currentFreeShippingTotal = typeof data.total === 'number' ? data.total : null;
         currentFreeShippingThreshold = typeof data.threshold === 'number' ? data.threshold : null;
+        // Low-key, not alarming -- checkout still proceeds normally on a
+        // partial result (see routes/shipping.js's own comment on
+        // partial/carrierErrors), this is just an honest "this list may
+        // be shorter than usual" note, not an error state.
+        document.getElementById('carrier-partial-notice').style.display = data.partial ? '' : 'none';
         renderShippingMethods();
         renderOrderSummary();
         shippingCalculationInFlight = false;
