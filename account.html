@@ -1003,7 +1003,7 @@ updateCartIcon();
 
       return '<div class="order-card">' +
         '<div class="order-card-top">' +
-          '<div><div class="order-id">Order ' + escapeHtml(order.id) + '</div><div class="order-date">' + formatDate(order.created_at) + '</div></div>' +
+          '<div><div class="order-id">Order ' + escapeHtml(order.order_number || order.id) + '</div><div class="order-date">' + formatDate(order.created_at) + '</div></div>' +
           '<div class="order-status-badges">' +
             '<span class="order-status ' + statusClass(order.status) + '">' + statusLabel(order.status) + '</span>' +
             fulfillmentBadge +
@@ -1025,7 +1025,7 @@ updateCartIcon();
     listEl.innerHTML = orders.map(function(order) {
       return '<div class="payment-row">' +
         '<div class="payment-row-main">' +
-          '<span class="payment-row-id">Order ' + escapeHtml(order.id) + '</span>' +
+          '<span class="payment-row-id">Order ' + escapeHtml(order.order_number || order.id) + '</span>' +
           '<span class="payment-row-date">' + formatDate(order.created_at) + '</span>' +
         '</div>' +
         '<span class="payment-row-total">$' + Number(order.total).toFixed(2) + '</span>' +

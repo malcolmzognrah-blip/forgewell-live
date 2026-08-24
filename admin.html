@@ -1078,7 +1078,13 @@ function loadOrders() {
           return '<option value="' + s + '"' + (s === o.fulfillment_status ? ' selected' : '') + '>' + s + '</option>';
         }).join('');
         return '<tr>' +
-          '<td><code>' + o.id.slice(0, 8) + '...</code></td>' +
+          // order_number is the customer/support-facing identifier now
+          // (falls back to the old truncated-UUID display only for the
+          // narrow pre-backfill/pre-deploy window where it could be null)
+          // -- the full UUID stays one hover away via title, since it's
+          // still the real internal id/lookup key (data-order-id
+          // attributes elsewhere in this row still use o.id, unchanged).
+          '<td><code title="' + escapeForAttr(o.id) + '">' + (o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...') + '</code></td>' +
           '<td>' + o.customer_email + '</td>' +
           '<td>' + (o.customer_name || (o.customer_id ? o.customer_id.slice(0,8) : '<span style="color:var(--gray)">guest</span>')) + '</td>' +
           '<td class="order-items-cell">' + items + '</td>' +

@@ -201,7 +201,7 @@ function renderOrder(order, timedOut) {
 
     <div class="card">
       <h2>Order details</h2>
-      <div class="order-id">Order ID: ${escapeHtml(order.id)}</div>
+      <div class="order-id">Order Number: ${escapeHtml(order.order_number || order.id)}</div>
     </div>
 
     <div class="card">
