@@ -1940,6 +1940,25 @@ if (cart.length === 0) {
     renderOrderSummary();
   });
 
+  // Fixes a confirmed regression from the synchronous-disable fix above:
+  // a customer who pays, then hits the browser's Back button, can land
+  // back on this exact page restored from the back/forward cache
+  // (bfcache) rather than a fresh load -- Chrome/Firefox repaint the
+  // frozen DOM as it was at navigate-away time WITHOUT re-running any
+  // page scripts, so the button stayed disabled forever with nothing to
+  // re-enable it (confirmed live: clicking it did nothing at all).
+  // `pageshow` fires on both a normal load AND a bfcache restore;
+  // event.persisted is true only for the latter, so this deliberately
+  // only touches the button on the restore case -- a fresh load already
+  // starts with the button enabled from its plain HTML markup, and
+  // unconditionally re-enabling here would be harmless either way, but
+  // is scoped to the actual bug rather than firing on every load.
+  window.addEventListener('pageshow', function(e) {
+    if (e.persisted) {
+      document.getElementById('checkout-place-order-btn').disabled = false;
+    }
+  });
+
   document.getElementById('checkout-place-order-btn').addEventListener('click', async function() {
     // Disabled synchronously, as the very first line -- before any
     // validation or async work -- so a rapid/impatient double-click can
