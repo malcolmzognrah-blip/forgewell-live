@@ -287,7 +287,6 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-coas">COA</button>
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
-    <button type="button" class="admin-tab" id="tab-fulfillment">Fulfillment Report</button>
     <button type="button" class="admin-tab" id="tab-products">Products</button>
     <button type="button" class="admin-tab" id="tab-content">Content</button>
     <button type="button" class="admin-tab" id="tab-emails">Email Templates</button>
@@ -297,6 +296,13 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view active" id="view-orders">
+  <div class="content-subtabs">
+    <button type="button" class="content-subtab active" id="orders-subtab-list">Orders</button>
+    <button type="button" class="content-subtab" id="orders-subtab-import">3PL Import</button>
+    <button type="button" class="content-subtab" id="orders-subtab-fulfillment">Fulfillment Report</button>
+  </div>
+
+  <div class="content-subview active" id="orders-subview-list">
   <div class="filters">
     <input type="text" id="filter-email" placeholder="Filter by customer email...">
     <select id="filter-status">
@@ -325,6 +331,31 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" id="filter-date-apply-btn">Apply Filter</button>
   </div>
 
+  <p class="result-count" id="result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Account</th>
+        <th>Items</th>
+        <th>Total</th>
+        <th>Ship $</th>
+        <th>Ship To</th>
+        <th>Method</th>
+        <th>Status</th>
+        <th>Fulfillment</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="orders-tbody"></tbody>
+  </table>
+  </div>
+  </div>
+
+  <div class="content-subview" id="orders-subview-import">
   <div class="content-item" id="order-import-section">
     <h3 style="margin:0 0 8px; font-size:0.9rem; color:var(--navy);">3PL Order Update Import</h3>
     <p style="margin:0 0 10px; font-size:0.8rem; color:var(--gray);">Download the template, fill in tracking/status/delivery info yourself or hand it to your 3PL, then upload it here to preview the changes before anything is applied.</p>
@@ -353,28 +384,38 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <span class="product-save-status" id="order-import-confirm-status"></span>
     </div>
   </div>
+  </div>
 
-  <p class="result-count" id="result-count"></p>
-  <div style="overflow-x:auto;">
-  <table class="orders-table">
-    <thead>
-      <tr>
-        <th>Order</th>
-        <th>Customer</th>
-        <th>Account</th>
-        <th>Items</th>
-        <th>Total</th>
-        <th>Ship $</th>
-        <th>Ship To</th>
-        <th>Method</th>
-        <th>Status</th>
-        <th>Fulfillment</th>
-        <th>Date</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="orders-tbody"></tbody>
-  </table>
+  <div class="content-subview fulfillment-panel" id="orders-subview-fulfillment">
+    <div class="fulfillment-section">
+      <h3>Generate Report</h3>
+      <p class="fulfillment-section-note">Downloads immediately — paid orders not yet marked shipped.</p>
+      <label>Format</label>
+      <div class="fulfillment-radio-row">
+        <label><input type="radio" name="fulfillment-manual-format" value="csv" checked> CSV</label>
+        <label><input type="radio" name="fulfillment-manual-format" value="pdf"> PDF</label>
+      </div>
+      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-manual-hide-pii"> Hide customer name &amp; shipping address</label>
+      <button type="button" class="fulfillment-btn" id="fulfillment-generate-btn">Generate Report</button>
+    </div>
+
+    <div class="fulfillment-section">
+      <h3>Scheduled Daily Report</h3>
+      <p class="fulfillment-section-note">Checked every few minutes; sends once per day at or after the time below (server time, UTC).</p>
+      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-schedule-enabled"> Enabled</label>
+      <label for="fulfillment-schedule-recipient">Recipient Email</label>
+      <input type="text" id="fulfillment-schedule-recipient" placeholder="supplier@example.com">
+      <label>Format</label>
+      <div class="fulfillment-radio-row">
+        <label><input type="radio" name="fulfillment-schedule-format" value="csv" checked> CSV</label>
+        <label><input type="radio" name="fulfillment-schedule-format" value="pdf"> PDF</label>
+      </div>
+      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-schedule-hide-pii"> Hide customer name &amp; shipping address</label>
+      <label for="fulfillment-schedule-time">Send Time (UTC)</label>
+      <input type="time" id="fulfillment-schedule-time" value="09:00">
+      <button type="button" class="fulfillment-btn" id="fulfillment-schedule-save-btn">Save Settings</button>
+      <p class="fulfillment-status" id="fulfillment-schedule-status"></p>
+    </div>
   </div>
   </div>
 
@@ -530,38 +571,6 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         <button type="button" class="inbox-reply-btn" id="inbox-reply-btn">Send Reply</button>
         <p class="inbox-reply-status" id="inbox-reply-status"></p>
       </div>
-    </div>
-  </div>
-
-  <div class="admin-view fulfillment-panel" id="view-fulfillment">
-    <div class="fulfillment-section">
-      <h3>Generate Report</h3>
-      <p class="fulfillment-section-note">Downloads immediately — paid orders not yet marked shipped.</p>
-      <label>Format</label>
-      <div class="fulfillment-radio-row">
-        <label><input type="radio" name="fulfillment-manual-format" value="csv" checked> CSV</label>
-        <label><input type="radio" name="fulfillment-manual-format" value="pdf"> PDF</label>
-      </div>
-      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-manual-hide-pii"> Hide customer name &amp; shipping address</label>
-      <button type="button" class="fulfillment-btn" id="fulfillment-generate-btn">Generate Report</button>
-    </div>
-
-    <div class="fulfillment-section">
-      <h3>Scheduled Daily Report</h3>
-      <p class="fulfillment-section-note">Checked every few minutes; sends once per day at or after the time below (server time, UTC).</p>
-      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-schedule-enabled"> Enabled</label>
-      <label for="fulfillment-schedule-recipient">Recipient Email</label>
-      <input type="text" id="fulfillment-schedule-recipient" placeholder="supplier@example.com">
-      <label>Format</label>
-      <div class="fulfillment-radio-row">
-        <label><input type="radio" name="fulfillment-schedule-format" value="csv" checked> CSV</label>
-        <label><input type="radio" name="fulfillment-schedule-format" value="pdf"> PDF</label>
-      </div>
-      <label class="fulfillment-checkbox-row"><input type="checkbox" id="fulfillment-schedule-hide-pii"> Hide customer name &amp; shipping address</label>
-      <label for="fulfillment-schedule-time">Send Time (UTC)</label>
-      <input type="time" id="fulfillment-schedule-time" value="09:00">
-      <button type="button" class="fulfillment-btn" id="fulfillment-schedule-save-btn">Save Settings</button>
-      <p class="fulfillment-status" id="fulfillment-schedule-status"></p>
     </div>
   </div>
 
@@ -1343,10 +1352,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-fulfillment', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-fulfillment', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -1355,6 +1364,24 @@ function showAdminTab(tabId, viewId) {
 
 function showOrdersTab() {
   showAdminTab('tab-orders', 'view-orders');
+}
+
+// Sub-navigation within the Orders tab -- Orders (the list)/3PL Import/
+// Fulfillment Report, same active/inactive toggle pattern as
+// showContentSubtab()/showEmailsSubtab() below, just scoped to this
+// tab's own subtab/subview set. Fulfillment Report used to be its own
+// top-level tab (tab-fulfillment/view-fulfillment) -- moved here as a
+// sub-tab instead of duplicated, see showOrdersFulfillmentSubtab() below
+// for the loadFulfillmentSchedule() call that move brings with it.
+function showOrdersSubtab(subtabId, subviewId) {
+  ['orders-subtab-list', 'orders-subtab-import', 'orders-subtab-fulfillment'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  ['orders-subview-list', 'orders-subview-import', 'orders-subview-fulfillment'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById(subtabId).classList.add('active');
+  document.getElementById(subviewId).classList.add('active');
 }
 
 function showPaymentsTab() {
@@ -1467,8 +1494,8 @@ function showInboxTab() {
 // Fulfillment report
 // ============================================================
 
-function showFulfillmentTab() {
-  showAdminTab('tab-fulfillment', 'view-fulfillment');
+function showOrdersFulfillmentSubtab() {
+  showOrdersSubtab('orders-subtab-fulfillment', 'orders-subview-fulfillment');
   loadFulfillmentSchedule();
 }
 
@@ -3118,6 +3145,13 @@ document.getElementById('filter-time-from').addEventListener('keydown', function
 document.getElementById('filter-time-to').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
+document.getElementById('orders-subtab-list').addEventListener('click', function() {
+  showOrdersSubtab('orders-subtab-list', 'orders-subview-list');
+});
+document.getElementById('orders-subtab-import').addEventListener('click', function() {
+  showOrdersSubtab('orders-subtab-import', 'orders-subview-import');
+});
+document.getElementById('orders-subtab-fulfillment').addEventListener('click', showOrdersFulfillmentSubtab);
 document.getElementById('tab-payments').addEventListener('click', showPaymentsTab);
 document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
 document.getElementById('payments-date-from').addEventListener('change', renderPayments);
@@ -3125,7 +3159,6 @@ document.getElementById('payments-date-to').addEventListener('change', renderPay
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
-document.getElementById('tab-fulfillment').addEventListener('click', showFulfillmentTab);
 document.getElementById('tab-products').addEventListener('click', showProductsTab);
 document.getElementById('tab-content').addEventListener('click', showContentTab);
 document.getElementById('tab-emails').addEventListener('click', showEmailsTab);
