@@ -140,6 +140,30 @@ that share `header.html`/`footer.html`, nor on `admin.html`/`order-confirmation.
 on `product.html` or `cart.html` (e.g. from a search engine or a shared link) skips it entirely — only
 the two full catalog-browsing entry points gate on it.
 
+### Mandatory login gate (home.html, shop.html)
+
+`home.html` and `shop.html` are **not** freely guest-browsable — account creation is mandatory to
+browse either one. Each opens with `<style>html:not(.gw-auth-ok){ visibility:hidden; }</style>` plus an
+inline script (before anything else in `<head>`, ahead of even the age-gate markup) that calls
+`GET /api/auth/me` with `credentials:'include'`: a non-ok response (or a network failure) immediately
+`window.location.replace()`s the visitor to `/index.html` — the real landing page, with its own
+Log In/Sign Up form (`#tab-login`/`#tab-signup`) and the age-verification/research-use agreement
+checkboxes. A successful response instead adds the `gw-auth-ok` class, which is what actually reveals
+the hidden page content. This hides the real page and bounces an unauthenticated visitor straight to
+the sign-in step rather than flashing gated content first — a direct/bookmarked link to `home.html` or
+`shop.html` can't bypass it either, since the check runs before the page renders anything.
+
+This is a separate, earlier gate from the age-gate overlay documented above, which still runs
+unchanged for whoever *does* have a session but hasn't accepted it yet on this device/browser — the
+two are independent and both can apply in sequence (login gate first, then age-gate on first visit
+after signing in).
+
+**`product.html`, `cart.html`, and `checkout.html` are unaffected by this login gate** — none of them
+carry the `gw-auth-ok`/`/api/auth/me` check, so all three remain fully reachable without an account.
+Guest checkout is still the default and fully supported at the actual point of purchase (see the
+Checkout flow section below); it's specifically the two catalog-browsing entry points, not the
+purchase path itself, that now require signing in first.
+
 ### Checkout flow
 
 Both the cart and checkout are dedicated pages — `cart.html` and `checkout.html` — not panels or
