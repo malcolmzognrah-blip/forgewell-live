@@ -106,7 +106,7 @@ h1{ text-align:center; color:var(--navy-dark); font-size:1.6rem; margin:0 0 8px;
 
 <div class="session-bar">
   <span id="session-indicator-text"></span>
-  <a href="/shop.html">Continue Shopping &rarr;</a>
+  <a href="/shop.html" class="continue-shopping-link">Continue Shopping &rarr;</a>
 </div>
 
 <main id="main-content">
@@ -139,8 +139,9 @@ function renderNotFound() {
     <div class="error-box">
       If you have questions about your order, please contact support and reference the email address you checked out with.
     </div>
-    <a href="/shop.html" class="shop-link">&larr; Back to shop</a>
+    <a href="/shop.html" class="shop-link continue-shopping-link">&larr; Back to shop</a>
   `;
+  updateContinueShoppingLink();
 }
 
 function statusDisplay(status, timedOut) {
@@ -157,11 +158,11 @@ function statusDisplay(status, timedOut) {
 // pending_payment has two different sub-messages above but only gets a
 // link in the timedOut case).
 function ctaHtml(order, timedOut) {
-  if (order.status === 'paid') return '<a href="/shop.html" class="shop-link">Continue shopping &rarr;</a>';
+  if (order.status === 'paid') return '<a href="/shop.html" class="shop-link continue-shopping-link">Continue shopping &rarr;</a>';
   if (order.status === 'cancelled') return '<a href="/checkout.html" class="shop-link">Return to checkout &rarr;</a>';
   if (order.status === 'pending_payment' && timedOut) return '<a href="/checkout.html" class="shop-link">Return to checkout &rarr;</a>';
   if (order.status === 'pending_payment') return ''; // still actively polling -- no link yet
-  return '<a href="/shop.html" class="shop-link">&larr; Back to shop</a>'; // partially_paid / unknown status: neutral fallback
+  return '<a href="/shop.html" class="shop-link continue-shopping-link">&larr; Back to shop</a>'; // partially_paid / unknown status: neutral fallback
 }
 
 function iconSvg(kind) {
@@ -176,6 +177,7 @@ function iconSvg(kind) {
 
 function renderOrder(order, timedOut) {
   const s = statusDisplay(order.status, timedOut);
+  firstLineItemProductId = (order.line_items && order.line_items[0] && order.line_items[0].productId) || null;
   // The cart survives checkout.html's redirect to PayRam unpaid (see
   // checkout.html) specifically so backing out leaves it intact -- this is
   // the one place it actually gets cleared, once payment is confirmed.
@@ -238,6 +240,40 @@ function renderOrder(order, timedOut) {
 
     ${ctaHtml(order, timedOut)}
   `;
+  updateContinueShoppingLink();
+}
+
+// shop.html/home.html's mandatory login gate (see CLAUDE.md) means a
+// guest who clicks "Continue Shopping" there is deterministically
+// bounced to the sign-in page -- guest checkout never establishes a
+// session, so that gate's own GET /api/auth/me check always fails for
+// them. Signed-in customers are unaffected and keep going to
+// /shop.html as before. product.html carries no such gate, so guests
+// get sent there instead -- linked to the first item from the order
+// they just placed (plausibly still relevant to them) rather than a
+// bare product.html with no id, which renders a dead-end "No product
+// specified" error whose own "Return to shop" link points right back
+// at the same gated /shop.html.
+let isSignedInCustomer = null; // null = not yet known
+let firstLineItemProductId = null;
+
+// Targets every .continue-shopping-link currently in the DOM, not just
+// one fixed element -- the session-bar's copy is always present from
+// page load, but ctaHtml()'s and renderNotFound()'s copies are built
+// fresh (or not at all) each time innerHTML is replaced, and only one
+// of the three is ever a given status's actual link anyway. Safe to
+// call before any of the order/session data has arrived (falls back to
+// /shop.html, the pre-existing default) and safe to call repeatedly as
+// each independent piece of state resolves -- whichever call runs last
+// simply re-applies the currently-known-best destination to whatever
+// links exist at that moment.
+function updateContinueShoppingLink() {
+  const destination = (isSignedInCustomer === false && firstLineItemProductId)
+    ? '/product.html?id=' + encodeURIComponent(firstLineItemProductId)
+    : '/shop.html';
+  document.querySelectorAll('.continue-shopping-link').forEach(function(link) {
+    link.href = destination;
+  });
 }
 
 // Same fetch/credentials shape shop.html's login-icon check already
@@ -249,9 +285,11 @@ function renderOrder(order, timedOut) {
 fetch('/api/auth/me', { credentials: 'include' })
   .then(function(res) { return res.ok ? res.json() : null; })
   .then(function(customer) {
-    if (customer && customer.email) {
+    isSignedInCustomer = !!(customer && customer.email);
+    if (isSignedInCustomer) {
       document.getElementById('session-indicator-text').textContent = 'Signed in as ' + customer.email;
     }
+    updateContinueShoppingLink();
   })
   .catch(function() {});
 
