@@ -100,7 +100,6 @@ table.orders-table tr:hover{ background:var(--panel); }
 .job-status-pill.success{ background:#DCF3E0; color:#1F7A34; }
 .job-status-pill.no_action{ background:var(--line); color:var(--gray); }
 .job-status-pill.error{ background:#FADBD8; color:#c0392b; }
-.job-card{ border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px; background:#fff; }
 .job-card-header{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
 .job-card-name{ font-weight:700; font-size:0.95rem; color:var(--navy-dark); }
 .job-card-last-run{ font-size:0.78rem; color:var(--gray); }
@@ -994,8 +993,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view coa-panel" id="view-jobs">
-    <p class="fulfillment-section-note">The five scheduled jobs in lib/jobs.js (backend repo) -- each shares one 3-minute poll tick and writes a job_runs row every time it checks in, whether or not it found anything to do. Read-only.</p>
-    <div id="jobs-list"></div>
+    <p class="fulfillment-section-note">The six scheduled jobs in lib/jobs.js (backend repo) -- each shares one 3-minute poll tick and writes a job_runs row every time it checks in, whether or not it found anything to do. Read-only.</p>
+    <div class="content-subtabs" id="jobs-subtabs"></div>
+    <div id="jobs-subviews"></div>
   </div>
 </div>
 
@@ -1494,18 +1494,51 @@ var JOB_DEFINITIONS = [
   { name: 'processScheduledFulfillmentReport', label: 'Daily Fulfillment Report', description: 'Emails the configured recipient the daily unshipped-orders report at the configured time.' },
   { name: 'processAbandonedCarts', label: 'Abandoned Cart Reminders', description: 'Emails a signed-in customer whose cart has sat untouched for a few hours.' },
   { name: 'processCarrierTrackingChecks', label: 'Carrier Tracking Check', description: 'Checks UPS/FedEx for shipped orders and auto-marks them delivered once confirmed.' },
+  { name: 'processJobRunsCleanup', label: 'Job Runs Cleanup', description: 'Deletes job_runs rows older than the retention window (default 7 days) -- once per day, gated by its own last successful run in this same table.' },
 ];
 
 function jobStatusPillHtml(status) {
   return '<span class="job-status-pill ' + escapeHtml(status) + '">' + escapeHtml(status.replace('_', ' ')) + '</span>';
 }
 
-// Skeleton only -- one card per job with a "Loading..." placeholder in
-// both the last-run line and the history table, filled in by
-// loadJobRuns()'s five independent per-job fetches below.
+// One sub-tab per JOB_DEFINITIONS entry, built dynamically rather than
+// the hardcoded-per-tab pattern showOrdersSubtab()/showContentSubtab()
+// use elsewhere (Orders/Content/Email Templates) -- those exist for a
+// fixed, hand-authored grouping with no underlying array to drive from.
+// JOB_DEFINITIONS already IS that array (it also drives the per-job
+// fetch in loadJobRuns() below), so building both the subtab buttons
+// and their subviews from it keeps one source of truth instead of
+// hand-copying six near-identical button/subview pairs that would need
+// a manual update every time a job is added, renamed, or reordered --
+// exactly the six-jobs-now situation this session just created by
+// adding processJobRunsCleanup. Still reuses the exact same
+// .content-subtabs/.content-subtab/.content-subview CSS as Orders/
+// Content -- only the id-generation and click-wiring are dynamic.
+function jobsSubtabId(jobName) { return 'jobs-subtab-' + jobName; }
+function jobsSubviewId(jobName) { return 'jobs-subview-' + jobName; }
+
+function showJobsSubtab(subtabId, subviewId) {
+  JOB_DEFINITIONS.forEach(function(job) {
+    document.getElementById(jobsSubtabId(job.name)).classList.remove('active');
+    document.getElementById(jobsSubviewId(job.name)).classList.remove('active');
+  });
+  document.getElementById(subtabId).classList.add('active');
+  document.getElementById(subviewId).classList.add('active');
+}
+
+// Skeleton only -- one subview per job with a "Loading..." placeholder
+// in both the last-run line and the history table, filled in by
+// loadJobRuns()'s six independent per-job fetches below. The first
+// job's sub-tab/subview default active, same "first one active in the
+// initial render" convention as Content's/Email Templates' own static
+// markup.
 function renderJobsView() {
-  document.getElementById('jobs-list').innerHTML = JOB_DEFINITIONS.map(function(job) {
-    return '<div class="job-card">' +
+  document.getElementById('jobs-subtabs').innerHTML = JOB_DEFINITIONS.map(function(job, i) {
+    return '<button type="button" class="content-subtab' + (i === 0 ? ' active' : '') + '" id="' + jobsSubtabId(job.name) + '">' + escapeHtml(job.label) + '</button>';
+  }).join('');
+
+  document.getElementById('jobs-subviews').innerHTML = JOB_DEFINITIONS.map(function(job, i) {
+    return '<div class="content-subview' + (i === 0 ? ' active' : '') + '" id="' + jobsSubviewId(job.name) + '">' +
       '<div class="job-card-header">' +
         '<span class="job-card-name">' + escapeHtml(job.label) + '</span>' +
         '<span class="job-card-last-run" id="job-last-run-' + job.name + '">Loading&hellip;</span>' +
@@ -1519,9 +1552,18 @@ function renderJobsView() {
       '</div>' +
     '</div>';
   }).join('');
+
+  // Wired here rather than as static one-line-per-button listeners (the
+  // Orders/Content convention) since these buttons don't exist until the
+  // innerHTML assignments above have run.
+  JOB_DEFINITIONS.forEach(function(job) {
+    document.getElementById(jobsSubtabId(job.name)).addEventListener('click', function() {
+      showJobsSubtab(jobsSubtabId(job.name), jobsSubviewId(job.name));
+    });
+  });
 }
 
-// One fetch per job name (five small requests) rather than one combined
+// One fetch per job name (six small requests) rather than one combined
 // fetch grouped client-side -- guarantees "last 15 runs for job X" is
 // always exactly that, regardless of how the five jobs' ticks interleave
 // in time (see routes/admin.js's own comment on the endpoint this calls).
