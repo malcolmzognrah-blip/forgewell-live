@@ -1941,9 +1941,27 @@ if (cart.length === 0) {
   });
 
   document.getElementById('checkout-place-order-btn').addEventListener('click', async function() {
+    // Disabled synchronously, as the very first line -- before any
+    // validation or async work -- so a rapid/impatient double-click can
+    // never fire this handler twice concurrently. The three earlier
+    // disabled toggles on this same button (beginShippingCalculation()/
+    // showShippingRatesLoading()/showShippingRatesError() above) are a
+    // separate concern entirely (disabling it while shipping rates are
+    // still being calculated, so there's nothing valid to check out
+    // against yet) -- this is the actual submit action's own, later
+    // disable point, layered on top of whatever state those left it in.
+    // reEnable() is called explicitly at every path below that doesn't
+    // end in a redirect -- never after window.location.href is already
+    // underway, since the page is leaving regardless of this button's
+    // state by that point.
+    const placeOrderBtn = document.getElementById('checkout-place-order-btn');
+    placeOrderBtn.disabled = true;
+    function reEnable() { placeOrderBtn.disabled = false; }
+
     const email = emailInput.value.trim();
     if (!isValidEmail(email)) {
       emailError.classList.add('show');
+      reEnable();
       return;
     }
     emailError.classList.remove('show');
@@ -1962,7 +1980,7 @@ if (cart.length === 0) {
     // matches lib/orderPricing.js's REQUIRED_SHIPPING_FIELDS on presence,
     // plus the ZIP/state/country format checks that only exist here
     // client-side (see shipFieldValidators above).
-    if (!validateAllShipFields()) return;
+    if (!validateAllShipFields()) { reEnable(); return; }
 
     // Client-side courtesy check only -- routes/checkout.js's POST /
     // always re-runs the real UPS/FedEx validation server-side
@@ -1973,6 +1991,7 @@ if (cart.length === 0) {
     // message validateAddressThenFetchRates() already showed them.
     if (addressCarrierInvalid) {
       window.alert(addressErrorEl.textContent || 'This shipping address could not be verified as deliverable. Please double-check it before placing your order.');
+      reEnable();
       return;
     }
 
@@ -1987,6 +2006,7 @@ if (cart.length === 0) {
     const selectedShipping = getSelectedShippingMethod();
     if (!selectedShipping.carrier) {
       window.alert('Please select a shipping method before placing your order.');
+      reEnable();
       return;
     }
 
@@ -2056,10 +2076,12 @@ if (cart.length === 0) {
           noteEl.style.display = 'block';
           noteEl.classList.add('error');
           noteEl.innerHTML = data.error + ' <a href="/cart.html">Fix on cart page</a>';
+          reEnable();
           return;
         }
         alert(data.error || 'Checkout failed — please try again.');
         console.error('Checkout failed:', data);
+        reEnable();
         return;
       }
 
@@ -2143,9 +2165,11 @@ if (cart.length === 0) {
 
       alert('Checkout succeeded but no payment link was returned — check the console and contact support.');
       console.error('Checkout response missing payment.paymentUrl:', data);
+      reEnable();
     } catch (err) {
       console.error('Checkout failed:', err);
       alert('Checkout failed — check the console.');
+      reEnable();
     }
   });
 }
