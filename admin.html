@@ -96,6 +96,15 @@ table.orders-table tr:hover{ background:var(--panel); }
 .order-status-pill.paid{ background:#DCF3E0; color:#1F7A34; }
 .order-status-pill.pending_payment{ background:#FDECD2; color:#9A6B1E; }
 .order-status-pill.other{ background:var(--line); color:var(--gray); }
+.job-status-pill{ display:inline-block; padding:3px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
+.job-status-pill.success{ background:#DCF3E0; color:#1F7A34; }
+.job-status-pill.no_action{ background:var(--line); color:var(--gray); }
+.job-status-pill.error{ background:#FADBD8; color:#c0392b; }
+.job-card{ border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px; background:#fff; }
+.job-card-header{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
+.job-card-name{ font-weight:700; font-size:0.95rem; color:var(--navy-dark); }
+.job-card-last-run{ font-size:0.78rem; color:var(--gray); }
+.job-card-description{ font-size:0.8rem; color:var(--gray); margin-bottom:12px; }
 .order-items-cell{ max-width:280px; font-size:0.78rem; line-height:1.5; }
 .result-count{ color:var(--gray); font-size:0.8rem; margin-bottom:12px; }
 
@@ -293,6 +302,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-coupons">Coupons</button>
     <button type="button" class="admin-tab" id="tab-credit">Store Credit</button>
     <button type="button" class="admin-tab" id="tab-audit">Audit Log</button>
+    <button type="button" class="admin-tab" id="tab-jobs">Jobs</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -982,6 +992,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <tbody id="audit-log-tbody"></tbody>
     </table>
   </div>
+
+  <div class="admin-view coa-panel" id="view-jobs">
+    <p class="fulfillment-section-note">The five scheduled jobs in lib/jobs.js (backend repo) -- each shares one 3-minute poll tick and writes a job_runs row every time it checks in, whether or not it found anything to do. Read-only.</p>
+    <div id="jobs-list"></div>
+  </div>
 </div>
 
 <script>
@@ -1352,10 +1367,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -1466,6 +1481,85 @@ function loadAuditLog() {
 function showAuditTab() {
   showAdminTab('tab-audit', 'view-audit');
   loadAuditLog();
+}
+
+// job_name values here are the literal function names lib/jobs.js
+// (backend repo) writes into job_runs.job_name -- keeping them as the
+// filter key (rather than a separate short id) means no id-to-function
+// mapping to keep in sync as jobs are added/renamed, at the cost of a
+// slightly verbose URL param.
+var JOB_DEFINITIONS = [
+  { name: 'processPendingStockNotifications', label: 'Stock Notifications', description: 'Emails customers who asked to be notified once a product is back in stock.' },
+  { name: 'processDueScheduledEmails', label: 'Scheduled Promo Emails', description: 'Sends a "Schedule for later" newsletter/promo campaign once its scheduled time arrives.' },
+  { name: 'processScheduledFulfillmentReport', label: 'Daily Fulfillment Report', description: 'Emails the configured recipient the daily unshipped-orders report at the configured time.' },
+  { name: 'processAbandonedCarts', label: 'Abandoned Cart Reminders', description: 'Emails a signed-in customer whose cart has sat untouched for a few hours.' },
+  { name: 'processCarrierTrackingChecks', label: 'Carrier Tracking Check', description: 'Checks UPS/FedEx for shipped orders and auto-marks them delivered once confirmed.' },
+];
+
+function jobStatusPillHtml(status) {
+  return '<span class="job-status-pill ' + escapeHtml(status) + '">' + escapeHtml(status.replace('_', ' ')) + '</span>';
+}
+
+// Skeleton only -- one card per job with a "Loading..." placeholder in
+// both the last-run line and the history table, filled in by
+// loadJobRuns()'s five independent per-job fetches below.
+function renderJobsView() {
+  document.getElementById('jobs-list').innerHTML = JOB_DEFINITIONS.map(function(job) {
+    return '<div class="job-card">' +
+      '<div class="job-card-header">' +
+        '<span class="job-card-name">' + escapeHtml(job.label) + '</span>' +
+        '<span class="job-card-last-run" id="job-last-run-' + job.name + '">Loading&hellip;</span>' +
+      '</div>' +
+      '<div class="job-card-description">' + escapeHtml(job.description) + '</div>' +
+      '<div style="overflow-x:auto;">' +
+      '<table class="products-table">' +
+        '<thead><tr><th>Started</th><th>Status</th><th>Details</th></tr></thead>' +
+        '<tbody id="job-history-' + job.name + '"><tr><td colspan="3" style="color:var(--gray);padding:14px;">Loading&hellip;</td></tr></tbody>' +
+      '</table>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// One fetch per job name (five small requests) rather than one combined
+// fetch grouped client-side -- guarantees "last 15 runs for job X" is
+// always exactly that, regardless of how the five jobs' ticks interleave
+// in time (see routes/admin.js's own comment on the endpoint this calls).
+function loadJobRuns() {
+  renderJobsView();
+  JOB_DEFINITIONS.forEach(function(job) {
+    fetch('/api/admin/job-runs?job_name=' + encodeURIComponent(job.name) + '&limit=15', { credentials: 'include' })
+      .then(function(res) { return res.json(); })
+      .then(function(runs) {
+        var lastRunEl = document.getElementById('job-last-run-' + job.name);
+        var tbody = document.getElementById('job-history-' + job.name);
+        if (!Array.isArray(runs) || runs.length === 0) {
+          lastRunEl.textContent = 'No runs recorded yet';
+          tbody.innerHTML = '<tr><td colspan="3" style="color:var(--gray);padding:14px;">No runs recorded yet.</td></tr>';
+          return;
+        }
+        var last = runs[0];
+        lastRunEl.innerHTML = 'Last run: ' + formatDate(last.started_at) + ' &mdash; ' + jobStatusPillHtml(last.status);
+        tbody.innerHTML = runs.map(function(r) {
+          return '<tr>' +
+            '<td style="white-space:nowrap;">' + formatDate(r.started_at) + '</td>' +
+            '<td>' + jobStatusPillHtml(r.status) + '</td>' +
+            '<td style="font-size:0.78rem; word-break:break-all;"><code>' + escapeHtml(JSON.stringify(r.details || {})) + '</code></td>' +
+          '</tr>';
+        }).join('');
+      })
+      .catch(function() {
+        var lastRunEl = document.getElementById('job-last-run-' + job.name);
+        var tbody = document.getElementById('job-history-' + job.name);
+        if (lastRunEl) lastRunEl.textContent = 'Could not load';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="color:var(--gray);padding:14px;">Could not load job history.</td></tr>';
+      });
+  });
+}
+
+function showJobsTab() {
+  showAdminTab('tab-jobs', 'view-jobs');
+  loadJobRuns();
 }
 
 // ============================================================
@@ -3196,6 +3290,7 @@ document.getElementById('email-subtab-promo-campaign').addEventListener('click',
 document.getElementById('tab-coupons').addEventListener('click', showCouponsTab);
 document.getElementById('tab-credit').addEventListener('click', showCreditTab);
 document.getElementById('tab-audit').addEventListener('click', showAuditTab);
+document.getElementById('tab-jobs').addEventListener('click', showJobsTab);
 
 document.getElementById('content-subtab-about-us').addEventListener('click', function() {
   showContentSubtab('content-subtab-about-us', 'content-subview-about-us');
