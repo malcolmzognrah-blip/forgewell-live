@@ -180,16 +180,31 @@ function renderOrder(order, timedOut) {
   firstLineItemProductId = (order.line_items && order.line_items[0] && order.line_items[0].productId) || null;
   // The cart survives checkout.html's redirect to PayRam unpaid (see
   // checkout.html) specifically so backing out leaves it intact -- this is
-  // the one place it actually gets cleared, once payment is confirmed.
+  // where localStorage actually gets cleared, once payment is confirmed.
   if (order.status === 'paid') {
     localStorage.setItem('forgewell_cart', JSON.stringify([]));
     // Also clears the server-side cart mirror (routes/cart.js, backend
     // repo) that lib/jobs.js's abandoned-cart reminder job polls --
     // otherwise a customer who already completed checkout could still
-    // get a "you left something in your cart" email later. Fire-and-
-    // forget: a guest checkout has no session (401, silently ignored)
-    // and never had a server-side cart mirror to clear anyway.
-    fetch('/api/cart/mine', { method: 'DELETE', credentials: 'include' }).catch(() => {});
+    // get a "you left something in your cart" email later. This is now a
+    // best-effort SECONDARY clear, not the primary path -- the PayRam
+    // webhook's own markOrderPaidAndFulfill() (lib/payments/
+    // orderFulfillment.js, backend repo) already clears customer_carts
+    // server-side the moment payment is confirmed, independent of
+    // whether this tab is even still open. This call is still worth
+    // keeping since it fires faster than waiting for the webhook in the
+    // common case, and it's harmless/idempotent either way. A guest
+    // checkout has no session (401, expected and still silently ignored
+    // -- guests never had a customer_carts row to begin with) but a
+    // non-ok response for a known signed-in customer now at least logs a
+    // warning, so a real failure here isn't completely invisible.
+    fetch('/api/cart/mine', { method: 'DELETE', credentials: 'include' })
+      .then(function(res) {
+        if (!res.ok && isSignedInCustomer) {
+          console.warn('Failed to clear server-side cart mirror (non-fatal -- the webhook-driven clear is the reliable path):', res.status);
+        }
+      })
+      .catch(function() {});
   }
   const items = (order.line_items || []).map(li => `
     <div class="line-item">
