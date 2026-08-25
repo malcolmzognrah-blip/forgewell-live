@@ -80,6 +80,19 @@ h1{ text-align:center; color:var(--navy-dark); font-size:1.6rem; margin:0 0 8px;
 .error-box{
   text-align:center; padding:20px; color:var(--gray); font-size:0.9rem;
 }
+
+/* Lightweight stand-in for the shared header/footer this page
+   deliberately doesn't load (see CLAUDE.md) -- just enough to show a
+   signed-in customer they're still logged in, plus a way back to the
+   site that isn't otherwise present while an order is still actively
+   polling (ctaHtml() below has no link at all in that state). */
+.session-bar{
+  max-width:640px; margin:14px auto 0; padding:0 20px 12px;
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:0.8rem; color:var(--gray);
+}
+.session-bar a{ color:var(--navy); font-weight:700; text-decoration:none; white-space:nowrap; }
+.session-bar a:hover{ text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -90,6 +103,11 @@ h1{ text-align:center; color:var(--navy-dark); font-size:1.6rem; margin:0 0 8px;
     <span class="logo-word"><span class="forge">FORGE</span><span class="well">WELL</span></span>
   </a>
 </header>
+
+<div class="session-bar">
+  <span id="session-indicator-text"></span>
+  <a href="/shop.html">Continue Shopping &rarr;</a>
+</div>
 
 <main id="main-content">
   <div class="spinner"></div>
@@ -222,8 +240,34 @@ function renderOrder(order, timedOut) {
   `;
 }
 
+// Same fetch/credentials shape shop.html's login-icon check already
+// uses elsewhere -- this page doesn't load header.html at all (see
+// CLAUDE.md), so it needs its own copy rather than wireHeaderFooter().
+// Silently shows nothing extra on a non-ok response or a network error,
+// same as a guest -- this indicator is purely informational and must
+// never block or redirect either way.
+fetch('/api/auth/me', { credentials: 'include' })
+  .then(function(res) { return res.ok ? res.json() : null; })
+  .then(function(customer) {
+    if (customer && customer.email) {
+      document.getElementById('session-indicator-text').textContent = 'Signed in as ' + customer.email;
+    }
+  })
+  .catch(function() {});
+
 let pollCount = 0;
 let pollTimer = null;
+// Tracks the last status/timedOut combination actually rendered, so a
+// poll that comes back with nothing new skips renderOrder() entirely
+// instead of tearing down and rebuilding the whole confirmation view
+// every 5 seconds -- that repeated full-innerHTML replace, not a real
+// redirect or duplicate webhook, was what made this page feel like it
+// kept showing "multiple confirmation pages" while pending (see the
+// investigation this fix comes from). Only ever SKIPS a redundant
+// render of unchanged state; a real transition (pending -> paid, or
+// pending -> timed-out) always has a different key and still renders
+// immediately.
+let lastRenderedKey = null;
 
 async function pollOrder(orderId) {
   try {
@@ -240,7 +284,12 @@ async function pollOrder(orderId) {
     // doubles as the signal for whether this is the final pending_payment
     // render (timedOut) -- same 60-attempt cutoff as before, not changed.
     const willContinuePolling = order.status === 'pending_payment' && pollCount < 60;
-    renderOrder(order, order.status === 'pending_payment' && !willContinuePolling);
+    const timedOut = order.status === 'pending_payment' && !willContinuePolling;
+    const renderKey = order.status + (timedOut ? ':timedout' : '');
+    if (renderKey !== lastRenderedKey) {
+      lastRenderedKey = renderKey;
+      renderOrder(order, timedOut);
+    }
     if (willContinuePolling) {
       pollTimer = setTimeout(() => pollOrder(orderId), 5000);
     }
