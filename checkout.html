@@ -1122,6 +1122,19 @@ function renderOrderSummary() {
   if (freeShippingEl) {
     if (currentFreeShippingThreshold == null || currentFreeShippingTotal == null) {
       freeShippingEl.style.display = 'none';
+    } else if (currentCouponFreeShipping) {
+      // CONFIRMED LIVE BUG, now fixed: this branch was missing entirely,
+      // so a free_shipping coupon that zeroed out standard shipping cost
+      // (independent of the subtotal threshold -- see
+      // currentCouponFreeShipping's own comment) still fell through to
+      // the "add $X more" branch below whenever the subtotal itself
+      // hadn't cleared the threshold, even though shipping was already
+      // free for a different reason. Checked before currentFreeShipping
+      // so a coupon that happens to apply alongside a qualifying
+      // subtotal gets credited as the (more specific) reason.
+      freeShippingEl.textContent = 'Free standard shipping — coupon applied!';
+      freeShippingEl.className = 'free-shipping-message qualified';
+      freeShippingEl.style.display = 'block';
     } else if (currentFreeShipping) {
       // "standard" called out explicitly -- fast/expedited options stay
       // paid even once an order qualifies (see currentStandardRates'
