@@ -295,6 +295,23 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
   color:var(--gray); background:var(--panel); border:1px solid var(--line);
   border-radius:100px; padding:3px 9px; white-space:nowrap;
 }
+.checkout-payram-help-wrap{ position:relative; display:inline-flex; flex-shrink:0; }
+.checkout-payram-help-btn{
+  width:18px; height:18px; border-radius:50%; border:1.5px solid var(--gray);
+  background:#fff; color:var(--gray); font-size:0.68rem; font-weight:700; line-height:1;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;
+  font-family:'Quicksand',sans-serif;
+}
+.checkout-payram-help-btn:hover,
+.checkout-payram-help-btn[aria-expanded="true"]{ border-color:var(--navy); color:var(--navy); }
+.checkout-payram-help-popover{
+  display:none; position:absolute; top:24px; right:0; z-index:20;
+  width:260px; max-width:calc(100vw - 40px);
+  background:#fff; border:1px solid var(--line); border-radius:8px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.12); padding:12px 14px;
+  font-size:0.78rem; line-height:1.5; color:#444; font-weight:500;
+}
+.checkout-payram-help-popover.open{ display:block; }
 .checkout-store-credit-amount-row{ display:flex; align-items:center; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; overflow:hidden; }
 .checkout-store-credit-amount-row span{ padding:9px 0 9px 10px; font-size:0.82rem; color:#444; font-family:'Quicksand',sans-serif; }
 .checkout-store-credit-amount-row input{ flex:1; min-width:0; border:none; padding:9px 10px 9px 2px; font-family:'Quicksand',sans-serif; font-size:0.82rem; color:#333; }
@@ -472,6 +489,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
                 <span class="checkout-payment-method-name">PayRam</span>
                 <span class="checkout-payment-method-incentive">Earn $10 store credit when you pay this way</span>
               </span>
+            </span>
+            <span class="checkout-payram-help-wrap">
+              <button type="button" class="checkout-payram-help-btn" id="checkout-payram-help-btn" aria-expanded="false" aria-controls="checkout-payram-help-popover" aria-label="How PayRam works">?</button>
+              <div class="checkout-payram-help-popover" id="checkout-payram-help-popover">How PayRam works: You don't need to already own cryptocurrency to pay. PayRam lets you pay with a debit or credit card, a bank transfer, or popular wallets like Apple Pay and Google Pay &mdash; it automatically converts your payment into crypto behind the scenes. If you'd rather pay directly with crypto you already hold, that option is available too.</div>
             </span>
           </label>
           <label class="checkout-payment-method-option disabled">
@@ -1906,6 +1927,31 @@ if (cart.length === 0) {
     }
     renderOrderSummary();
   });
+
+  // Click-to-expand "How PayRam works" popover -- a real <button> so
+  // Enter/Space activation is native, no extra keydown handling needed.
+  // stopPropagation() on the button's own click keeps the document-level
+  // outside-click listener below from seeing (and immediately re-closing
+  // on) the very click that just opened it.
+  (function() {
+    const payramHelpBtn = document.getElementById('checkout-payram-help-btn');
+    const payramHelpPopover = document.getElementById('checkout-payram-help-popover');
+    function closePayramHelp() {
+      payramHelpPopover.classList.remove('open');
+      payramHelpBtn.setAttribute('aria-expanded', 'false');
+    }
+    payramHelpBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const isOpen = payramHelpPopover.classList.toggle('open');
+      payramHelpBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    document.addEventListener('click', function(e) {
+      if (!payramHelpPopover.contains(e.target)) closePayramHelp();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closePayramHelp();
+    });
+  })();
 
   // Fixes a confirmed regression from the synchronous-disable fix above:
   // a customer who pays, then hits the browser's Back button, can land
