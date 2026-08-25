@@ -1,0 +1,9 @@
+{
+  "name": "run-forgewell-live-driver",
+  "private": true,
+  "description": "Playwright driver for browser-testing the forgewell-live site (agent tooling, not site code).",
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.62.1"
+  }
+}
