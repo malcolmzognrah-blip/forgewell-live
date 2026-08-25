@@ -324,6 +324,36 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <datalist id="common-times-datalist"></datalist>
     <button type="button" id="filter-date-apply-btn">Apply Filter</button>
   </div>
+
+  <div class="content-item" id="order-import-section">
+    <h3 style="margin:0 0 8px; font-size:0.9rem; color:var(--navy);">3PL Order Update Import</h3>
+    <p style="margin:0 0 10px; font-size:0.8rem; color:var(--gray);">Download the template, fill in tracking/status/delivery info yourself or hand it to your 3PL, then upload it here to preview the changes before anything is applied.</p>
+    <a href="/api/admin/orders/import-template" class="fulfillment-btn" style="display:inline-block; text-decoration:none; text-align:center;">Download Import Template</a>
+    <input type="file" id="order-import-file-input" accept=".csv,text/csv" style="margin-left:10px;">
+    <button type="button" class="fulfillment-btn" id="order-import-preview-btn">Preview Import</button>
+    <span class="product-save-status" id="order-import-status"></span>
+    <div id="order-import-preview-wrap" style="display:none; margin-top:14px;">
+      <div style="overflow-x:auto;">
+      <table class="orders-table">
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Order #</th>
+            <th>Tracking #</th>
+            <th>Carrier</th>
+            <th>Status</th>
+            <th>Delivered</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody id="order-import-preview-tbody"></tbody>
+      </table>
+      </div>
+      <button type="button" class="fulfillment-btn" id="order-import-confirm-btn" style="margin-top:10px;">Confirm Import</button>
+      <span class="product-save-status" id="order-import-confirm-status"></span>
+    </div>
+  </div>
+
   <p class="result-count" id="result-count"></p>
   <div style="overflow-x:auto;">
   <table class="orders-table">
@@ -1134,6 +1164,77 @@ function loadOrders() {
       document.getElementById('orders-tbody').innerHTML = '<tr><td colspan="12" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
     });
 }
+
+// 3PL order-update CSV import -- preview parses+matches server-side
+// (POST /api/admin/orders/import/preview) and renders a row-by-row
+// table, but writes nothing; orderImportPreviewRows holds exactly what
+// the server returned so Confirm Import can post the very same rows
+// back to /orders/import/confirm without re-uploading the file or
+// re-parsing anything client-side.
+var orderImportPreviewRows = null;
+
+function renderOrderImportPreview(rows) {
+  document.getElementById('order-import-preview-wrap').style.display = 'block';
+  document.getElementById('order-import-preview-tbody').innerHTML = rows.map(function(row) {
+    var result = (row.rowErrors && row.rowErrors.length > 0)
+      ? '<span style="color:#c0392b;">' + escapeForHtml(row.rowErrors.join(' ')) + '</span>'
+      : (row.matched ? '<span style="color:#1F7A34;">Will update</span>' : '<span style="color:#c0392b;">No matching order</span>');
+    return '<tr>' +
+      '<td>' + row.rowNumber + '</td>' +
+      '<td>' + escapeForHtml(row.order_number || '') + '</td>' +
+      '<td>' + escapeForHtml(row.tracking_number || '—') + '</td>' +
+      '<td>' + escapeForHtml(row.carrier || '—') + '</td>' +
+      '<td>' + escapeForHtml(row.fulfillment_status || '—') + '</td>' +
+      '<td>' + (row.delivered_date ? formatDate(row.delivered_date) : '—') + '</td>' +
+      '<td>' + result + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+document.getElementById('order-import-preview-btn').addEventListener('click', function() {
+  var fileInput = document.getElementById('order-import-file-input');
+  var statusEl = document.getElementById('order-import-status');
+  var file = fileInput.files[0];
+  if (!file) { statusEl.textContent = 'Choose a CSV file first.'; return; }
+
+  statusEl.textContent = 'Parsing…';
+  var formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/admin/orders/import/preview', { method: 'POST', credentials: 'include', body: formData })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) { statusEl.textContent = r.d.error || 'Could not parse file.'; return; }
+      orderImportPreviewRows = r.d.rows;
+      renderOrderImportPreview(r.d.rows);
+      statusEl.textContent = r.d.rows.length + ' row(s) parsed -- review below, then Confirm Import.';
+    })
+    .catch(function() { statusEl.textContent = 'Could not parse file.'; });
+});
+
+document.getElementById('order-import-confirm-btn').addEventListener('click', function() {
+  var statusEl = document.getElementById('order-import-confirm-status');
+  if (!orderImportPreviewRows) return;
+  statusEl.textContent = 'Importing…';
+
+  fetch('/api/admin/orders/import/confirm', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows: orderImportPreviewRows }),
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) { statusEl.textContent = r.d.error || 'Import failed.'; return; }
+      statusEl.textContent = r.d.updated + ' order(s) updated' + (r.d.skipped.length ? ', ' + r.d.skipped.length + ' row(s) skipped (see browser console).' : '.');
+      if (r.d.skipped.length) console.warn('Order import skipped rows:', r.d.skipped);
+      orderImportPreviewRows = null;
+      document.getElementById('order-import-preview-wrap').style.display = 'none';
+      document.getElementById('order-import-file-input').value = '';
+      loadOrders();
+    })
+    .catch(function() { statusEl.textContent = 'Import failed.'; });
+});
 
 // PayRam tab (internal id/function names kept as "payments" -- display
 // label only) -- same underlying order data as the Orders tab
