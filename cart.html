@@ -153,6 +153,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-summary-card{ border:1px solid var(--line); border-radius:10px; padding:20px; background:var(--panel); position:sticky; top:90px; }
 .cart-summary-line{ display:flex; justify-content:space-between; font-size:0.85rem; color:#444; margin-bottom:10px; }
 .cart-summary-discount{ color:var(--green); font-weight:700; }
+.cart-free-shipping-message{ font-size:0.78rem; font-weight:700; color:var(--navy-dark); background:#fff; border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin:0 0 12px; }
+.cart-free-shipping-message.qualified{ color:var(--green); }
 .cart-field-label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:14px 0 4px; }
 .cart-field-label:first-child{ margin-top:0; }
 .cart-coupon-row{ display:flex; gap:8px; margin:0 0 6px; }
@@ -259,6 +261,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           </div>
         </div>
         <div id="cart-promo-msg" class="cart-promo-msg"></div>
+        <p class="cart-free-shipping-message" id="cart-free-shipping-message" style="display:none;"></p>
         <div class="cart-total-row">
           <span>Order Total</span>
           <span id="cart-page-total">$0.00</span>
@@ -285,6 +288,10 @@ let availableCoupons = [];
 // renderCartPage() tell "this code is genuinely invalid" (we have the
 // full list and it's not in it) apart from "we simply don't know."
 let couponsKnown = false;
+// Populated by loadFreeShippingThreshold() below -- null (message stays
+// hidden) until that fetch resolves, same "unknown state stays quiet"
+// pattern as couponsKnown above.
+let freeShippingThreshold = null;
 
 async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
@@ -727,6 +734,42 @@ function renderCartPage() {
   document.getElementById('cart-summary-lines').innerHTML = html;
   document.getElementById('cart-page-total').textContent = '$' + total.toFixed(2);
 
+  // Subtotal-only eligibility nudge for the (admin-configurable)
+  // free-shipping threshold -- see lib/orderPricing.js's
+  // getFreeShippingThreshold() (backend repo). Deliberately compared
+  // against `total` (post-bulk/coupon-discount) rather than the raw
+  // subtotal above, matching exactly what routes/checkout.js itself
+  // compares the threshold against at charge time (its own `total`
+  // there is applyBulkDiscount()'s output, not the raw subtotal) -- a
+  // percent/fixed coupon or the bulk discount genuinely changes what a
+  // customer needs to spend to clear this threshold, so comparing raw
+  // subtotal here would disagree with the real backend eligibility
+  // check. Unlike checkout.html's own free-shipping message (driven by
+  // a real POST /api/shipping/rates response, since that page also has
+  // to reconcile this against an actual per-address carrier quote),
+  // this is address-independent by design -- cart.html never collects
+  // one (see the shipping comment above) -- so it's worded as a
+  // subtotal-based eligibility indicator, not a confirmed shipping cost.
+  const freeShipEl = document.getElementById('cart-free-shipping-message');
+  const isFreeShippingCoupon = matchedCoupon && matchedCoupon.discountType === 'free_shipping';
+  if (isFreeShippingCoupon || freeShippingThreshold == null) {
+    // Suppressed for a free_shipping coupon -- shipping is already
+    // guaranteed free for that reason, so a subtotal-threshold nudge
+    // alongside it would be redundant noise, not new information.
+    // Also suppressed (unknown state stays quiet) until the threshold
+    // fetch below has actually resolved.
+    freeShipEl.style.display = 'none';
+  } else if (total >= freeShippingThreshold) {
+    freeShipEl.textContent = 'You qualify for free standard shipping, based on your order subtotal!';
+    freeShipEl.className = 'cart-free-shipping-message qualified';
+    freeShipEl.style.display = 'block';
+  } else {
+    const remaining = freeShippingThreshold - total;
+    freeShipEl.textContent = 'Add $' + remaining.toFixed(2) + ' more to qualify for free standard shipping (based on subtotal).';
+    freeShipEl.className = 'cart-free-shipping-message';
+    freeShipEl.style.display = 'block';
+  }
+
   // Centralized here (not in applyPromoCode()) so it stays correct across
   // any re-render, not just right after applying -- e.g. changing a qty
   // can flip whether the bulk discount or the coupon wins, and this needs
@@ -791,6 +834,23 @@ function couponOptionLabel(c) {
       ? Number(c.discountValue) + '% off'
       : '$' + Number(c.discountValue).toFixed(2) + ' off');
   return c.code + ' — ' + amount;
+}
+
+// No address needed -- this is the same plain dollar-amount comparison
+// product.html's freeShippingBadgeText() already reads this same
+// endpoint for (see that page), just re-fetched here since cart.html
+// and product.html don't share any JS. Not signed-in-gated -- the
+// threshold applies to guest and signed-in checkouts alike.
+function loadFreeShippingThreshold() {
+  fetch('/api/content/free-shipping-threshold')
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(data) {
+      if (data && typeof data.threshold === 'number') {
+        freeShippingThreshold = data.threshold;
+        renderCartPage();
+      }
+    })
+    .catch(function() {});
 }
 
 // NEW endpoint -- see the backend handoff spec. Only 'available' coupons
@@ -975,6 +1035,7 @@ document.getElementById('cart-checkout-btn').addEventListener('click', function(
 renderCartPage();
 let productsReady = loadProducts();
 loadCoupons();
+loadFreeShippingThreshold();
 updateCartIcon();
 
 
