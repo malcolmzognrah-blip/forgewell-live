@@ -370,6 +370,23 @@ function updateAccountIcon(customer) {
 // Wires up all header/footer interactivity. Runs only after header.html and
 // footer.html have been fetched and injected below -- their elements don't
 // exist in the DOM before then.
+// Fetches session state and updates the header's account icon
+// accordingly -- called once from wireHeaderFooter() on normal page
+// load, and again from the pageshow/persisted handler further down this
+// script so a bfcache-restored page (browser Back/Forward landing on a
+// frozen, previously-rendered copy of this page, without re-running any
+// script) doesn't keep showing whatever login state happened to be
+// frozen in. updateAccountIcon() itself (above) is unchanged -- already
+// declared at top level for showSuccess()'s own call site.
+function checkLoginStatus() {
+  var loginIcon = document.getElementById('account-icon');
+  if (!loginIcon) return;
+  fetch('/api/auth/me', { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(customer) { if (customer) updateAccountIcon(customer); })
+    .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
+}
+
 function wireHeaderFooter() {
   var footerSearchInput = document.getElementById('footer-catalog-search-input');
   if (footerSearchInput) {
@@ -445,18 +462,7 @@ function wireHeaderFooter() {
     });
   }
 
-  // Checks whether the person is logged in and updates the header's account
-  // icon accordingly on page load. Runs on every page that shares this
-  // header. updateAccountIcon() itself is declared at top level (below)
-  // rather than nested here, since showSuccess() -- in a separate closure
-  // further down this script -- needs to call it too.
-  var loginIcon = document.getElementById('account-icon');
-  if (loginIcon) {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(function(res) { return res.ok ? res.json() : null; })
-      .then(function(customer) { if (customer) updateAccountIcon(customer); })
-      .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
-  }
+  checkLoginStatus();
 
   var signupBtn = document.getElementById('footer-signup-btn');
   if (signupBtn) {
@@ -523,6 +529,20 @@ Promise.all([
   })
 ]).then(wireHeaderFooter).catch(function(err) {
   console.error('Failed to load shared header/footer', err);
+});
+
+// Refreshes login status on a bfcache restore (browser Back/Forward
+// landing on a frozen, previously-rendered copy of this page without
+// re-running any script) -- CONFIRMED LIVE BUG, now fixed: without this,
+// a customer who signed in (or out) after this exact page was frozen
+// into bfcache would see stale login-status here indefinitely. Only
+// checkLoginStatus() re-runs here, not wireHeaderFooter() itself, since
+// re-running that wholesale would double-bind the hamburger/search
+// click listeners it also sets up.
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted) {
+    checkLoginStatus();
+  }
 });
 
 async function loadProducts() {

@@ -546,6 +546,87 @@ async function catalogSearchJump(query) {
 // Wires up all header/footer interactivity. Runs only after header.html and
 // footer.html have been fetched and injected below -- their elements don't
 // exist in the DOM before then.
+// Updates the header's account icon for a signed-in customer -- shows
+// "Hi, [name]" linking to order history, wires the Account/Sign Out
+// dropdown and hamburger "Log Out" link. Declared at top level (not
+// nested inside wireHeaderFooter()) so checkLoginStatus() below can call
+// it both on page load and again from the pageshow/persisted handler
+// further down this script, without re-running wireHeaderFooter()'s own
+// hamburger/search wiring a second time (which would double-bind those
+// listeners on a bfcache restore).
+function updateAccountIcon(customer) {
+  var loginIcon = document.getElementById('account-icon');
+  if (!loginIcon || !customer) return;
+
+  loginIcon.href = '/account.html#orders';
+  loginIcon.title = 'My Account (' + customer.email + ')';
+  // Name wasn't always required at signup -- older accounts can still have
+  // a null name, so fall back to the email's local-part rather than
+  // showing a blank/broken greeting.
+  var displayName = customer.name || customer.email.split('@')[0];
+  var labelEl = loginIcon.querySelector('.login-icon-label');
+  // Literal newline (not just a leading space) -- on mobile, header.html's
+  // white-space:pre-line rule for this label breaks on it to show "Hi,"
+  // and the name on two lines; on desktop the plain white-space:nowrap
+  // rule collapses it back to a single space, so "Hi, <name>" still reads
+  // as one line there.
+  if (labelEl) labelEl.textContent = 'Hi,\n' + displayName;
+
+  function doLogout() {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      .then(function() { window.location.href = '/shop.html'; });
+  }
+
+  // Reveals the arrow and enables the Account/Sign Out dropdown (see
+  // #account-menu-wrap's CSS in header.html) -- replaces the old
+  // standalone icon-only sign-out button.
+  var accountMenuWrap = document.getElementById('account-menu-wrap');
+  if (accountMenuWrap) accountMenuWrap.classList.add('signed-in');
+  var signOutItem = document.getElementById('account-dropdown-signout');
+  if (signOutItem) {
+    // Can now run more than once per page (once on load, again on a
+    // bfcache pageshow restore -- see the pageshow listener further down
+    // this script) -- guard against binding the click handler twice,
+    // which would fire doLogout() twice per click.
+    if (!signOutItem.dataset.wired) {
+      signOutItem.dataset.wired = 'true';
+      signOutItem.addEventListener('click', function(e) {
+        e.preventDefault();
+        doLogout();
+      });
+    }
+  }
+
+  var navInner = document.querySelector('.nav-overlay-inner');
+  if (navInner && !document.getElementById('nav-logout-link')) {
+    var logoutLink = document.createElement('a');
+    logoutLink.href = '#';
+    logoutLink.id = 'nav-logout-link';
+    logoutLink.textContent = 'Log Out';
+    logoutLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      doLogout();
+    });
+    navInner.appendChild(logoutLink);
+  }
+}
+
+// Fetches session state and updates the header's account icon
+// accordingly -- called once from wireHeaderFooter() on normal page
+// load, and again from the pageshow/persisted handler further down this
+// script so a bfcache-restored page (browser Back/Forward landing on a
+// frozen, previously-rendered copy of this page, without re-running any
+// script) doesn't keep showing whatever login state happened to be
+// frozen in.
+function checkLoginStatus() {
+  var loginIcon = document.getElementById('account-icon');
+  if (!loginIcon) return;
+  fetch('/api/auth/me', { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(customer) { if (customer) updateAccountIcon(customer); })
+    .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
+}
+
 function wireHeaderFooter() {
   var footerSearchInput = document.getElementById('footer-catalog-search-input');
   if (footerSearchInput) {
@@ -625,59 +706,7 @@ function wireHeaderFooter() {
   // icon accordingly -- shows "Hi, [name]" linking to order history if
   // logged in, "Sign In" linking to the login/signup page otherwise. Runs
   // on every page that shares this header.
-  var loginIcon = document.getElementById('account-icon');
-  if (loginIcon) {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(function(res) { return res.ok ? res.json() : null; })
-      .then(function(customer) {
-        if (customer) {
-          loginIcon.href = '/account.html#orders';
-          loginIcon.title = 'My Account (' + customer.email + ')';
-          // Name wasn't always required at signup -- older accounts can
-          // still have a null name, so fall back to the email's local-part
-          // rather than showing a blank/broken greeting.
-          var displayName = customer.name || customer.email.split('@')[0];
-          var labelEl = loginIcon.querySelector('.login-icon-label');
-          // Literal newline (not just a leading space) -- on mobile,
-          // header.html's white-space:pre-line rule for this label breaks
-          // on it to show "Hi," and the name on two lines; on desktop the
-          // plain white-space:nowrap rule collapses it back to a single
-          // space, so "Hi, <name>" still reads as one line there.
-          if (labelEl) labelEl.textContent = 'Hi,\n' + displayName;
-
-          function doLogout() {
-            fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-              .then(function() { window.location.href = '/shop.html'; });
-          }
-
-          // Reveals the arrow and enables the Account/Sign Out dropdown
-          // (see #account-menu-wrap's CSS in header.html) -- replaces the
-          // old standalone icon-only sign-out button.
-          if (accountMenuWrap) accountMenuWrap.classList.add('signed-in');
-          var signOutItem = document.getElementById('account-dropdown-signout');
-          if (signOutItem) {
-            signOutItem.addEventListener('click', function(e) {
-              e.preventDefault();
-              doLogout();
-            });
-          }
-
-          var navInner = document.querySelector('.nav-overlay-inner');
-          if (navInner && !document.getElementById('nav-logout-link')) {
-            var logoutLink = document.createElement('a');
-            logoutLink.href = '#';
-            logoutLink.id = 'nav-logout-link';
-            logoutLink.textContent = 'Log Out';
-            logoutLink.addEventListener('click', function(e) {
-              e.preventDefault();
-              doLogout();
-            });
-            navInner.appendChild(logoutLink);
-          }
-        }
-      })
-      .catch(function() { /* not logged in or request failed -- leave icon pointing to /login.html */ });
-  }
+  checkLoginStatus();
 
   var signupBtn = document.getElementById('footer-signup-btn');
   if (signupBtn) {
@@ -744,6 +773,18 @@ Promise.all([
   })
 ]).then(wireHeaderFooter).catch(function(err) {
   console.error('Failed to load shared header/footer', err);
+});
+
+// Refreshes login status on a bfcache restore -- see cart.html's
+// identical comment for the incident this fixes generally. Separate
+// from checkout.html's own existing pageshow/persisted handler further
+// down this script (re-enabling the Place Order button after a paid
+// checkout) -- both listeners fire independently on the same event,
+// this one is purely additive alongside it.
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted) {
+    checkLoginStatus();
+  }
 });
 
 // Only used here to look up each cart item's image_path for display --
