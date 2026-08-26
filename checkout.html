@@ -1,22 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- TEMP-DEBUG 2026-08-25: instrumentation to trace forgewell_cart writes, remove after repro captured -->
-<script>
-(function() {
-  if (window.__cartWriteLoggerInstalled) return;
-  window.__cartWriteLoggerInstalled = true;
-  var orig = Storage.prototype.setItem;
-  Storage.prototype.setItem = function(key, value) {
-    if (key === 'forgewell_cart') {
-      console.warn('[TEMP-DEBUG] forgewell_cart WRITE:', value);
-      console.trace();
-    }
-    return orig.apply(this, arguments);
-  };
-})();
-</script>
-<!-- END TEMP-DEBUG -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Checkout</title>
