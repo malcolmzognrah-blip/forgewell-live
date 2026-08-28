@@ -1188,6 +1188,44 @@ function updateCartIcon() {
   }
 }
 
+// Reconciles a stale forgewell_cart against the server-side mirror --
+// order-confirmation.html is the only thing that normally clears
+// forgewell_cart, and only once its poll actually observes status ===
+// 'paid' on that specific tab. If that tab's session dies mid-poll (a
+// JWT rotation, or the customer just closing it early), the cart can
+// stay populated in localStorage indefinitely even though
+// markOrderPaidAndFulfill() already cleared customer_carts server-side
+// the moment the webhook landed. This makes the server authoritative on
+// the *next* visit instead.
+//
+// Gated on forgewell_last_order_id specifically (not just being signed
+// in) -- that key is only ever set right before checkout.html redirects
+// to PayRam, so it's a positive signal this browser actually attempted
+// a checkout. Without this gate, a guest who added items on
+// product.html/cart.html and then signs up for the first time would hit
+// this on their very next home.html/shop.html load with a real, never-
+// synced local cart and zero customer_carts rows (a brand-new customer
+// has never had a row to begin with) -- indistinguishable from "just
+// paid" by item count alone, and this gate is what avoids wiping it.
+//
+// Fails open like every other cart-server call on this page: a 401 (not
+// signed in) or any network error just leaves localStorage untouched.
+function reconcileCartWithServer() {
+  if (!localStorage.getItem('forgewell_last_order_id')) return;
+  fetch('/api/cart/mine', { credentials: 'include' })
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      const serverItems = Array.isArray(data.items) ? data.items : [];
+      if (serverItems.length === 0 && cart.length > 0) {
+        cart = [];
+        localStorage.setItem('forgewell_cart', JSON.stringify(cart));
+        updateCartIcon();
+      }
+    })
+    .catch(function() {});
+}
+
 function addToCart(productId) {
   const product = allProducts.find(p => p.id === productId);
   if (!product) return;
@@ -1269,6 +1307,7 @@ document.addEventListener('click', (e) => {
 
 let productsReady = renderShopGrid();
 updateCartIcon();
+reconcileCartWithServer();
 </script>
 
 
