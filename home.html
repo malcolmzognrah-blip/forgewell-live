@@ -10,12 +10,24 @@
      seen it on this device. -->
 <style>html:not(.gw-auth-ok){ visibility:hidden; }</style>
 <script>
-fetch('/api/auth/me', { credentials: 'include' }).then(function(res){
-  if (!res.ok) { window.location.replace('/index.html'); return; }
-  document.documentElement.classList.add('gw-auth-ok');
-}).catch(function(){
-  window.location.replace('/index.html');
-});
+// Only a real 401 means the visitor isn't logged in -- that's the sole
+// case that should bounce them to the sign-in page. Any other failure
+// (5xx, a network blip, a timeout) is transient and must not be treated
+// as a logout: one retry after a short delay, then fail open (reveal the
+// page without gw-auth-ok's signed-in guarantee) rather than kicking a
+// possibly-still-logged-in customer off the site entirely.
+function checkSession(isRetry) {
+  fetch('/api/auth/me', { credentials: 'include' }).then(function(res){
+    if (res.status === 401) { window.location.replace('/index.html'); return; }
+    if (res.ok) { document.documentElement.classList.add('gw-auth-ok'); return; }
+    if (!isRetry) { setTimeout(function(){ checkSession(true); }, 1500); return; }
+    document.documentElement.classList.add('gw-auth-ok');
+  }).catch(function(){
+    if (!isRetry) { setTimeout(function(){ checkSession(true); }, 1500); return; }
+    document.documentElement.classList.add('gw-auth-ok');
+  });
+}
+checkSession(false);
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Research-Grade Peptides</title>
