@@ -690,16 +690,46 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 
     <div class="content-subview active" id="content-subview-about-us">
       <p class="fulfillment-section-note">Edits the copy shown on the About Us page.</p>
+      <button type="button" class="fulfillment-btn" id="content-about-us-add-btn" style="margin-bottom:14px;">+ Add Section</button>
+      <div class="content-item" id="content-about-us-add-form" style="display:none;">
+        <label>Heading</label>
+        <input type="text" id="content-about-us-add-heading">
+        <label>Body</label>
+        <textarea id="content-about-us-add-body"></textarea>
+        <button type="button" class="fulfillment-btn" id="content-about-us-add-save-btn" style="margin-top:10px;">Save</button>
+        <button type="button" class="product-edit-toggle-btn" id="content-about-us-add-cancel-btn" style="margin-top:10px; margin-left:8px;">Cancel</button>
+        <span class="product-save-status" id="content-about-us-add-status"></span>
+      </div>
       <div id="content-about-us-list"></div>
     </div>
 
     <div class="content-subview" id="content-subview-faq">
       <p class="fulfillment-section-note">Edits the accordion shown on the FAQs page (and the teaser on the home page).</p>
+      <button type="button" class="fulfillment-btn" id="content-faq-add-btn" style="margin-bottom:14px;">+ Add Question</button>
+      <div class="content-item" id="content-faq-add-form" style="display:none;">
+        <label>Question</label>
+        <input type="text" id="content-faq-add-question">
+        <label>Answer</label>
+        <textarea id="content-faq-add-answer"></textarea>
+        <button type="button" class="fulfillment-btn" id="content-faq-add-save-btn" style="margin-top:10px;">Save</button>
+        <button type="button" class="product-edit-toggle-btn" id="content-faq-add-cancel-btn" style="margin-top:10px; margin-left:8px;">Cancel</button>
+        <span class="product-save-status" id="content-faq-add-status"></span>
+      </div>
       <div id="content-faq-list"></div>
     </div>
 
     <div class="content-subview" id="content-subview-shipping-policy">
       <p class="fulfillment-section-note">Edits the sections shown on the Shipping Policy page.</p>
+      <button type="button" class="fulfillment-btn" id="content-shipping-policy-add-btn" style="margin-bottom:14px;">+ Add Section</button>
+      <div class="content-item" id="content-shipping-policy-add-form" style="display:none;">
+        <label>Heading</label>
+        <input type="text" id="content-shipping-policy-add-heading">
+        <label>Body</label>
+        <textarea id="content-shipping-policy-add-body"></textarea>
+        <button type="button" class="fulfillment-btn" id="content-shipping-policy-add-save-btn" style="margin-top:10px;">Save</button>
+        <button type="button" class="product-edit-toggle-btn" id="content-shipping-policy-add-cancel-btn" style="margin-top:10px; margin-left:8px;">Cancel</button>
+        <span class="product-save-status" id="content-shipping-policy-add-status"></span>
+      </div>
       <div id="content-shipping-policy-list"></div>
     </div>
 
@@ -1824,6 +1854,7 @@ function renderContentAboutUs(sections) {
       '<label>Body</label>' +
       '<textarea class="content-about-us-body">' + escapeHtml(s.body) + '</textarea>' +
       '<button type="button" class="fulfillment-btn content-about-us-save-btn" data-about-us-id="' + s.id + '" style="margin-top:10px;">Save</button>' +
+      '<button type="button" class="coa-delete-btn content-about-us-delete-btn" data-about-us-id="' + s.id + '" style="margin-top:10px; margin-left:8px;">Delete</button>' +
       '<span class="product-save-status" id="content-about-us-status-' + s.id + '"></span>' +
     '</div>';
   }).join('');
@@ -1837,6 +1868,7 @@ function renderContentFaq(items) {
       '<label>Answer</label>' +
       '<textarea class="content-faq-answer">' + escapeHtml(f.answer) + '</textarea>' +
       '<button type="button" class="fulfillment-btn content-faq-save-btn" data-faq-id="' + f.id + '" style="margin-top:10px;">Save</button>' +
+      '<button type="button" class="coa-delete-btn content-faq-delete-btn" data-faq-id="' + f.id + '" style="margin-top:10px; margin-left:8px;">Delete</button>' +
       '<span class="product-save-status" id="content-faq-status-' + f.id + '"></span>' +
     '</div>';
   }).join('');
@@ -1850,17 +1882,31 @@ function renderContentShippingPolicy(sections) {
       '<label>Body</label>' +
       '<textarea class="content-shipping-policy-body">' + escapeHtml(s.body) + '</textarea>' +
       '<button type="button" class="fulfillment-btn content-shipping-policy-save-btn" data-shipping-policy-id="' + s.id + '" style="margin-top:10px;">Save</button>' +
+      '<button type="button" class="coa-delete-btn content-shipping-policy-delete-btn" data-shipping-policy-id="' + s.id + '" style="margin-top:10px; margin-left:8px;">Delete</button>' +
       '<span class="product-save-status" id="content-shipping-policy-status-' + s.id + '"></span>' +
     '</div>';
   }).join('');
 }
 
+// Split out from loadContent() below (which only ever runs once, guarded
+// by contentLoaded) so the Add/Delete handlers can reload just their own
+// list after a mutation without re-fetching every other Content tab field.
+function loadContentAboutUs() {
+  fetch('/api/content/about-us', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentAboutUs).catch(function() {});
+}
+function loadContentFaq() {
+  fetch('/api/content/faq', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentFaq).catch(function() {});
+}
+function loadContentShippingPolicy() {
+  fetch('/api/content/shipping-policy', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentShippingPolicy).catch(function() {});
+}
+
 function loadContent() {
   if (contentLoaded) return;
   contentLoaded = true;
-  fetch('/api/content/about-us', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentAboutUs).catch(function() {});
-  fetch('/api/content/faq', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentFaq).catch(function() {});
-  fetch('/api/content/shipping-policy', { credentials: 'include' }).then(function(r) { return r.json(); }).then(renderContentShippingPolicy).catch(function() {});
+  loadContentAboutUs();
+  loadContentFaq();
+  loadContentShippingPolicy();
   fetch('/api/content/disclaimer', { credentials: 'include' }).then(function(r) { return r.json(); })
     .then(function(d) { document.getElementById('content-disclaimer-textarea').value = d.body || ''; })
     .catch(function() {});
@@ -3805,6 +3851,72 @@ document.getElementById('content-about-us-list').addEventListener('click', funct
     });
 });
 
+document.getElementById('content-about-us-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.content-about-us-delete-btn');
+  if (!btn) return;
+  if (!window.confirm('Delete this About Us section? This cannot be undone.')) return;
+  var id = btn.getAttribute('data-about-us-id');
+  btn.disabled = true;
+  fetch('/api/admin/content/about-us/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) {
+        btn.disabled = false;
+        window.alert(r.d.error || 'Could not delete section.');
+        return;
+      }
+      loadContentAboutUs();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.alert('Could not delete section.');
+    });
+});
+
+document.getElementById('content-about-us-add-btn').addEventListener('click', function() {
+  document.getElementById('content-about-us-add-form').style.display = 'block';
+  this.style.display = 'none';
+});
+
+document.getElementById('content-about-us-add-cancel-btn').addEventListener('click', function() {
+  document.getElementById('content-about-us-add-heading').value = '';
+  document.getElementById('content-about-us-add-body').value = '';
+  document.getElementById('content-about-us-add-status').textContent = '';
+  document.getElementById('content-about-us-add-form').style.display = 'none';
+  document.getElementById('content-about-us-add-btn').style.display = '';
+});
+
+document.getElementById('content-about-us-add-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-about-us-add-status');
+  var body = {
+    heading: document.getElementById('content-about-us-add-heading').value,
+    body: document.getElementById('content-about-us-add-body').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/about-us', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      document.getElementById('content-about-us-add-cancel-btn').click();
+      loadContentAboutUs();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
 document.getElementById('content-faq-list').addEventListener('click', function(e) {
   var btn = e.target.closest('.content-faq-save-btn');
   if (!btn) return;
@@ -3834,6 +3946,72 @@ document.getElementById('content-faq-list').addEventListener('click', function(e
     });
 });
 
+document.getElementById('content-faq-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.content-faq-delete-btn');
+  if (!btn) return;
+  if (!window.confirm('Delete this FAQ item? This cannot be undone.')) return;
+  var id = btn.getAttribute('data-faq-id');
+  btn.disabled = true;
+  fetch('/api/admin/content/faq/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) {
+        btn.disabled = false;
+        window.alert(r.d.error || 'Could not delete FAQ item.');
+        return;
+      }
+      loadContentFaq();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.alert('Could not delete FAQ item.');
+    });
+});
+
+document.getElementById('content-faq-add-btn').addEventListener('click', function() {
+  document.getElementById('content-faq-add-form').style.display = 'block';
+  this.style.display = 'none';
+});
+
+document.getElementById('content-faq-add-cancel-btn').addEventListener('click', function() {
+  document.getElementById('content-faq-add-question').value = '';
+  document.getElementById('content-faq-add-answer').value = '';
+  document.getElementById('content-faq-add-status').textContent = '';
+  document.getElementById('content-faq-add-form').style.display = 'none';
+  document.getElementById('content-faq-add-btn').style.display = '';
+});
+
+document.getElementById('content-faq-add-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-faq-add-status');
+  var body = {
+    question: document.getElementById('content-faq-add-question').value,
+    answer: document.getElementById('content-faq-add-answer').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/faq', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      document.getElementById('content-faq-add-cancel-btn').click();
+      loadContentFaq();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
 document.getElementById('content-shipping-policy-list').addEventListener('click', function(e) {
   var btn = e.target.closest('.content-shipping-policy-save-btn');
   if (!btn) return;
@@ -3855,6 +4033,72 @@ document.getElementById('content-shipping-policy-list').addEventListener('click'
       btn.disabled = false;
       statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
       statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-shipping-policy-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.content-shipping-policy-delete-btn');
+  if (!btn) return;
+  if (!window.confirm('Delete this Shipping Policy section? This cannot be undone.')) return;
+  var id = btn.getAttribute('data-shipping-policy-id');
+  btn.disabled = true;
+  fetch('/api/admin/content/shipping-policy/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) {
+        btn.disabled = false;
+        window.alert(r.d.error || 'Could not delete section.');
+        return;
+      }
+      loadContentShippingPolicy();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.alert('Could not delete section.');
+    });
+});
+
+document.getElementById('content-shipping-policy-add-btn').addEventListener('click', function() {
+  document.getElementById('content-shipping-policy-add-form').style.display = 'block';
+  this.style.display = 'none';
+});
+
+document.getElementById('content-shipping-policy-add-cancel-btn').addEventListener('click', function() {
+  document.getElementById('content-shipping-policy-add-heading').value = '';
+  document.getElementById('content-shipping-policy-add-body').value = '';
+  document.getElementById('content-shipping-policy-add-status').textContent = '';
+  document.getElementById('content-shipping-policy-add-form').style.display = 'none';
+  document.getElementById('content-shipping-policy-add-btn').style.display = '';
+});
+
+document.getElementById('content-shipping-policy-add-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-shipping-policy-add-status');
+  var body = {
+    heading: document.getElementById('content-shipping-policy-add-heading').value,
+    body: document.getElementById('content-shipping-policy-add-body').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/shipping-policy', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not save.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      document.getElementById('content-shipping-policy-add-cancel-btn').click();
+      loadContentShippingPolicy();
     })
     .catch(function() {
       btn.disabled = false;
