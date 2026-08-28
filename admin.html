@@ -685,6 +685,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <button type="button" class="content-subtab" id="content-subtab-disclaimer">Disclaimer</button>
       <button type="button" class="content-subtab" id="content-subtab-free-shipping">Free Shipping</button>
       <button type="button" class="content-subtab" id="content-subtab-contact-info">Contact Info</button>
+      <button type="button" class="content-subtab" id="content-subtab-social-links">Social Links</button>
     </div>
 
     <div class="content-subview active" id="content-subview-about-us">
@@ -734,6 +735,22 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <textarea id="content-company-address-input" style="width:100%; max-width:320px; box-sizing:border-box; min-height:70px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;"></textarea>
       <button type="button" class="fulfillment-btn" id="content-company-address-save-btn" style="margin-top:8px;">Save</button>
       <span class="product-save-status" id="content-company-address-status"></span>
+    </div>
+
+    <div class="content-subview" id="content-subview-social-links">
+      <p class="fulfillment-section-note">Shown as icons in the site footer's Follow Us section on every page. Each link is independent -- leave any of these blank to hide just that icon; leave all three blank to hide the whole Follow Us icon row.</p>
+
+      <label for="content-social-instagram-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:5px;">Instagram URL</label>
+      <input type="text" id="content-social-instagram-input" placeholder="https://instagram.com/..." style="width:100%; max-width:320px; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">
+
+      <label for="content-social-x-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin:18px 0 5px;">X (Twitter) URL</label>
+      <input type="text" id="content-social-x-input" placeholder="https://x.com/..." style="width:100%; max-width:320px; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">
+
+      <label for="content-social-facebook-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin:18px 0 5px;">Facebook URL</label>
+      <input type="text" id="content-social-facebook-input" placeholder="https://facebook.com/..." style="width:100%; max-width:320px; box-sizing:border-box; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit;">
+
+      <button type="button" class="fulfillment-btn" id="content-social-links-save-btn" style="margin-top:8px;">Save</button>
+      <span class="product-save-status" id="content-social-links-status"></span>
     </div>
   </div>
 
@@ -1857,6 +1874,13 @@ function loadContent() {
       document.getElementById('content-company-address-input').value = d.address || '';
     })
     .catch(function() {});
+  fetch('/api/content/social-links', { credentials: 'include' }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      document.getElementById('content-social-instagram-input').value = d.instagram || '';
+      document.getElementById('content-social-x-input').value = d.x || '';
+      document.getElementById('content-social-facebook-input').value = d.facebook || '';
+    })
+    .catch(function() {});
 }
 
 function showContentTab() {
@@ -1870,10 +1894,10 @@ function showContentTab() {
 // the smaller content-subtab/content-subview set instead of the top-level
 // tabs.
 function showContentSubtab(subtabId, subviewId) {
-  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer', 'content-subtab-free-shipping', 'content-subtab-contact-info'].forEach(function(id) {
+  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer', 'content-subtab-free-shipping', 'content-subtab-contact-info', 'content-subtab-social-links'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer', 'content-subview-free-shipping', 'content-subview-contact-info'].forEach(function(id) {
+  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer', 'content-subview-free-shipping', 'content-subview-contact-info', 'content-subview-social-links'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -3353,6 +3377,10 @@ document.getElementById('content-subtab-contact-info').addEventListener('click',
   showContentSubtab('content-subtab-contact-info', 'content-subview-contact-info');
 });
 
+document.getElementById('content-subtab-social-links').addEventListener('click', function() {
+  showContentSubtab('content-subtab-social-links', 'content-subview-social-links');
+});
+
 document.getElementById('products-category-filter').addEventListener('change', function() {
   renderProductsSingleSelectOptions();
   renderProductsRows();
@@ -3961,6 +3989,33 @@ document.getElementById('content-company-phone-save-btn').addEventListener('clic
   statusEl.textContent = '';
   statusEl.className = 'product-save-status';
   fetch('/api/admin/content/company-phone', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-social-links-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-social-links-status');
+  var body = {
+    instagram: document.getElementById('content-social-instagram-input').value,
+    x: document.getElementById('content-social-x-input').value,
+    facebook: document.getElementById('content-social-facebook-input').value,
+  };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/social-links', {
     method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })

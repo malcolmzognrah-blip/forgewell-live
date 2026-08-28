@@ -508,9 +508,42 @@ function wireHeaderFooter() {
       var phoneEl = document.getElementById('footer-contact-phone');
       var hoursEl = document.getElementById('footer-contact-hours');
       var addressEl = document.getElementById('footer-contact-address');
-      if (phoneEl && d.phone) phoneEl.textContent = d.phone;
+      // Phone is the one line of the three that's allowed to be unset
+      // (PUT /api/admin/content/company-phone, backend repo, no longer
+      // rejects an empty save) -- hidden entirely rather than showing a
+      // literal "[Phone Number]" placeholder when nobody's filled it in
+      // yet. Hours/address are unchanged -- always required at save time,
+      // so they always have something real to show.
+      if (phoneEl) {
+        if (d.phone) { phoneEl.textContent = d.phone; phoneEl.style.display = ''; }
+        else { phoneEl.style.display = 'none'; }
+      }
       if (hoursEl && d.businessHours) hoursEl.textContent = d.businessHours;
       if (addressEl && d.address) addressEl.textContent = d.address;
+    })
+    .catch(function() {});
+
+  // Social links (Instagram/X/Facebook) -- same admin-editable,
+  // hide-if-unset pattern as the phone line just above, but per-icon
+  // rather than all-or-nothing: filling in just one of the three shows
+  // only that one. Each <a> starts with display:none in footer.html
+  // itself so there's no flash of a dead "#" link before this resolves.
+  fetch('/api/content/social-links').then(function(r) { return r.json(); })
+    .then(function(d) {
+      var links = [['footer-social-instagram', d.instagram], ['footer-social-x', d.x], ['footer-social-facebook', d.facebook]];
+      var anySet = false;
+      links.forEach(function(pair) {
+        var el = document.getElementById(pair[0]);
+        if (!el) return;
+        if (pair[1]) { el.href = pair[1]; el.style.display = ''; anySet = true; }
+        else { el.style.display = 'none'; }
+      });
+      // Whole section (heading + icon row) hides together when nothing's
+      // set, not just the individual icons -- otherwise a store with no
+      // social links configured yet shows a bare "Follow Us" heading over
+      // an empty row.
+      var sectionEl = document.getElementById('footer-social-section');
+      if (sectionEl) sectionEl.style.display = anySet ? '' : 'none';
     })
     .catch(function() {});
 
