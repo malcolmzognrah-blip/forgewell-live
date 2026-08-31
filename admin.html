@@ -513,6 +513,15 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 
     <label for="promo-body">Body</label>
     <textarea id="promo-body"></textarea>
+    <div style="margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <button type="button" class="product-edit-toggle-btn" id="promo-image-btn">+ Insert Image</button>
+      <input type="file" id="promo-image-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+      <span class="product-save-status" id="promo-image-status"></span>
+    </div>
+    <div id="promo-image-preview" style="display:none; margin-top:8px;">
+      <img id="promo-image-preview-img" src="" alt="" style="max-width:200px; max-height:120px; border-radius:6px; border:1px solid var(--line); display:block;">
+    </div>
+    <p class="fulfillment-section-note">Inserting an image drops a <code>[[image:...]]</code> placeholder at your cursor -- leave it as-is; it's replaced with the actual image when the email is sent (a plain-text fallback shows the image's link instead, for recipients whose email client doesn't render images).</p>
 
     <p class="promo-subscriber-count" id="promo-subscriber-count"></p>
 
@@ -2365,6 +2374,61 @@ function loadScheduledPromos() {
       container.innerHTML = '<h3>Scheduled Sends</h3><p class="promo-scheduled-empty">Could not load scheduled sends.</p>';
     });
 }
+
+// Insert Image -- identical mechanism to the Email Campaign composer's
+// own control above (same POST /api/admin/campaigns/image endpoint,
+// same [[image:URL]] token convention) -- see lib/emailTemplates.js's
+// promoEmail(), which runs the saved body through the same
+// renderCampaignBodyHtml/Text() [[image:...]]-token pipeline as
+// couponCampaignEmail/storeCreditCampaignEmail, so this token is
+// rendered correctly today even though this button didn't exist yet.
+document.getElementById('promo-image-btn').addEventListener('click', function() {
+  document.getElementById('promo-image-input').click();
+});
+
+document.getElementById('promo-image-input').addEventListener('change', function() {
+  var input = this;
+  var file = input.files[0];
+  if (!file) return;
+  var statusEl = document.getElementById('promo-image-status');
+  statusEl.textContent = 'Uploading...';
+  statusEl.className = 'product-save-status';
+
+  var formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/admin/campaigns/image', {
+    method: 'POST', credentials: 'include', body: formData,
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      input.value = '';
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not upload image.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+
+      var textarea = document.getElementById('promo-body');
+      var token = '[[image:' + r.d.url + ']]';
+      var start = textarea.selectionStart != null ? textarea.selectionStart : textarea.value.length;
+      var end = textarea.selectionEnd != null ? textarea.selectionEnd : textarea.value.length;
+      textarea.value = textarea.value.slice(0, start) + token + textarea.value.slice(end);
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + token.length;
+
+      document.getElementById('promo-image-preview-img').src = r.d.url;
+      document.getElementById('promo-image-preview').style.display = 'block';
+
+      statusEl.textContent = 'Image inserted at cursor.';
+      statusEl.className = 'product-save-status success';
+    })
+    .catch(function() {
+      input.value = '';
+      statusEl.textContent = 'Could not upload image.';
+      statusEl.className = 'product-save-status error';
+    });
+});
 
 // ============================================================
 // Coupons
