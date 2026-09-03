@@ -248,6 +248,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .credit-history-table th{ text-align:left; padding:8px; background:#fff; border-bottom:2px solid var(--line); color:var(--navy-dark); }
 .credit-history-table td{ padding:8px; border-bottom:1px solid var(--line); }
 
+.chat-toolbar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
+.chat-mute-toggle{ display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--gray); cursor:pointer; user-select:none; }
 .chat-layout{ display:flex; gap:0; border:1.5px solid var(--line); border-radius:8px; overflow:hidden; height:600px; }
 .chat-conv-list{ width:300px; flex-shrink:0; border-right:1.5px solid var(--line); overflow-y:auto; background:var(--panel); }
 .chat-conv-empty{ padding:16px; color:var(--gray); font-size:0.82rem; }
@@ -1085,6 +1087,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
        action REST pattern -- the conversation list arrives via
        'chat:conversations' pushes, not a GET this tab triggers on click. -->
   <div class="admin-view chat-panel" id="view-livechat">
+    <div class="chat-toolbar">
+      <label class="chat-mute-toggle">
+        <input type="checkbox" id="chat-mute-toggle" /> Mute notification sound
+      </label>
+    </div>
     <div class="chat-layout">
       <div class="chat-conv-list" id="chat-conv-list">
         <p class="chat-conv-empty">No open conversations.</p>
@@ -1736,6 +1743,13 @@ function showJobsTab() {
 function showLiveChatTab() {
   showAdminTab('tab-livechat', 'view-livechat');
   renderChatConversationList();
+  // Covers the "already-focused browser tab, just clicked into Live Chat
+  // from a different admin.html section" path to "now actually looking
+  // at it" -- the visibilitychange listener elsewhere only fires on a
+  // real tab focus/blur, not on switching sections within an
+  // already-visible page, so this call is not redundant with that one.
+  chatClearUnread();
+  chatEnsureNotificationPermission();
 }
 
 // ============================================================
@@ -4921,6 +4935,102 @@ var chatSocket = null;
 var chatConversations = [];
 var chatActiveConversationId = null;
 
+// ---- Background notification cues (tab title badge, browser
+// notification, sound) -- for a new message in a conversation the admin
+// isn't currently viewing, while this browser tab itself isn't focused.
+// All three share the identical trigger condition, checked once in
+// chatSocket.on('chat:message', ...) below rather than duplicated three
+// times.
+var chatUnreadCount = 0;
+var chatOriginalTitle = document.title;
+var CHAT_MUTE_KEY = 'forgewell_admin_chat_muted';
+
+function chatIsOnLiveChatTab() {
+  return document.getElementById('tab-livechat').classList.contains('active');
+}
+
+// Distinct from chatIsOnLiveChatTab() above (which checks the tab
+// button) despite checking the same underlying state -- kept separate
+// because it backs a different condition: the trigger check below needs
+// "should this fire," the clearing logic above needs "has this been
+// seen," and collapsing them into one shared helper would make it easy
+// to accidentally change one's behavior while editing the other.
+function chatIsLiveChatTabActive() {
+  return document.getElementById('view-livechat').classList.contains('active');
+}
+
+function chatBumpUnread() {
+  chatUnreadCount++;
+  document.title = '(' + chatUnreadCount + ') ' + chatOriginalTitle;
+}
+
+// Called both from the visibilitychange listener below (browser tab
+// refocused while already on the Live Chat tab) and from
+// showLiveChatTab() (already-focused browser tab, admin just clicked
+// into Live Chat from a different section) -- two different paths to
+// "the admin is now actually looking at this," neither alone covers both.
+function chatClearUnread() {
+  chatUnreadCount = 0;
+  document.title = chatOriginalTitle;
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && chatIsOnLiveChatTab()) chatClearUnread();
+});
+
+// Only requests permission once permission is still in its default
+// (never-asked) state -- calling Notification.requestPermission() again
+// after the visitor already granted/denied is a harmless no-op per the
+// API itself (resolves immediately with the existing decision, no
+// re-prompt), so no separate "have we asked before" flag is needed on
+// top of checking this.
+function chatEnsureNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') Notification.requestPermission();
+}
+
+// Web Audio API synthesized beep rather than an <audio> element pointed
+// at a sound file -- no audio asset exists anywhere in this codebase
+// today, and a short sine-wave tone needs no new binary file to add or
+// review. Wrapped in try/catch: browsers can block audio contexts before
+// any user gesture on the page, and a blocked beep should never break
+// the rest of this notification (title badge, native notification still
+// fire regardless).
+function chatPlaySound() {
+  if (localStorage.getItem(CHAT_MUTE_KEY) === 'yes') return;
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (e) {
+    // Web Audio unsupported or blocked -- sound is a nice-to-have, never
+    // let this break the title badge / native notification above it.
+  }
+}
+
+// Fired once per qualifying message -- see the shared trigger condition
+// in chatSocket.on('chat:message', ...) below (not the active
+// conversation, and this browser tab isn't focused).
+function chatNotifyBackgroundMessage(msg) {
+  chatBumpUnread();
+  chatPlaySound();
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    var conv = chatConversations.filter(function(c) { return c.conversationId === msg.conversationId; })[0];
+    var label = conv ? chatConvLabel(conv) : 'New chat message';
+    var body = String(msg.body || '');
+    var preview = body.length > 60 ? body.slice(0, 60) + '…' : body;
+    new Notification(label, { body: preview });
+  }
+}
+
 function chatShortId(id) {
   return id ? id.slice(0, 8) : '';
 }
@@ -5005,6 +5115,14 @@ document.getElementById('chat-close-btn').addEventListener('click', function() {
   chatSocket.emit('chat:close', { conversationId: chatActiveConversationId });
 });
 
+(function() {
+  var muteToggle = document.getElementById('chat-mute-toggle');
+  muteToggle.checked = localStorage.getItem(CHAT_MUTE_KEY) === 'yes';
+  muteToggle.addEventListener('change', function() {
+    localStorage.setItem(CHAT_MUTE_KEY, muteToggle.checked ? 'yes' : 'no');
+  });
+})();
+
 function initLiveChat() {
   if (chatSocket || typeof io === 'undefined') return;
   chatSocket = io('/admin');
@@ -5031,7 +5149,20 @@ function initLiveChat() {
   // is what keeps that other conversation's list preview up to date
   // instead.
   chatSocket.on('chat:message', function(msg) {
-    if (!msg || msg.conversationId !== chatActiveConversationId) return;
+    if (!msg) return;
+    if (msg.conversationId !== chatActiveConversationId) {
+      // Same "wrong conversation" condition as the early-return above,
+      // further gated on either the browser tab not being focused OR the
+      // admin being on a different admin.html section entirely (Orders,
+      // Products, etc.) -- either one means they're not looking at Live
+      // Chat right now. An admin actively viewing a DIFFERENT
+      // conversation while genuinely on the Live Chat tab in a focused
+      // browser tab is the one case that skips this: they already see
+      // that conversation's preview update via the chat:conversations
+      // re-broadcast, no extra cue needed on top of that.
+      if (document.hidden || !chatIsLiveChatTabActive()) chatNotifyBackgroundMessage(msg);
+      return;
+    }
     chatAppendMessage(msg);
   });
 
