@@ -1288,74 +1288,111 @@ reconcileCartWithServer();
   // bubble button stays in the DOM but inert with no listener attached.
   if (typeof io === 'undefined') return;
 
-  var GUEST_ID_KEY = 'forgewell_chat_guest_id';
-  function getOrCreateGuestId() {
-    var id = localStorage.getItem(GUEST_ID_KEY);
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem(GUEST_ID_KEY, id);
+  // home.html-specific: this page's own login gate (checkSession() at the
+  // top of <head>) is asynchronous and window.location.replace() doesn't
+  // halt script execution -- without this wait, io({auth:{guestId}}) would
+  // fire the moment this script parses, regardless of whether checkSession()
+  // is about to redirect the visitor away for having no session at all.
+  // That silently created a real chat_conversations row server-side for an
+  // anonymous visitor who was never actually let onto this page (confirmed
+  // possible, though zero such rows have been found in production so far --
+  // every real conversation to date has come from a signed-in identity).
+  // Guest connections aren't rejected server-side (lib/chat.js accepts a
+  // bare guestId with no session), so the only way to actually prevent this
+  // on this specific page is to not call io() until this page's own gate
+  // has genuinely resolved as logged-in -- gw-auth-ok only ever gets added
+  // after a real 200 from /api/auth/me. Polling the same way the
+  // email-popup block above already waits on body.classList.contains
+  // ('gate-active') -- same pattern, not a new one. This is deliberately
+  // NOT the convention to reuse when the widget is ported to the 18
+  // ungated pages -- those have no equivalent gate to wait for, and
+  // should keep connecting eagerly like this page did before this change.
+  function waitForAuthThenConnect() {
+    if (document.documentElement.classList.contains('gw-auth-ok')) {
+      connectChatWidget();
+    } else {
+      setTimeout(waitForAuthThenConnect, 300);
     }
-    return id;
   }
 
-  // Server-side identity resolution (lib/chat.js) ignores this guestId
-  // outright and uses the real forgewell_session cookie instead whenever
-  // one is present and valid -- sent unconditionally here since the
-  // client has no reliable way to know in advance which one will win.
-  var socket = io({ auth: { guestId: getOrCreateGuestId() } });
+  function connectChatWidget() {
+    var GUEST_ID_KEY = 'forgewell_chat_guest_id';
+    function getOrCreateGuestId() {
+      var id = localStorage.getItem(GUEST_ID_KEY);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(GUEST_ID_KEY, id);
+      }
+      return id;
+    }
 
-  var panel = document.getElementById('chat-widget-panel');
-  var bubble = document.getElementById('chat-widget-bubble');
-  var messagesEl = document.getElementById('chat-widget-messages');
-  var errorEl = document.getElementById('chat-widget-error');
-  var input = document.getElementById('chat-widget-input');
-  var sendBtn = document.getElementById('chat-widget-send-btn');
-  var errorClearTimer = null;
+    // Server-side identity resolution (lib/chat.js) ignores this guestId
+    // outright and uses the real forgewell_session cookie instead whenever
+    // one is present and valid -- sent unconditionally here since the
+    // client has no reliable way to know in advance which one will win.
+    // (On this page specifically, gw-auth-ok being present means a real
+    // session cookie already won this check on the server's own /api/
+    // auth/me call moments ago, so in practice the guestId below is
+    // effectively a fallback that server-side identity resolution will
+    // always override here -- still sent for the same reason it always
+    // is: the client has no way to know that in advance.)
+    var socket = io({ auth: { guestId: getOrCreateGuestId() } });
 
-  bubble.addEventListener('click', function(){
-    panel.classList.toggle('chat-widget-open');
-  });
+    var panel = document.getElementById('chat-widget-panel');
+    var bubble = document.getElementById('chat-widget-bubble');
+    var messagesEl = document.getElementById('chat-widget-messages');
+    var errorEl = document.getElementById('chat-widget-error');
+    var input = document.getElementById('chat-widget-input');
+    var sendBtn = document.getElementById('chat-widget-send-btn');
+    var errorClearTimer = null;
 
-  function scrollToBottom() {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    bubble.addEventListener('click', function(){
+      panel.classList.toggle('chat-widget-open');
+    });
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendMessage(msg) {
+      var div = document.createElement('div');
+      div.className = 'chat-widget-msg chat-widget-msg-' + (msg.senderType === 'admin' ? 'admin' : 'customer');
+      div.textContent = msg.body;
+      messagesEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    socket.on('chat:init', function(data){
+      messagesEl.innerHTML = '';
+      (data.messages || []).forEach(appendMessage);
+    });
+
+    // Covers both the sender's own echoed message (delivery confirmation)
+    // and, once Phase 3 exists, an admin's reply -- same event either way.
+    socket.on('chat:message', function(msg){
+      appendMessage(msg);
+    });
+
+    socket.on('chat:error', function(data){
+      clearTimeout(errorClearTimer);
+      errorEl.textContent = (data && data.error) || 'Something went wrong.';
+      errorClearTimer = setTimeout(function(){ errorEl.textContent = ''; }, 4000);
+    });
+
+    function sendMessage() {
+      var body = input.value;
+      if (!body || !body.trim()) return;
+      socket.emit('chat:message', { body: body });
+      input.value = '';
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') sendMessage();
+    });
   }
 
-  function appendMessage(msg) {
-    var div = document.createElement('div');
-    div.className = 'chat-widget-msg chat-widget-msg-' + (msg.senderType === 'admin' ? 'admin' : 'customer');
-    div.textContent = msg.body;
-    messagesEl.appendChild(div);
-    scrollToBottom();
-  }
-
-  socket.on('chat:init', function(data){
-    messagesEl.innerHTML = '';
-    (data.messages || []).forEach(appendMessage);
-  });
-
-  // Covers both the sender's own echoed message (delivery confirmation)
-  // and, once Phase 3 exists, an admin's reply -- same event either way.
-  socket.on('chat:message', function(msg){
-    appendMessage(msg);
-  });
-
-  socket.on('chat:error', function(data){
-    clearTimeout(errorClearTimer);
-    errorEl.textContent = (data && data.error) || 'Something went wrong.';
-    errorClearTimer = setTimeout(function(){ errorEl.textContent = ''; }, 4000);
-  });
-
-  function sendMessage() {
-    var body = input.value;
-    if (!body || !body.trim()) return;
-    socket.emit('chat:message', { body: body });
-    input.value = '';
-  }
-
-  sendBtn.addEventListener('click', sendMessage);
-  input.addEventListener('keydown', function(e){
-    if (e.key === 'Enter') sendMessage();
-  });
+  waitForAuthThenConnect();
 })();
 </script>
 
