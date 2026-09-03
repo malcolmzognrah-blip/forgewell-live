@@ -5149,15 +5149,12 @@ function initLiveChat() {
   // is what keeps that other conversation's list preview up to date
   // instead.
   chatSocket.on('chat:message', function(msg) {
-    // TEMPORARY debug logging -- not a permanent change, remove once the
-    // missing-notification investigation is resolved.
-    console.log('[chat debug] handler fired, raw msg:', msg);
-    console.log('[chat debug]', {
-      msgConversationId: msg && msg.conversationId,
-      chatActiveConversationId: chatActiveConversationId,
-      documentHidden: document.hidden,
-      liveChatTabActive: chatIsLiveChatTabActive(),
-    });
+    // TEMPORARY debug probe -- not a permanent change, remove once the
+    // missing-notification investigation is resolved. Stamps the browser
+    // tab title the instant ANY chat:message reaches this socket, before
+    // any conversation/focus gating below, so it's visible in the tab bar
+    // itself with no DevTools open.
+    document.title = 'HANDLER FIRED ' + Date.now();
     if (!msg) return;
     if (msg.conversationId !== chatActiveConversationId) {
       // Same "wrong conversation" condition as the early-return above,
