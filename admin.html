@@ -250,6 +250,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 
 .chat-toolbar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
 .chat-mute-toggle{ display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--gray); cursor:pointer; user-select:none; }
+.chat-debug-socket-id{ display:flex; align-items:center; margin-right:12px; font-size:0.8rem; color:var(--gray); }
 .chat-layout{ display:flex; gap:0; border:1.5px solid var(--line); border-radius:8px; overflow:hidden; height:600px; }
 .chat-conv-list{ width:300px; flex-shrink:0; border-right:1.5px solid var(--line); overflow-y:auto; background:var(--panel); }
 .chat-conv-empty{ padding:16px; color:var(--gray); font-size:0.82rem; }
@@ -1088,6 +1089,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
        'chat:conversations' pushes, not a GET this tab triggers on click. -->
   <div class="admin-view chat-panel" id="view-livechat">
     <div class="chat-toolbar">
+      <span id="chat-debug-socket-id" class="chat-debug-socket-id"></span>
       <label class="chat-mute-toggle">
         <input type="checkbox" id="chat-mute-toggle" /> Mute notification sound
       </label>
@@ -5126,6 +5128,16 @@ document.getElementById('chat-close-btn').addEventListener('click', function() {
 function initLiveChat() {
   if (chatSocket || typeof io === 'undefined') return;
   chatSocket = io('/admin');
+
+  // TEMPORARY debug probe -- not a permanent change, remove once the
+  // missing-notification investigation is resolved. Surfaces the live
+  // socket id directly in the Live Chat tab's own UI so it can be
+  // cross-checked against the socket ids lib/chat.js logs as being in a
+  // given conversation's room, without needing DevTools open on either
+  // end.
+  chatSocket.on('connect', function() {
+    document.getElementById('chat-debug-socket-id').textContent = 'Socket: ' + chatSocket.id;
+  });
 
   chatSocket.on('chat:conversations', function(list) {
     chatConversations = list || [];
