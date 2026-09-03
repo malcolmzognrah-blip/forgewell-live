@@ -672,5 +672,129 @@ updateCartIcon();
 
 </script>
 
+<!-- Chat widget, ported from index.html (this repo's ungated template
+     for the 17 non-home.html/shop.html customer-facing pages -- see that
+     page's own comment for the full reasoning). Same eager io() connection
+     with no gate-wait wrapper, since this page has no login gate the
+     widget needs to wait behind. -->
+<style>
+#chat-widget-bubble{ position:fixed; right:20px; bottom:20px; width:56px; height:56px; border-radius:50%; background:#1B4B8C; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.25); z-index:999; border:none; }
+#chat-widget-bubble:hover{ background:#123056; }
+#chat-widget-bubble svg{ width:26px; height:26px; stroke:#fff; }
+#chat-widget-panel{ position:fixed; right:20px; bottom:88px; width:320px; max-width:calc(100vw - 40px); height:420px; max-height:calc(100vh - 140px); background:#F7F8F6; border:1px solid #E4E4E0; border-radius:12px; box-shadow:0 4px 18px rgba(0,0,0,0.2); z-index:999; display:none; flex-direction:column; overflow:hidden; font-family:'Quicksand',-apple-system,sans-serif; }
+#chat-widget-panel.chat-widget-open{ display:flex; }
+.chat-widget-header{ background:#1B4B8C; color:#fff; padding:12px 14px; font-weight:700; font-size:0.95rem; flex-shrink:0; }
+#chat-widget-messages{ flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
+.chat-widget-msg{ max-width:80%; padding:8px 10px; border-radius:10px; font-size:0.85rem; line-height:1.4; word-wrap:break-word; }
+.chat-widget-msg-customer{ align-self:flex-end; background:#1B4B8C; color:#fff; border-bottom-right-radius:2px; }
+.chat-widget-msg-admin{ align-self:flex-start; background:#E4E4E0; color:#222; border-bottom-left-radius:2px; }
+#chat-widget-error{ min-height:16px; padding:0 12px; color:#c0392b; font-size:0.75rem; flex-shrink:0; }
+.chat-widget-input-row{ display:flex; gap:6px; padding:10px 12px; border-top:1px solid #E4E4E0; flex-shrink:0; }
+#chat-widget-input{ flex:1; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
+#chat-widget-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; }
+#chat-widget-send-btn:hover{ background:#123056; }
+</style>
+
+<button type="button" id="chat-widget-bubble" aria-label="Open chat">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+</button>
+
+<div id="chat-widget-panel">
+  <div class="chat-widget-header">Chat with us</div>
+  <div id="chat-widget-messages"></div>
+  <div id="chat-widget-error"></div>
+  <div class="chat-widget-input-row">
+    <input type="text" id="chat-widget-input" placeholder="Type a message..." autocomplete="off" />
+    <button type="button" id="chat-widget-send-btn">Send</button>
+  </div>
+</div>
+
+<!-- Version-pinned to match the server's exact installed socket.io
+     version -- same CDN tag/failure-handling convention as home.html
+     (see that page's own comment for the full reasoning): plain
+     synchronous <script src>, no async/defer, placed directly above the
+     script that needs it; a failed load just means no `io` global,
+     handled by the typeof guard in that script below. -->
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+
+<script>
+(function(){
+  // Failed CDN load (network block, ad blocker, CDN outage) means no `io`
+  // global -- bail out entirely so the rest of the page is completely
+  // unaffected. The bubble button stays in the DOM but inert with no
+  // listener attached.
+  if (typeof io === 'undefined') return;
+
+  var GUEST_ID_KEY = 'forgewell_chat_guest_id';
+  function getOrCreateGuestId() {
+    var id = localStorage.getItem(GUEST_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(GUEST_ID_KEY, id);
+    }
+    return id;
+  }
+
+  // Server-side identity resolution (lib/chat.js) ignores this guestId
+  // outright and uses the real forgewell_session cookie instead whenever
+  // one is present and valid -- sent unconditionally here since the
+  // client has no reliable way to know in advance which one will win.
+  var socket = io({ auth: { guestId: getOrCreateGuestId() } });
+
+  var panel = document.getElementById('chat-widget-panel');
+  var bubble = document.getElementById('chat-widget-bubble');
+  var messagesEl = document.getElementById('chat-widget-messages');
+  var errorEl = document.getElementById('chat-widget-error');
+  var input = document.getElementById('chat-widget-input');
+  var sendBtn = document.getElementById('chat-widget-send-btn');
+  var errorClearTimer = null;
+
+  bubble.addEventListener('click', function(){
+    panel.classList.toggle('chat-widget-open');
+  });
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function appendMessage(msg) {
+    var div = document.createElement('div');
+    div.className = 'chat-widget-msg chat-widget-msg-' + (msg.senderType === 'admin' ? 'admin' : 'customer');
+    div.textContent = msg.body;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  socket.on('chat:init', function(data){
+    messagesEl.innerHTML = '';
+    (data.messages || []).forEach(appendMessage);
+  });
+
+  // Covers both the sender's own echoed message (delivery confirmation)
+  // and, once Phase 3 exists, an admin's reply -- same event either way.
+  socket.on('chat:message', function(msg){
+    appendMessage(msg);
+  });
+
+  socket.on('chat:error', function(data){
+    clearTimeout(errorClearTimer);
+    errorEl.textContent = (data && data.error) || 'Something went wrong.';
+    errorClearTimer = setTimeout(function(){ errorEl.textContent = ''; }, 4000);
+  });
+
+  function sendMessage() {
+    var body = input.value;
+    if (!body || !body.trim()) return;
+    socket.emit('chat:message', { body: body });
+    input.value = '';
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') sendMessage();
+  });
+})();
+</script>
+
 </body>
 </html>
