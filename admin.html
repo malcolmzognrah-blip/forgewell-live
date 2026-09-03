@@ -247,6 +247,29 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .credit-history-table{ width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:6px; }
 .credit-history-table th{ text-align:left; padding:8px; background:#fff; border-bottom:2px solid var(--line); color:var(--navy-dark); }
 .credit-history-table td{ padding:8px; border-bottom:1px solid var(--line); }
+
+.chat-layout{ display:flex; gap:0; border:1.5px solid var(--line); border-radius:8px; overflow:hidden; height:600px; }
+.chat-conv-list{ width:300px; flex-shrink:0; border-right:1.5px solid var(--line); overflow-y:auto; background:var(--panel); }
+.chat-conv-empty{ padding:16px; color:var(--gray); font-size:0.82rem; }
+.chat-conv-item{ padding:12px 14px; border-bottom:1px solid var(--line); cursor:pointer; }
+.chat-conv-item:hover{ background:#fff; }
+.chat-conv-item.active{ background:#fff; border-left:3px solid var(--navy); }
+.chat-conv-name{ font-weight:700; font-size:0.85rem; color:var(--navy-dark); margin-bottom:3px; }
+.chat-conv-preview{ font-size:0.78rem; color:var(--gray); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+.chat-conv-time{ font-size:0.72rem; color:var(--gray); }
+.chat-detail{ flex:1; display:flex; flex-direction:column; min-width:0; }
+.chat-detail-empty{ margin:auto; color:var(--gray); font-size:0.85rem; }
+.chat-detail-active{ display:flex; flex-direction:column; height:100%; }
+.chat-detail-header{ display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1.5px solid var(--line); }
+.chat-detail-title{ font-weight:700; font-size:0.9rem; color:var(--navy-dark); }
+.chat-messages{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+.chat-msg{ max-width:70%; padding:8px 12px; border-radius:10px; font-size:0.85rem; line-height:1.4; word-wrap:break-word; }
+.chat-msg-admin{ align-self:flex-end; background:var(--navy); color:#fff; border-bottom-right-radius:2px; }
+.chat-msg-customer{ align-self:flex-start; background:var(--panel); color:#1a1a1a; border-bottom-left-radius:2px; }
+.chat-error{ min-height:16px; padding:0 16px; color:#c0392b; font-size:0.78rem; }
+.chat-input-row{ display:flex; gap:8px; padding:12px 16px; border-top:1.5px solid var(--line); }
+.chat-input-row input{ flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
+.chat-input-row button{ padding:9px 18px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
 </style>
 </head>
 <body>
@@ -302,6 +325,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-credit">Store Credit</button>
     <button type="button" class="admin-tab" id="tab-audit">Audit Log</button>
     <button type="button" class="admin-tab" id="tab-jobs">Jobs</button>
+    <button type="button" class="admin-tab" id="tab-livechat">Live Chat</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -1053,7 +1077,45 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="content-subtabs" id="jobs-subtabs"></div>
     <div id="jobs-subviews"></div>
   </div>
+
+  <!-- Phase 3: admin-side live chat inbox. Two-panel layout (conversation
+       list + active-conversation detail) mirroring view-inbox's
+       list/detail structure above, but driven by the /admin Socket.io
+       namespace (lib/chat.js, backend repo) rather than a fetch-per-
+       action REST pattern -- the conversation list arrives via
+       'chat:conversations' pushes, not a GET this tab triggers on click. -->
+  <div class="admin-view chat-panel" id="view-livechat">
+    <div class="chat-layout">
+      <div class="chat-conv-list" id="chat-conv-list">
+        <p class="chat-conv-empty">No open conversations.</p>
+      </div>
+      <div class="chat-detail">
+        <div class="chat-detail-empty" id="chat-detail-empty">Select a conversation to view messages.</div>
+        <div class="chat-detail-active" id="chat-detail-active" style="display:none;">
+          <div class="chat-detail-header">
+            <span class="chat-detail-title" id="chat-detail-title"></span>
+            <button type="button" class="coa-delete-btn" id="chat-close-btn">Close Conversation</button>
+          </div>
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-error" id="chat-error"></div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-admin-input" placeholder="Type a reply..." autocomplete="off" />
+            <button type="button" id="chat-admin-send-btn">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- Version-pinned to match the server's exact installed socket.io
+     version -- same CDN tag/placement/failure-handling convention as
+     forgewell-live's home.html (see that file's own comment for the
+     full reasoning): plain synchronous <script src>, no async/defer,
+     placed directly above the trailing script block below so `io` is
+     defined before it runs; a failed load just means no `io` global,
+     handled by the same typeof guard used there. -->
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 
 <script>
 function formatDate(iso) {
@@ -1110,6 +1172,12 @@ function showAdmin(username) {
     usernameEl.style.display = 'inline';
   }
   loadOrders();
+  // Connects the /admin chat socket only once a valid admin session is
+  // actually confirmed (this function's only two call sites are the
+  // existing-session check and a fresh login success) -- the socket
+  // relies entirely on forgewell_admin_session already being set by that
+  // point, so connecting any earlier would just fail auth for no reason.
+  initLiveChat();
 }
 
 // Populates the shared <datalist> the From/To time fields both point at
@@ -1423,10 +1491,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -1658,6 +1726,16 @@ function loadJobRuns() {
 function showJobsTab() {
   showAdminTab('tab-jobs', 'view-jobs');
   loadJobRuns();
+}
+
+// No data fetch here, unlike the other show*Tab() functions above --
+// the conversation list arrives continuously via the /admin socket's
+// 'chat:conversations' pushes (see initLiveChat() below), starting from
+// showAdmin() at login/session-check time, independent of whether this
+// tab is ever opened. Just re-renders whatever's already been received.
+function showLiveChatTab() {
+  showAdminTab('tab-livechat', 'view-livechat');
+  renderChatConversationList();
 }
 
 // ============================================================
@@ -3467,6 +3545,7 @@ document.getElementById('tab-coupons').addEventListener('click', showCouponsTab)
 document.getElementById('tab-credit').addEventListener('click', showCreditTab);
 document.getElementById('tab-audit').addEventListener('click', showAuditTab);
 document.getElementById('tab-jobs').addEventListener('click', showJobsTab);
+document.getElementById('tab-livechat').addEventListener('click', showLiveChatTab);
 
 document.getElementById('content-subtab-about-us').addEventListener('click', function() {
   showContentSubtab('content-subtab-about-us', 'content-subview-about-us');
@@ -4819,8 +4898,147 @@ document.getElementById('fulfillment-schedule-save-btn').addEventListener('click
 
 document.getElementById('admin-logout-link').addEventListener('click', function(e) {
   e.preventDefault();
-  fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }).then(showLogin);
+  fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }).then(function() {
+    // The /admin socket's own auth only ran once, at connect time (see
+    // initLiveChat() below) -- clearing the cookie here doesn't by
+    // itself drop an already-open socket, so without this explicit
+    // disconnect, "Log Out" would leave live chat still fully working
+    // in this tab until a page reload. Not something requireAdmin's own
+    // token_version revocation covers, since that only re-checks on the
+    // next HTTP request, and no more HTTP requests happen after logout.
+    if (chatSocket) { chatSocket.disconnect(); chatSocket = null; }
+    showLogin();
+  });
 });
+
+// ---- Live Chat (Phase 3) --------------------------------------------
+// Connects to the /admin Socket.io namespace (lib/chat.js, backend
+// repo). No guestId/auth payload needed here, unlike the customer
+// widget on home.html -- the connection relies entirely on
+// forgewell_admin_session already being sent automatically as a cookie,
+// verified server-side by that namespace's own io.use() middleware.
+var chatSocket = null;
+var chatConversations = [];
+var chatActiveConversationId = null;
+
+function chatShortId(id) {
+  return id ? id.slice(0, 8) : '';
+}
+
+// customerName/customerEmail are only non-null for a signed-in
+// customer's conversation (LEFT JOIN customers in the server's query) --
+// a guest conversation falls back to a short fragment of guestId rather
+// than the full uuid, since the full id is just visual noise here.
+function chatConvLabel(c) {
+  if (c.customerName) return c.customerName;
+  if (c.customerEmail) return c.customerEmail;
+  return 'Guest ' + chatShortId(c.guestId);
+}
+
+function chatFormatTime(iso) {
+  return iso ? new Date(iso).toLocaleString() : '';
+}
+
+// Re-renders from whatever's already in chatConversations -- called
+// both on every 'chat:conversations' push and from showLiveChatTab()
+// (switching tabs doesn't refetch, the socket already kept this current
+// in the background regardless of which tab was visible).
+function renderChatConversationList() {
+  var listEl = document.getElementById('chat-conv-list');
+  if (!chatConversations.length) {
+    listEl.innerHTML = '<p class="chat-conv-empty">No open conversations.</p>';
+    return;
+  }
+  listEl.innerHTML = chatConversations.map(function(c) {
+    var activeClass = c.conversationId === chatActiveConversationId ? ' active' : '';
+    var preview = c.lastMessageBody ? escapeForHtml(c.lastMessageBody) : '<em>No messages yet</em>';
+    return '<div class="chat-conv-item' + activeClass + '" data-conversation-id="' + escapeForAttr(c.conversationId) + '">' +
+      '<div class="chat-conv-name">' + escapeForHtml(chatConvLabel(c)) + '</div>' +
+      '<div class="chat-conv-preview">' + preview + '</div>' +
+      '<div class="chat-conv-time">' + chatFormatTime(c.lastMessageAt || c.createdAt) + '</div>' +
+    '</div>';
+  }).join('');
+
+  Array.prototype.forEach.call(listEl.querySelectorAll('.chat-conv-item'), function(el) {
+    el.addEventListener('click', function() {
+      chatJoinConversation(el.getAttribute('data-conversation-id'));
+    });
+  });
+}
+
+function chatAppendMessage(msg) {
+  var container = document.getElementById('chat-messages');
+  var div = document.createElement('div');
+  div.className = 'chat-msg ' + (msg.senderType === 'admin' ? 'chat-msg-admin' : 'chat-msg-customer');
+  div.textContent = msg.body;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function chatJoinConversation(conversationId) {
+  if (!chatSocket || !conversationId) return;
+  chatActiveConversationId = conversationId;
+  document.getElementById('chat-detail-empty').style.display = 'none';
+  document.getElementById('chat-detail-active').style.display = 'flex';
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('chat-error').textContent = '';
+  var conv = chatConversations.filter(function(c) { return c.conversationId === conversationId; })[0];
+  document.getElementById('chat-detail-title').textContent = conv ? chatConvLabel(conv) : conversationId;
+  renderChatConversationList(); // re-render so the .active highlight moves to this item
+  chatSocket.emit('chat:join', { conversationId: conversationId });
+}
+
+function chatSendMessage() {
+  var input = document.getElementById('chat-admin-input');
+  var body = input.value;
+  if (!body || !body.trim() || !chatActiveConversationId || !chatSocket) return;
+  chatSocket.emit('chat:message', { conversationId: chatActiveConversationId, body: body });
+  input.value = '';
+}
+
+document.getElementById('chat-admin-send-btn').addEventListener('click', chatSendMessage);
+document.getElementById('chat-admin-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') chatSendMessage();
+});
+document.getElementById('chat-close-btn').addEventListener('click', function() {
+  if (!chatActiveConversationId || !chatSocket) return;
+  chatSocket.emit('chat:close', { conversationId: chatActiveConversationId });
+});
+
+function initLiveChat() {
+  if (chatSocket || typeof io === 'undefined') return;
+  chatSocket = io('/admin');
+
+  chatSocket.on('chat:conversations', function(list) {
+    chatConversations = list || [];
+    renderChatConversationList();
+  });
+
+  chatSocket.on('chat:init', function(data) {
+    if (!data || data.conversationId !== chatActiveConversationId) return;
+    document.getElementById('chat-messages').innerHTML = '';
+    (data.messages || []).forEach(chatAppendMessage);
+  });
+
+  // Guarded by conversationId, unlike the customer widget's equivalent
+  // handler -- an admin socket can be joined to more than one
+  // conversation's room at once (chat:join never leaves a previous room),
+  // so a message for a conversation this admin viewed earlier but isn't
+  // looking at right now can legitimately arrive here. Rendering it into
+  // the currently-visible thread would silently attach the wrong
+  // conversation's message to whatever's on screen. The
+  // chat:conversations re-broadcast (server-side, on every new message)
+  // is what keeps that other conversation's list preview up to date
+  // instead.
+  chatSocket.on('chat:message', function(msg) {
+    if (!msg || msg.conversationId !== chatActiveConversationId) return;
+    chatAppendMessage(msg);
+  });
+
+  chatSocket.on('chat:error', function(data) {
+    document.getElementById('chat-error').textContent = (data && data.error) || 'Something went wrong.';
+  });
+}
 
 // Check for an existing admin session on load
 fetch('/api/admin/me', { credentials: 'include' })
