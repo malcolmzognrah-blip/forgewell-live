@@ -5149,14 +5149,6 @@ function initLiveChat() {
   // is what keeps that other conversation's list preview up to date
   // instead.
   chatSocket.on('chat:message', function(msg) {
-    // TEMPORARY debug logging -- not a permanent change, remove once the
-    // missing-notification investigation is resolved.
-    console.log('[chat debug]', {
-      msgConversationId: msg && msg.conversationId,
-      chatActiveConversationId: chatActiveConversationId,
-      documentHidden: document.hidden,
-      liveChatTabActive: chatIsLiveChatTabActive(),
-    });
     if (!msg) return;
     if (msg.conversationId !== chatActiveConversationId) {
       // Same "wrong conversation" condition as the early-return above,
