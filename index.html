@@ -549,6 +549,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   var supportOnline;
   var hasConversationHistory = false;
   var widgetMode = 'live';
+  var greetingShown = false;
 
   function setLiveMode() {
     widgetMode = 'live';
@@ -593,6 +594,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       setOfflineFormMode();
     } else {
       setLiveMode();
+      maybeShowGreeting();
     }
   }
 
@@ -646,6 +648,19 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     div.textContent = msg.body;
     messagesEl.appendChild(div);
     scrollToBottom();
+  }
+
+  // Purely client-side and ephemeral -- reuses appendMessage() for
+  // identical bubble styling, but this text never goes through the
+  // socket, is never persisted to chat_messages, and won't appear in an
+  // admin's own transcript of this conversation later. greetingShown
+  // makes this one-time per connection even though decideMode() (its
+  // only call site) can legitimately re-resolve to live mode more than
+  // once in a session (e.g. support toggling online/offline/online).
+  function maybeShowGreeting() {
+    if (greetingShown || hasConversationHistory) return;
+    greetingShown = true;
+    appendMessage({ senderType: 'admin', body: "Hi there! How can we help you today?" });
   }
 
   socket.on('chat:init', function(data){
