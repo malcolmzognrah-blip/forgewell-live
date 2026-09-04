@@ -1277,6 +1277,12 @@ reconcileCartWithServer();
 #chat-widget-offline-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
 #chat-widget-offline-send-btn:hover{ background:#123056; }
 #chat-widget-offline-confirmation{ display:none; font-size:0.85rem; color:#444; text-align:center; margin-top:20px; }
+#chat-widget-guestinfo-form{ display:none; flex-direction:column; gap:8px; padding:12px; border-top:1px solid #E4E4E0; flex-shrink:0; }
+.chat-widget-guestinfo-note{ margin:0 0 4px; font-size:0.82rem; color:#444; line-height:1.4; }
+#chat-widget-guestinfo-name, #chat-widget-guestinfo-email{ width:100%; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
+#chat-widget-guestinfo-error{ min-height:16px; font-size:0.75rem; color:#c0392b; }
+#chat-widget-guestinfo-submit-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
+#chat-widget-guestinfo-submit-btn:hover{ background:#123056; }
 </style>
 
 <button type="button" id="chat-widget-bubble" aria-label="Open chat">
@@ -1293,7 +1299,14 @@ reconcileCartWithServer();
     <div id="chat-widget-messages"></div>
     <div id="chat-widget-error"></div>
     <div id="chat-widget-typing-indicator">Support is typing...</div>
-    <div class="chat-widget-input-row">
+    <div id="chat-widget-guestinfo-form">
+      <p class="chat-widget-guestinfo-note">Before we continue, what's your name and email?</p>
+      <input type="text" id="chat-widget-guestinfo-name" placeholder="Your name" autocomplete="off" />
+      <input type="email" id="chat-widget-guestinfo-email" placeholder="Your email" autocomplete="off" />
+      <div id="chat-widget-guestinfo-error"></div>
+      <button type="button" id="chat-widget-guestinfo-submit-btn">Continue</button>
+    </div>
+    <div class="chat-widget-input-row" id="chat-widget-input-row">
       <input type="text" id="chat-widget-input" placeholder="Type a message..." autocomplete="off" />
       <button type="button" id="chat-widget-send-btn">Send</button>
     </div>
@@ -1388,6 +1401,13 @@ reconcileCartWithServer();
     var offlineEmailInput = document.getElementById('chat-widget-offline-email');
     var offlineSendBtn = document.getElementById('chat-widget-offline-send-btn');
 
+    var guestinfoFormEl = document.getElementById('chat-widget-guestinfo-form');
+    var guestinfoNameInput = document.getElementById('chat-widget-guestinfo-name');
+    var guestinfoEmailInput = document.getElementById('chat-widget-guestinfo-email');
+    var guestinfoErrorEl = document.getElementById('chat-widget-guestinfo-error');
+    var guestinfoSubmitBtn = document.getElementById('chat-widget-guestinfo-submit-btn');
+    var inputRowEl = document.getElementById('chat-widget-input-row');
+
     // Undefined until the first chat:supportStatus arrives (sent right
     // after chat:init on every connection -- see lib/chat.js) -- mode
     // isn't decided until that's been heard at least once, so the
@@ -1396,11 +1416,30 @@ reconcileCartWithServer();
     var hasConversationHistory = false;
     var widgetMode = 'live';
     var greetingShown = false;
+    // Set from chat:init's own needsGuestInfo field (Stage 1) -- true
+    // only for a guest identity missing guest_name/guest_email on the
+    // server, per lib/chat.js's connection handler. Checked first in
+    // decideMode() below, ahead of the pre-existing live/offline
+    // branching, so a brand-new or still-unidentified guest sees this
+    // step before anything else regardless of support's online status.
+    var needsGuestInfo = false;
+    // True only in the narrow window between emitting chat:guestInfo and
+    // either a chat:error rejecting it or the next chat:init -- lets the
+    // chat:error listener below tell "this error is about the guest-info
+    // submission" apart from any other reason the server might emit
+    // chat:error, since the payload itself carries no identifying field.
+    // Safe to key off this alone: the message thread/input row are hidden
+    // for the whole window this is true, so nothing else could be
+    // triggering a chat:error meanwhile.
+    var guestInfoAwaitingResult = false;
 
     function setLiveMode() {
       widgetMode = 'live';
       liveEl.style.display = 'flex';
       offlineEl.style.display = 'none';
+      guestinfoFormEl.style.display = 'none';
+      messagesEl.style.display = 'flex';
+      inputRowEl.style.display = 'flex';
       closeBtn.style.display = 'inline-block';
     }
 
@@ -1410,6 +1449,7 @@ reconcileCartWithServer();
       offlineEl.style.display = 'flex';
       offlineFormEl.style.display = 'flex';
       offlineConfirmationEl.style.display = 'none';
+      guestinfoFormEl.style.display = 'none';
       closeBtn.style.display = 'none';
     }
 
@@ -1419,6 +1459,25 @@ reconcileCartWithServer();
       offlineEl.style.display = 'flex';
       offlineFormEl.style.display = 'none';
       offlineConfirmationEl.style.display = 'block';
+      guestinfoFormEl.style.display = 'none';
+      closeBtn.style.display = 'none';
+    }
+
+    // Hides the thread and input row entirely rather than layering the
+    // form alongside a visible greeting -- the panel is only 420px tall,
+    // and a greeting bubble plus a two-field form plus the input row
+    // don't all fit without feeling cramped. maybeShowGreeting() (called
+    // from decideMode()'s live branch, unchanged below) still runs the
+    // moment this step clears, so the greeting is the first thing the
+    // customer sees once the thread reappears -- shown right after the
+    // form rather than competing with it.
+    function setGuestInfoMode() {
+      widgetMode = 'guestInfo';
+      liveEl.style.display = 'flex';
+      offlineEl.style.display = 'none';
+      messagesEl.style.display = 'none';
+      inputRowEl.style.display = 'none';
+      guestinfoFormEl.style.display = 'flex';
       closeBtn.style.display = 'none';
     }
 
@@ -1431,6 +1490,7 @@ reconcileCartWithServer();
     // screen stays up (not the live thread) until support is back online,
     // regardless of hasConversationHistory now being true from that send.
     function decideMode() {
+      if (needsGuestInfo) { setGuestInfoMode(); return; }
       if (supportOnline === undefined) return;
       if (widgetMode === 'offlineConfirmation') {
         if (supportOnline) setLiveMode();
@@ -1514,6 +1574,9 @@ reconcileCartWithServer();
       messagesEl.innerHTML = '';
       (data.messages || []).forEach(appendMessage);
       hasConversationHistory = (data.messages || []).length > 0;
+      needsGuestInfo = !!(data && data.needsGuestInfo);
+      guestInfoAwaitingResult = false;
+      guestinfoErrorEl.textContent = '';
       decideMode();
     });
 
@@ -1552,10 +1615,50 @@ reconcileCartWithServer();
     });
 
     socket.on('chat:error', function(data){
+      if (guestInfoAwaitingResult) {
+        // Server is the real authority on "required", not just the
+        // client-side blank check below -- roll the optimistic reveal in
+        // submitGuestInfo() back rather than pretending it succeeded, and
+        // show the rejection inline on the form itself (not the generic
+        // message-thread error box, since the customer never got as far
+        // as the thread).
+        guestInfoAwaitingResult = false;
+        needsGuestInfo = true;
+        guestinfoErrorEl.textContent = (data && data.error) || 'Something went wrong. Please try again.';
+        decideMode();
+        return;
+      }
       clearTimeout(errorClearTimer);
       errorEl.textContent = (data && data.error) || 'Something went wrong.';
       errorClearTimer = setTimeout(function(){ errorEl.textContent = ''; }, 4000);
     });
+
+    function submitGuestInfo() {
+      var name = guestinfoNameInput.value.trim();
+      var email = guestinfoEmailInput.value.trim();
+      // Basic non-empty check only -- no email-format validation here,
+      // since the server (lib/chat.js's chat:guestInfo handler) already
+      // rejects a blank name or email and is the real authority on
+      // "required" either way.
+      if (!name || !email) {
+        guestinfoErrorEl.textContent = 'Please enter both your name and email.';
+        return;
+      }
+      guestinfoErrorEl.textContent = '';
+      socket.emit('chat:guestInfo', { name: name, email: email });
+      // Optimistic: both fields just passed the same non-empty check the
+      // server enforces, so assume success and reveal the thread
+      // immediately rather than waiting on a round trip. The chat:error
+      // handler above rolls this back in the (should-never-happen) case
+      // the server disagrees.
+      guestInfoAwaitingResult = true;
+      needsGuestInfo = false;
+      decideMode();
+    }
+
+    guestinfoSubmitBtn.addEventListener('click', submitGuestInfo);
+    guestinfoNameInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') submitGuestInfo(); });
+    guestinfoEmailInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') submitGuestInfo(); });
 
     function sendMessage() {
       var body = input.value;
