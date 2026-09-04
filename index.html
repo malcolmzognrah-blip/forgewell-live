@@ -448,6 +448,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 .chat-widget-msg-customer{ align-self:flex-end; background:#1B4B8C; color:#fff; border-bottom-right-radius:2px; }
 .chat-widget-msg-admin{ align-self:flex-start; background:#E4E4E0; color:#222; border-bottom-left-radius:2px; }
 #chat-widget-error{ min-height:16px; padding:0 12px; color:#c0392b; font-size:0.75rem; flex-shrink:0; }
+#chat-widget-typing-indicator{ display:none; padding:0 12px 6px; font-style:italic; color:#888; font-size:0.75rem; flex-shrink:0; }
 .chat-widget-input-row{ display:flex; gap:6px; padding:10px 12px; border-top:1px solid #E4E4E0; flex-shrink:0; }
 #chat-widget-input{ flex:1; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
 #chat-widget-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; }
@@ -476,6 +477,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     <div id="chat-widget-closed-banner">This conversation has ended.</div>
     <div id="chat-widget-messages"></div>
     <div id="chat-widget-error"></div>
+    <div id="chat-widget-typing-indicator">Support is typing...</div>
     <div class="chat-widget-input-row">
       <input type="text" id="chat-widget-input" placeholder="Type a message..." autocomplete="off" />
       <button type="button" id="chat-widget-send-btn">Send</button>
@@ -533,6 +535,9 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   var errorClearTimer = null;
   var closeBtn = document.getElementById('chat-widget-close-btn');
   var closedBannerEl = document.getElementById('chat-widget-closed-banner');
+  var typingIndicatorEl = document.getElementById('chat-widget-typing-indicator');
+  var typingHideTimer = null;
+  var lastTypingEmitAt = 0;
 
   var liveEl = document.getElementById('chat-widget-live');
   var offlineEl = document.getElementById('chat-widget-offline');
@@ -686,6 +691,16 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     closedBannerEl.style.display = 'none';
   });
 
+  // Resets the auto-hide timer on every event rather than firing one
+  // fixed 3s timeout from the first receipt -- a support agent typing
+  // continuously should keep the indicator up the whole time, not have
+  // it disappear mid-sentence at the 3s mark.
+  socket.on('chat:typing', function(){
+    typingIndicatorEl.style.display = 'block';
+    clearTimeout(typingHideTimer);
+    typingHideTimer = setTimeout(function(){ typingIndicatorEl.style.display = 'none'; }, 3000);
+  });
+
   // Covers both the sender's own echoed message (delivery confirmation)
   // and, once Phase 3 exists, an admin's reply -- same event either way.
   socket.on('chat:message', function(msg){
@@ -709,6 +724,19 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   sendBtn.addEventListener('click', sendMessage);
   input.addEventListener('keydown', function(e){
     if (e.key === 'Enter') sendMessage();
+  });
+
+  // No live thread to type into during offline mode (see decideMode()
+  // above) -- input itself is hidden then, but this guard is explicit
+  // rather than relying on that alone. Throttled independently of the
+  // message rate limit above: this is a cheap relay, not a DB write, but
+  // still shouldn't fire on every single keystroke.
+  input.addEventListener('keydown', function(){
+    if (widgetMode !== 'live') return;
+    var now = Date.now();
+    if (now - lastTypingEmitAt < 2000) return;
+    lastTypingEmitAt = now;
+    socket.emit('chat:typing');
   });
 })();
 </script>

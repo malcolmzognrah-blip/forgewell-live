@@ -271,6 +271,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .chat-msg-admin{ align-self:flex-end; background:var(--navy); color:#fff; border-bottom-right-radius:2px; }
 .chat-msg-customer{ align-self:flex-start; background:var(--panel); color:#1a1a1a; border-bottom-left-radius:2px; }
 .chat-error{ min-height:16px; padding:0 16px; color:#c0392b; font-size:0.78rem; }
+.chat-typing-indicator{ display:none; padding:0 16px 8px; font-style:italic; color:var(--gray); font-size:0.78rem; }
 .chat-input-row{ display:flex; gap:8px; padding:12px 16px; border-top:1.5px solid var(--line); }
 .chat-input-row input{ flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
 .chat-input-row button{ padding:9px 18px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
@@ -1108,6 +1109,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-error" id="chat-error"></div>
+          <div class="chat-typing-indicator" id="chat-typing-indicator">Customer is typing...</div>
           <div class="chat-input-row">
             <input type="text" id="chat-admin-input" placeholder="Type a reply..." autocomplete="off" />
             <button type="button" id="chat-admin-send-btn">Send</button>
@@ -4944,6 +4946,13 @@ var chatActiveConversationId = null;
 // default: presence is something an admin explicitly opts into each
 // session, not something that silently carries over.
 var chatPresenceOnline = false;
+// Same throttle/auto-hide pattern as the customer widget's own
+// chat:typing handling (index.html/home.html) -- kept as plain module
+// vars rather than fetching/caching a DOM ref up here, matching this
+// file's existing convention of fetching chat elements fresh inside the
+// handler that needs them (see chatUpdatePresenceButton() above).
+var chatTypingHideTimer = null;
+var chatLastTypingEmitAt = 0;
 
 // ---- Background notification cues (tab title badge, browser
 // notification, sound) -- for a new message in a conversation the admin
@@ -5120,6 +5129,13 @@ document.getElementById('chat-admin-send-btn').addEventListener('click', chatSen
 document.getElementById('chat-admin-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') chatSendMessage();
 });
+document.getElementById('chat-admin-input').addEventListener('keydown', function() {
+  if (!chatActiveConversationId || !chatSocket) return;
+  var now = Date.now();
+  if (now - chatLastTypingEmitAt < 2000) return;
+  chatLastTypingEmitAt = now;
+  chatSocket.emit('chat:typing', { conversationId: chatActiveConversationId });
+});
 document.getElementById('chat-close-btn').addEventListener('click', function() {
   if (!chatActiveConversationId || !chatSocket) return;
   chatSocket.emit('chat:close', { conversationId: chatActiveConversationId });
@@ -5204,6 +5220,17 @@ function initLiveChat() {
       return;
     }
     chatAppendMessage(msg);
+  });
+
+  // Scoped to the currently open conversation only -- same
+  // conversationId guard as chat:message above, since an admin socket
+  // can be joined to more than one conversation's room at once.
+  chatSocket.on('chat:typing', function(data) {
+    if (!data || data.conversationId !== chatActiveConversationId) return;
+    var indicatorEl = document.getElementById('chat-typing-indicator');
+    indicatorEl.style.display = 'block';
+    clearTimeout(chatTypingHideTimer);
+    chatTypingHideTimer = setTimeout(function() { indicatorEl.style.display = 'none'; }, 3000);
   });
 
   chatSocket.on('chat:error', function(data) {
