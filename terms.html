@@ -770,6 +770,15 @@ updateCartIcon();
 #chat-widget-input{ flex:1; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
 #chat-widget-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; }
 #chat-widget-send-btn:hover{ background:#123056; }
+#chat-widget-live{ display:flex; flex-direction:column; flex:1; min-height:0; }
+#chat-widget-offline{ display:none; flex:1; flex-direction:column; padding:12px; overflow-y:auto; min-height:0; }
+#chat-widget-offline-form{ display:flex; flex-direction:column; gap:8px; }
+.chat-widget-offline-note{ margin:0 0 4px; font-size:0.82rem; color:#444; line-height:1.4; }
+#chat-widget-offline-message{ width:100%; min-height:80px; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; resize:vertical; }
+#chat-widget-offline-email{ width:100%; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
+#chat-widget-offline-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
+#chat-widget-offline-send-btn:hover{ background:#123056; }
+#chat-widget-offline-confirmation{ display:none; font-size:0.85rem; color:#444; text-align:center; margin-top:20px; }
 </style>
 
 <button type="button" id="chat-widget-bubble" aria-label="Open chat">
@@ -778,11 +787,22 @@ updateCartIcon();
 
 <div id="chat-widget-panel">
   <div class="chat-widget-header">Chat with us</div>
-  <div id="chat-widget-messages"></div>
-  <div id="chat-widget-error"></div>
-  <div class="chat-widget-input-row">
-    <input type="text" id="chat-widget-input" placeholder="Type a message..." autocomplete="off" />
-    <button type="button" id="chat-widget-send-btn">Send</button>
+  <div id="chat-widget-live">
+    <div id="chat-widget-messages"></div>
+    <div id="chat-widget-error"></div>
+    <div class="chat-widget-input-row">
+      <input type="text" id="chat-widget-input" placeholder="Type a message..." autocomplete="off" />
+      <button type="button" id="chat-widget-send-btn">Send</button>
+    </div>
+  </div>
+  <div id="chat-widget-offline">
+    <div id="chat-widget-offline-form">
+      <p class="chat-widget-offline-note">We're offline right now — leave a message and we'll get back to you.</p>
+      <textarea id="chat-widget-offline-message" placeholder="Type your message..."></textarea>
+      <input type="email" id="chat-widget-offline-email" placeholder="Your email (optional)" autocomplete="off" />
+      <button type="button" id="chat-widget-offline-send-btn">Send</button>
+    </div>
+    <div id="chat-widget-offline-confirmation">Thanks! We'll be in touch soon.</div>
   </div>
 </div>
 
@@ -826,6 +846,92 @@ updateCartIcon();
   var sendBtn = document.getElementById('chat-widget-send-btn');
   var errorClearTimer = null;
 
+  var liveEl = document.getElementById('chat-widget-live');
+  var offlineEl = document.getElementById('chat-widget-offline');
+  var offlineFormEl = document.getElementById('chat-widget-offline-form');
+  var offlineConfirmationEl = document.getElementById('chat-widget-offline-confirmation');
+  var offlineMessageInput = document.getElementById('chat-widget-offline-message');
+  var offlineEmailInput = document.getElementById('chat-widget-offline-email');
+  var offlineSendBtn = document.getElementById('chat-widget-offline-send-btn');
+
+  // Undefined until the first chat:supportStatus arrives (sent right
+  // after chat:init on every connection -- see lib/chat.js) -- mode isn't
+  // decided until that's been heard at least once, so the opening moment
+  // doesn't flash the wrong mode before it's actually known.
+  var supportOnline;
+  var hasConversationHistory = false;
+  var widgetMode = 'live';
+
+  function setLiveMode() {
+    widgetMode = 'live';
+    liveEl.style.display = 'flex';
+    offlineEl.style.display = 'none';
+  }
+
+  function setOfflineFormMode() {
+    widgetMode = 'offlineForm';
+    liveEl.style.display = 'none';
+    offlineEl.style.display = 'flex';
+    offlineFormEl.style.display = 'flex';
+    offlineConfirmationEl.style.display = 'none';
+  }
+
+  function setOfflineConfirmationMode() {
+    widgetMode = 'offlineConfirmation';
+    liveEl.style.display = 'none';
+    offlineEl.style.display = 'flex';
+    offlineFormEl.style.display = 'none';
+    offlineConfirmationEl.style.display = 'block';
+  }
+
+  // Re-run on every chat:init (history) and chat:supportStatus (online
+  // flag) change. The offline "leave a message" form is specifically for
+  // a customer with no conversation history yet -- one who already has a
+  // real back-and-forth keeps seeing that thread even if support just
+  // went offline. Deliberately NOT called from the offline send handler
+  // below: once that form's been submitted, the confirmation screen
+  // stays up (not the live thread) until support is back online,
+  // regardless of hasConversationHistory now being true from that send.
+  function decideMode() {
+    if (supportOnline === undefined) return;
+    if (widgetMode === 'offlineConfirmation') {
+      if (supportOnline) setLiveMode();
+      return;
+    }
+    if (!supportOnline && !hasConversationHistory) {
+      setOfflineFormMode();
+    } else {
+      setLiveMode();
+    }
+  }
+
+  function sendOfflineMessage() {
+    var body = offlineMessageInput.value;
+    if (!body || !body.trim()) return;
+    var email = offlineEmailInput.value && offlineEmailInput.value.trim();
+    // chat:message only ever carries a body -- lib/chat.js's customer-side
+    // handler has no email field to send it as, so a provided email is
+    // folded into the message text itself rather than silently dropped.
+    // Still just one plain chat:message emit, same event/shape as the
+    // live send path below.
+    socket.emit('chat:message', { body: email ? ('Email: ' + email + '\n\n' + body) : body });
+    hasConversationHistory = true;
+    offlineMessageInput.value = '';
+    offlineEmailInput.value = '';
+    setOfflineConfirmationMode();
+  }
+
+  offlineSendBtn.addEventListener('click', sendOfflineMessage);
+  offlineMessageInput.addEventListener('keydown', function(e){
+    // Enter submits, matching the live input's Enter-to-send -- Shift+Enter
+    // allows a newline since this is a multi-line textarea, unlike the
+    // live path's single-line <input> where Enter always means send.
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendOfflineMessage();
+    }
+  });
+
   bubble.addEventListener('click', function(){
     panel.classList.toggle('chat-widget-open');
   });
@@ -845,11 +951,19 @@ updateCartIcon();
   socket.on('chat:init', function(data){
     messagesEl.innerHTML = '';
     (data.messages || []).forEach(appendMessage);
+    hasConversationHistory = (data.messages || []).length > 0;
+    decideMode();
+  });
+
+  socket.on('chat:supportStatus', function(data){
+    supportOnline = !!(data && data.online);
+    decideMode();
   });
 
   // Covers both the sender's own echoed message (delivery confirmation)
   // and, once Phase 3 exists, an admin's reply -- same event either way.
   socket.on('chat:message', function(msg){
+    hasConversationHistory = true;
     appendMessage(msg);
   });
 
