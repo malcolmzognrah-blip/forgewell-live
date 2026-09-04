@@ -1278,7 +1278,6 @@ reconcileCartWithServer();
 #chat-widget-offline-send-btn:hover{ background:#123056; }
 #chat-widget-offline-confirmation{ display:none; font-size:0.85rem; color:#444; text-align:center; margin-top:20px; }
 #chat-widget-guestinfo-form{ display:none; flex-direction:column; gap:8px; padding:12px; border-top:1px solid #E4E4E0; flex-shrink:0; }
-.chat-widget-guestinfo-note{ margin:0 0 4px; font-size:0.82rem; color:#444; line-height:1.4; }
 #chat-widget-guestinfo-name, #chat-widget-guestinfo-email{ width:100%; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
 #chat-widget-guestinfo-error{ min-height:16px; font-size:0.75rem; color:#c0392b; }
 #chat-widget-guestinfo-submit-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
@@ -1300,7 +1299,6 @@ reconcileCartWithServer();
     <div id="chat-widget-error"></div>
     <div id="chat-widget-typing-indicator">Support is typing...</div>
     <div id="chat-widget-guestinfo-form">
-      <p class="chat-widget-guestinfo-note">Before we continue, what's your name and email?</p>
       <input type="text" id="chat-widget-guestinfo-name" placeholder="Your name" autocomplete="off" />
       <input type="email" id="chat-widget-guestinfo-email" placeholder="Your email" autocomplete="off" />
       <div id="chat-widget-guestinfo-error"></div>
@@ -1428,10 +1426,16 @@ reconcileCartWithServer();
     // chat:error listener below tell "this error is about the guest-info
     // submission" apart from any other reason the server might emit
     // chat:error, since the payload itself carries no identifying field.
-    // Safe to key off this alone: the message thread/input row are hidden
-    // for the whole window this is true, so nothing else could be
-    // triggering a chat:error meanwhile.
+    // Safe to key off this alone: the input row is hidden for the whole
+    // window this is true, so nothing else could be triggering a
+    // chat:error meanwhile.
     var guestInfoAwaitingResult = false;
+    // Guards the welcome bubble setGuestInfoMode() appends below the same
+    // way greetingShown guards maybeShowGreeting() -- one-time per
+    // connection, not re-fired every time decideMode() re-resolves into
+    // this same step (e.g. on a chat:supportStatus flip while the form is
+    // still up).
+    var guestInfoGreetingShown = false;
 
     function setLiveMode() {
       widgetMode = 'live';
@@ -1463,22 +1467,25 @@ reconcileCartWithServer();
       closeBtn.style.display = 'none';
     }
 
-    // Hides the thread and input row entirely rather than layering the
-    // form alongside a visible greeting -- the panel is only 420px tall,
-    // and a greeting bubble plus a two-field form plus the input row
-    // don't all fit without feeling cramped. maybeShowGreeting() (called
-    // from decideMode()'s live branch, unchanged below) still runs the
-    // moment this step clears, so the greeting is the first thing the
-    // customer sees once the thread reappears -- shown right after the
-    // form rather than competing with it.
+    // Thread stays visible (unlike the offline modes, which hide liveEl
+    // entirely) so the welcome bubble below reads as a real message rather
+    // than a note floating above a blank panel -- only the input row is
+    // hidden, since there's nothing to send into yet.
     function setGuestInfoMode() {
       widgetMode = 'guestInfo';
       liveEl.style.display = 'flex';
       offlineEl.style.display = 'none';
-      messagesEl.style.display = 'none';
       inputRowEl.style.display = 'none';
       guestinfoFormEl.style.display = 'flex';
       closeBtn.style.display = 'none';
+      // Folds B3's greeting into this same bubble rather than showing a
+      // separate one -- see the transition back to live mode in
+      // submitGuestInfo() below, which sets greetingShown = true so
+      // maybeShowGreeting() doesn't also fire once the thread reopens.
+      if (!guestInfoGreetingShown) {
+        guestInfoGreetingShown = true;
+        appendMessage({ senderType: 'admin', body: "Hi! Welcome to Forgewell Support. To get started, please enter your email address and name so we can assist you better." });
+      }
     }
 
     // Re-run on every chat:init (history) and chat:supportStatus (online
@@ -1624,6 +1631,12 @@ reconcileCartWithServer();
         // as the thread).
         guestInfoAwaitingResult = false;
         needsGuestInfo = true;
+        // Undoes the greetingShown=true set optimistically in
+        // submitGuestInfo() below -- the guest never actually got
+        // welcomed (this step is reopening, not completing), so the live
+        // thread should still be free to greet them for real once it
+        // does complete.
+        greetingShown = false;
         guestinfoErrorEl.textContent = (data && data.error) || 'Something went wrong. Please try again.';
         decideMode();
         return;
@@ -1653,6 +1666,11 @@ reconcileCartWithServer();
       // the server disagrees.
       guestInfoAwaitingResult = true;
       needsGuestInfo = false;
+      // The combined welcome+instructions bubble already covered the
+      // greeting -- without this, maybeShowGreeting() would fire a
+      // second, separate "Hi there! How can we help you today?" the
+      // moment decideMode() below resolves back into live mode.
+      greetingShown = true;
       decideMode();
     }
 
