@@ -1254,7 +1254,10 @@ reconcileCartWithServer();
 #chat-widget-bubble svg{ width:26px; height:26px; stroke:#fff; }
 #chat-widget-panel{ position:fixed; right:20px; bottom:88px; width:320px; max-width:calc(100vw - 40px); height:420px; max-height:calc(100vh - 140px); background:#F7F8F6; border:1px solid #E4E4E0; border-radius:12px; box-shadow:0 4px 18px rgba(0,0,0,0.2); z-index:999; display:none; flex-direction:column; overflow:hidden; font-family:'Quicksand',-apple-system,sans-serif; }
 #chat-widget-panel.chat-widget-open{ display:flex; }
-.chat-widget-header{ background:#1B4B8C; color:#fff; padding:12px 14px; font-weight:700; font-size:0.95rem; flex-shrink:0; }
+.chat-widget-header{ background:#1B4B8C; color:#fff; padding:12px 14px; font-weight:700; font-size:0.95rem; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#chat-widget-close-btn{ background:none; border:1px solid rgba(255,255,255,0.5); color:#fff; border-radius:6px; padding:4px 10px; font-family:'Quicksand',sans-serif; font-size:0.72rem; font-weight:600; cursor:pointer; flex-shrink:0; }
+#chat-widget-close-btn:hover{ background:rgba(255,255,255,0.15); }
+#chat-widget-closed-banner{ display:none; padding:8px 12px; background:#E4E4E0; color:#444; font-size:0.78rem; text-align:center; flex-shrink:0; }
 #chat-widget-messages{ flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
 .chat-widget-msg{ max-width:80%; padding:8px 10px; border-radius:10px; font-size:0.85rem; line-height:1.4; word-wrap:break-word; }
 .chat-widget-msg-customer{ align-self:flex-end; background:#1B4B8C; color:#fff; border-bottom-right-radius:2px; }
@@ -1280,8 +1283,12 @@ reconcileCartWithServer();
 </button>
 
 <div id="chat-widget-panel">
-  <div class="chat-widget-header">Chat with us</div>
+  <div class="chat-widget-header">
+    <span>Chat with us</span>
+    <button type="button" id="chat-widget-close-btn">Close</button>
+  </div>
   <div id="chat-widget-live">
+    <div id="chat-widget-closed-banner">This conversation has ended.</div>
     <div id="chat-widget-messages"></div>
     <div id="chat-widget-error"></div>
     <div class="chat-widget-input-row">
@@ -1365,6 +1372,8 @@ reconcileCartWithServer();
     var input = document.getElementById('chat-widget-input');
     var sendBtn = document.getElementById('chat-widget-send-btn');
     var errorClearTimer = null;
+    var closeBtn = document.getElementById('chat-widget-close-btn');
+    var closedBannerEl = document.getElementById('chat-widget-closed-banner');
 
     var liveEl = document.getElementById('chat-widget-live');
     var offlineEl = document.getElementById('chat-widget-offline');
@@ -1386,6 +1395,7 @@ reconcileCartWithServer();
       widgetMode = 'live';
       liveEl.style.display = 'flex';
       offlineEl.style.display = 'none';
+      closeBtn.style.display = 'inline-block';
     }
 
     function setOfflineFormMode() {
@@ -1394,6 +1404,7 @@ reconcileCartWithServer();
       offlineEl.style.display = 'flex';
       offlineFormEl.style.display = 'flex';
       offlineConfirmationEl.style.display = 'none';
+      closeBtn.style.display = 'none';
     }
 
     function setOfflineConfirmationMode() {
@@ -1402,6 +1413,7 @@ reconcileCartWithServer();
       offlineEl.style.display = 'flex';
       offlineFormEl.style.display = 'none';
       offlineConfirmationEl.style.display = 'block';
+      closeBtn.style.display = 'none';
     }
 
     // Re-run on every chat:init (history) and chat:supportStatus (online
@@ -1457,6 +1469,15 @@ reconcileCartWithServer();
       panel.classList.toggle('chat-widget-open');
     });
 
+    closeBtn.addEventListener('click', function(){
+      socket.emit('chat:customerClose');
+      // Shows the banner immediately rather than waiting on the
+      // chat:closed round trip -- same reasoning as the admin presence
+      // toggle: this is the customer's own action, nothing a round trip
+      // would protect against here.
+      closedBannerEl.style.display = 'block';
+    });
+
     function scrollToBottom() {
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -1479,6 +1500,18 @@ reconcileCartWithServer();
     socket.on('chat:supportStatus', function(data){
       supportOnline = !!(data && data.online);
       decideMode();
+    });
+
+    // Stays within the live view (no mode switch, unlike offline-mode
+    // above) -- the thread and input/send stay fully usable underneath
+    // the banner, since sending a new message is exactly how the
+    // conversation reopens.
+    socket.on('chat:closed', function(){
+      closedBannerEl.style.display = 'block';
+    });
+
+    socket.on('chat:reopened', function(){
+      closedBannerEl.style.display = 'none';
     });
 
     // Covers both the sender's own echoed message (delivery confirmation)
