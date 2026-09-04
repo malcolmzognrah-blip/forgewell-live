@@ -248,7 +248,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .credit-history-table th{ text-align:left; padding:8px; background:#fff; border-bottom:2px solid var(--line); color:var(--navy-dark); }
 .credit-history-table td{ padding:8px; border-bottom:1px solid var(--line); }
 
-.chat-toolbar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
+.chat-toolbar{ display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-bottom:10px; }
+.chat-presence-toggle{ padding:6px 14px; background:#fff; color:var(--gray); border:1px solid var(--line); border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer; }
+.chat-presence-toggle.online{ background:var(--green); border-color:var(--green); color:#fff; }
 .chat-mute-toggle{ display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--gray); cursor:pointer; user-select:none; }
 .chat-layout{ display:flex; gap:0; border:1.5px solid var(--line); border-radius:8px; overflow:hidden; height:600px; }
 .chat-conv-list{ width:300px; flex-shrink:0; border-right:1.5px solid var(--line); overflow-y:auto; background:var(--panel); }
@@ -1088,6 +1090,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
        'chat:conversations' pushes, not a GET this tab triggers on click. -->
   <div class="admin-view chat-panel" id="view-livechat">
     <div class="chat-toolbar">
+      <button type="button" id="chat-presence-toggle" class="chat-presence-toggle">Go Online</button>
       <label class="chat-mute-toggle">
         <input type="checkbox" id="chat-mute-toggle" /> Mute notification sound
       </label>
@@ -4934,6 +4937,13 @@ document.getElementById('admin-logout-link').addEventListener('click', function(
 var chatSocket = null;
 var chatConversations = [];
 var chatActiveConversationId = null;
+// Per-tab, in-memory only -- deliberately not persisted to localStorage
+// or restored on reconnect (see chatSocket.on('connect', ...) in
+// initLiveChat() below, which resets this to false on every fresh
+// connection). Matches the backend's own per-socket socket.data.online
+// default: presence is something an admin explicitly opts into each
+// session, not something that silently carries over.
+var chatPresenceOnline = false;
 
 // ---- Background notification cues (tab title badge, browser
 // notification, sound) -- for a new message in a conversation the admin
@@ -5123,9 +5133,39 @@ document.getElementById('chat-close-btn').addEventListener('click', function() {
   });
 })();
 
+function chatUpdatePresenceButton() {
+  var btn = document.getElementById('chat-presence-toggle');
+  btn.textContent = chatPresenceOnline ? 'Go Offline' : 'Go Online';
+  btn.classList.toggle('online', chatPresenceOnline);
+}
+
+(function() {
+  document.getElementById('chat-presence-toggle').addEventListener('click', function() {
+    // Updates the button immediately rather than waiting on a round trip
+    // -- this is the admin's own action being reflected back to them, not
+    // a value some other party could contest, so there's nothing a server
+    // round trip would protect against here.
+    chatPresenceOnline = !chatPresenceOnline;
+    chatUpdatePresenceButton();
+    if (chatSocket) chatSocket.emit('chat:setOnline', { online: chatPresenceOnline });
+  });
+})();
+
 function initLiveChat() {
   if (chatSocket || typeof io === 'undefined') return;
   chatSocket = io('/admin');
+
+  // A reconnect (network blip, server restart) gets a brand-new socket on
+  // the server, whose socket.data.online starts falsy just like any other
+  // fresh connection -- so the toggle resets here too rather than staying
+  // visually "online" while the server-side state it claims to reflect
+  // has actually gone back to the same falsy default. Requires the admin
+  // to explicitly click again after a reconnect, matching Stage 1's
+  // "no auto-restore" design, not just on first page load.
+  chatSocket.on('connect', function() {
+    chatPresenceOnline = false;
+    chatUpdatePresenceButton();
+  });
 
   chatSocket.on('chat:conversations', function(list) {
     chatConversations = list || [];
