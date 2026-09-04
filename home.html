@@ -1442,6 +1442,7 @@ reconcileCartWithServer();
       liveEl.style.display = 'flex';
       offlineEl.style.display = 'none';
       guestinfoFormEl.style.display = 'none';
+      guestinfoErrorEl.textContent = '';
       messagesEl.style.display = 'flex';
       inputRowEl.style.display = 'flex';
       closeBtn.style.display = 'inline-block';
@@ -1454,6 +1455,7 @@ reconcileCartWithServer();
       offlineFormEl.style.display = 'flex';
       offlineConfirmationEl.style.display = 'none';
       guestinfoFormEl.style.display = 'none';
+      guestinfoErrorEl.textContent = '';
       closeBtn.style.display = 'none';
     }
 
@@ -1464,6 +1466,7 @@ reconcileCartWithServer();
       offlineFormEl.style.display = 'none';
       offlineConfirmationEl.style.display = 'block';
       guestinfoFormEl.style.display = 'none';
+      guestinfoErrorEl.textContent = '';
       closeBtn.style.display = 'none';
     }
 
@@ -1497,8 +1500,18 @@ reconcileCartWithServer();
     // screen stays up (not the live thread) until support is back online,
     // regardless of hasConversationHistory now being true from that send.
     function decideMode() {
-      if (needsGuestInfo) { setGuestInfoMode(); return; }
       if (supportOnline === undefined) return;
+      // needsGuestInfo only ever gates the widget when there's actually
+      // someone online to receive the answer -- with support offline,
+      // this guest gets the normal offline logic below (leave-a-message
+      // form for a brand-new conversation, or the live thread if there's
+      // already real history) exactly as if needsGuestInfo were false.
+      // The moment support comes online -- whether that's this same call
+      // (supportOnline just flipped true) or a later one -- this check
+      // re-runs and takes over before falling into anything below,
+      // including the offlineConfirmation-exit branch immediately after
+      // this.
+      if (needsGuestInfo && supportOnline) { setGuestInfoMode(); return; }
       if (widgetMode === 'offlineConfirmation') {
         if (supportOnline) setLiveMode();
         return;
