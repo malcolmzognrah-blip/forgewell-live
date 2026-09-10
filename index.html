@@ -742,7 +742,13 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     // folded into the message text itself rather than silently dropped.
     // Still just one plain chat:message emit, same event/shape as the
     // live send path below.
-    socket.emit('chat:message', { body: email ? ('Email: ' + email + '\n\n' + body) : body });
+    // viaOfflineForm: true tells the server this came from the offline
+    // "leave a message" form specifically, not the live thread -- FAQ
+    // deflection (lib/chat.js) skips unconditionally for it, matching
+    // what this widget actually showed the customer, rather than the
+    // server re-checking support's live status at the moment this
+    // arrives (which can have moved on since the offline form was shown).
+    socket.emit('chat:message', { body: email ? ('Email: ' + email + '\n\n' + body) : body, viaOfflineForm: true });
     hasConversationHistory = true;
     offlineMessageInput.value = '';
     offlineEmailInput.value = '';
@@ -983,7 +989,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   function sendMessage() {
     var body = input.value;
     if (!body || !body.trim()) return;
-    socket.emit('chat:message', { body: body });
+    socket.emit('chat:message', { body: body, viaOfflineForm: false });
     input.value = '';
   }
 
