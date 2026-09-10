@@ -467,6 +467,18 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 #chat-widget-guestinfo-error{ min-height:16px; font-size:0.75rem; color:#c0392b; }
 #chat-widget-guestinfo-submit-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
 #chat-widget-guestinfo-submit-btn:hover{ background:#123056; }
+#chat-widget-faq-panel{ display:none; flex-direction:column; gap:8px; padding:12px; border-top:1px solid #E4E4E0; flex-shrink:0; max-height:180px; overflow-y:auto; }
+#chat-widget-faq-list{ display:flex; flex-direction:column; gap:6px; }
+.chat-widget-faq-item{ text-align:left; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; background:#fff; font-family:'Quicksand',sans-serif; font-size:0.82rem; color:#1B4B8C; cursor:pointer; }
+.chat-widget-faq-item:hover{ background:#F0F3F8; }
+#chat-widget-faq-feedback{ display:none; flex-direction:column; gap:8px; }
+.chat-widget-faq-feedback-note{ margin:0; font-size:0.82rem; color:#444; }
+.chat-widget-faq-feedback-buttons{ display:flex; gap:8px; }
+#chat-widget-faq-yes-btn, #chat-widget-faq-no-btn{ padding:6px 14px; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.82rem; cursor:pointer; }
+#chat-widget-faq-yes-btn{ background:#1B4B8C; color:#fff; }
+#chat-widget-faq-yes-btn:hover{ background:#123056; }
+#chat-widget-faq-no-btn{ background:#E4E4E0; color:#333; }
+#chat-widget-faq-no-btn:hover{ background:#d5d5d0; }
 </style>
 
 <button type="button" id="chat-widget-bubble" aria-label="Open chat">
@@ -488,6 +500,16 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       <input type="email" id="chat-widget-guestinfo-email" placeholder="Your email" autocomplete="off" />
       <div id="chat-widget-guestinfo-error"></div>
       <button type="button" id="chat-widget-guestinfo-submit-btn">Continue</button>
+    </div>
+    <div id="chat-widget-faq-panel">
+      <div id="chat-widget-faq-list"></div>
+      <div id="chat-widget-faq-feedback">
+        <p class="chat-widget-faq-feedback-note">Did this help?</p>
+        <div class="chat-widget-faq-feedback-buttons">
+          <button type="button" id="chat-widget-faq-yes-btn">Yes</button>
+          <button type="button" id="chat-widget-faq-no-btn">No</button>
+        </div>
+      </div>
     </div>
     <div class="chat-widget-input-row" id="chat-widget-input-row">
       <input type="text" id="chat-widget-input" placeholder="Type a message..." autocomplete="off" />
@@ -602,12 +624,31 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // sitting in the thread right above the reopened form.
   var guestInfoThankYouEl = null;
 
+  var faqPanelEl = document.getElementById('chat-widget-faq-panel');
+  var faqListEl = document.getElementById('chat-widget-faq-list');
+  var faqFeedbackEl = document.getElementById('chat-widget-faq-feedback');
+  var faqYesBtn = document.getElementById('chat-widget-faq-yes-btn');
+  var faqNoBtn = document.getElementById('chat-widget-faq-no-btn');
+
+  // Tears down both of the FAQ panel's own sub-states (the suggestion
+  // list and the "Did this help?" prompt) -- called from the Yes/No
+  // handlers below once the panel's job is done, and defensively from
+  // every other mode setter (mirroring how they already reset
+  // guestinfoFormEl) so a chat:supportStatus/chat:init landing mid-flow
+  // can't leave the panel and the input row both visible at once.
+  function hideFaqPanel() {
+    faqPanelEl.style.display = 'none';
+    faqListEl.innerHTML = '';
+    faqFeedbackEl.style.display = 'none';
+  }
+
   function setLiveMode() {
     widgetMode = 'live';
     liveEl.style.display = 'flex';
     offlineEl.style.display = 'none';
     guestinfoFormEl.style.display = 'none';
     guestinfoErrorEl.textContent = '';
+    hideFaqPanel();
     messagesEl.style.display = 'flex';
     inputRowEl.style.display = 'flex';
     closeBtn.style.display = 'inline-block';
@@ -621,6 +662,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     offlineConfirmationEl.style.display = 'none';
     guestinfoFormEl.style.display = 'none';
     guestinfoErrorEl.textContent = '';
+    hideFaqPanel();
     closeBtn.style.display = 'none';
   }
 
@@ -632,6 +674,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     offlineConfirmationEl.style.display = 'block';
     guestinfoFormEl.style.display = 'none';
     guestinfoErrorEl.textContent = '';
+    hideFaqPanel();
     closeBtn.style.display = 'none';
   }
 
@@ -645,6 +688,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     offlineEl.style.display = 'none';
     inputRowEl.style.display = 'none';
     guestinfoFormEl.style.display = 'flex';
+    hideFaqPanel();
     closeBtn.style.display = 'none';
     // Folds B3's greeting into this same bubble rather than showing a
     // separate one -- see the transition back to live mode in
@@ -755,6 +799,36 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     appendMessage({ senderType: 'admin', body: "Hi there! How can we help you today?" });
   }
 
+  // Renders the suggestion list shown in place of the input row -- one
+  // clickable item per match, question text only (the answer is deferred
+  // to selectFaqSuggestion() below, once the customer actually picks one).
+  function showFaqSuggestions(matches) {
+    faqListEl.innerHTML = '';
+    matches.forEach(function(match){
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'chat-widget-faq-item';
+      item.textContent = match.question;
+      item.addEventListener('click', function(){ selectFaqSuggestion(match); });
+      faqListEl.appendChild(item);
+    });
+    faqFeedbackEl.style.display = 'none';
+    faqPanelEl.style.display = 'flex';
+    inputRowEl.style.display = 'none';
+  }
+
+  // Shows the picked answer as a real message bubble -- client-rendered
+  // only, same as the welcome/thank-you bubbles above, never sent through
+  // the socket (this is the whole point: nothing about a suggestion the
+  // customer clicks becomes a persisted chat_messages row). Clears the
+  // list rather than leaving it alongside the Did-this-help prompt -- the
+  // two are sequential steps within the same panel, not stacked.
+  function selectFaqSuggestion(match) {
+    appendMessage({ senderType: 'admin', body: match.answer });
+    faqListEl.innerHTML = '';
+    faqFeedbackEl.style.display = 'flex';
+  }
+
   socket.on('chat:init', function(data){
     messagesEl.innerHTML = '';
     (data.messages || []).forEach(appendMessage);
@@ -796,6 +870,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   socket.on('chat:message', function(msg){
     hasConversationHistory = true;
     appendMessage(msg);
+  });
+
+  // Only ever arrives in reply to the customer's own first send in this
+  // conversation (see lib/chat.js's chat:message handler) -- that message
+  // was held back server-side rather than persisted, so nothing here
+  // needs to reconcile against hasConversationHistory or the thread.
+  socket.on('chat:faqSuggestions', function(data){
+    showFaqSuggestions((data && data.matches) || []);
   });
 
   socket.on('chat:error', function(data){
@@ -874,6 +956,29 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   guestinfoSubmitBtn.addEventListener('click', submitGuestInfo);
   guestinfoNameInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') submitGuestInfo(); });
   guestinfoEmailInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') submitGuestInfo(); });
+
+  faqYesBtn.addEventListener('click', function(){
+    socket.emit('chat:faqFeedback', { helpful: true });
+    appendMessage({ senderType: 'admin', body: "Glad that helped! Let us know if you need anything else." });
+    hideFaqPanel();
+    inputRowEl.style.display = 'flex';
+    // The server closes the conversation and emits chat:closed to this
+    // socket -- the existing chat:closed listener above (B1) shows the
+    // "This conversation has ended." banner over the thread exactly as
+    // it already does for a customer-initiated close, so nothing more is
+    // needed here.
+  });
+
+  faqNoBtn.addEventListener('click', function(){
+    socket.emit('chat:faqFeedback', { helpful: false });
+    hideFaqPanel();
+    inputRowEl.style.display = 'flex';
+    // The customer's original message arrives shortly via the normal
+    // chat:message broadcast once the server actually persists it (see
+    // lib/chat.js's chat:faqFeedback handler) -- rendered by the
+    // chat:message listener above exactly like any other message, no
+    // extra handling needed here.
+  });
 
   function sendMessage() {
     var body = input.value;
