@@ -1276,6 +1276,9 @@ reconcileCartWithServer();
 #chat-widget-offline-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
 #chat-widget-offline-send-btn:hover{ background:#123056; }
 #chat-widget-offline-confirmation{ display:none; font-size:0.85rem; color:#444; text-align:center; margin-top:20px; }
+.chat-widget-offline-confirmation-text{ margin:0 0 12px; }
+#chat-widget-offline-send-another-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; }
+#chat-widget-offline-send-another-btn:hover{ background:#123056; }
 #chat-widget-guestinfo-form{ display:none; flex-direction:column; gap:8px; padding:12px; border-top:1px solid #E4E4E0; flex-shrink:0; }
 #chat-widget-guestinfo-name, #chat-widget-guestinfo-email{ width:100%; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
 #chat-widget-guestinfo-error{ min-height:16px; font-size:0.75rem; color:#c0392b; }
@@ -1336,7 +1339,10 @@ reconcileCartWithServer();
       <textarea id="chat-widget-offline-message" placeholder="Type your message..."></textarea>
       <button type="button" id="chat-widget-offline-send-btn">Send</button>
     </div>
-    <div id="chat-widget-offline-confirmation">Thanks! We'll be in touch soon.</div>
+    <div id="chat-widget-offline-confirmation">
+      <p class="chat-widget-offline-confirmation-text">Thanks! We'll be in touch soon.</p>
+      <button type="button" id="chat-widget-offline-send-another-btn">Send another message</button>
+    </div>
   </div>
 </div>
 
@@ -1417,6 +1423,7 @@ reconcileCartWithServer();
     var offlineConfirmationEl = document.getElementById('chat-widget-offline-confirmation');
     var offlineMessageInput = document.getElementById('chat-widget-offline-message');
     var offlineSendBtn = document.getElementById('chat-widget-offline-send-btn');
+    var offlineSendAnotherBtn = document.getElementById('chat-widget-offline-send-another-btn');
 
     var guestinfoFormEl = document.getElementById('chat-widget-guestinfo-form');
     var guestinfoNameInput = document.getElementById('chat-widget-guestinfo-name');
@@ -1603,6 +1610,13 @@ reconcileCartWithServer();
     }
 
     offlineSendBtn.addEventListener('click', sendOfflineMessage);
+    // Back to the leave-a-message form for a new message -- still
+    // one-way per send (see decideMode()'s own comment on why this
+    // doesn't route through it: the confirmation screen is deliberately
+    // not re-derived from live state after an offline send, same
+    // reasoning applies to going back the other way here), not a live
+    // back-and-forth.
+    offlineSendAnotherBtn.addEventListener('click', setOfflineFormMode);
     offlineMessageInput.addEventListener('keydown', function(e){
       // Enter submits, matching the live input's Enter-to-send --
       // Shift+Enter allows a newline since this is a multi-line textarea,
