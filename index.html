@@ -595,6 +595,12 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // this same step (e.g. on a chat:supportStatus flip while the form is
   // still up).
   var guestInfoGreetingShown = false;
+  // Reference to the "Thank you..." bubble appended optimistically in
+  // submitGuestInfo() below -- kept so the chat:error rollback can remove
+  // that one specific element if the submission turns out to have been
+  // rejected, rather than leaving a bubble that no longer matches reality
+  // sitting in the thread right above the reopened form.
+  var guestInfoThankYouEl = null;
 
   function setLiveMode() {
     widgetMode = 'live';
@@ -733,6 +739,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     div.textContent = msg.body;
     messagesEl.appendChild(div);
     scrollToBottom();
+    return div;
   }
 
   // Purely client-side and ephemeral -- reuses appendMessage() for
@@ -806,7 +813,15 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       // (this step is reopening, not completing), so the live thread
       // should still be free to greet them for real once it does complete.
       greetingShown = false;
+      // Pulls the optimistic "Thank you for providing that information!"
+      // bubble back out -- it never should have shown, since the
+      // submission it was celebrating just got rejected.
+      if (guestInfoThankYouEl) {
+        guestInfoThankYouEl.remove();
+        guestInfoThankYouEl = null;
+      }
       guestinfoErrorEl.textContent = (data && data.error) || 'Something went wrong. Please try again.';
+      guestinfoSubmitBtn.disabled = false;
       decideMode();
       return;
     }
@@ -816,6 +831,13 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   });
 
   function submitGuestInfo() {
+    // Defensive: with everything below fully synchronous, a second call
+    // can't actually land mid-submission today (decideMode() hides the
+    // form and blurs its inputs before any second event could be
+    // dispatched) -- but this guards the same way if that ever stops
+    // being true, at zero cost today.
+    if (guestinfoSubmitBtn.disabled) return;
+
     var name = guestinfoNameInput.value.trim();
     var email = guestinfoEmailInput.value.trim();
     // Basic non-empty check only -- no email-format validation here, since
@@ -826,6 +848,11 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       return;
     }
     guestinfoErrorEl.textContent = '';
+    // Disabled only once we're actually committing to submit -- not on
+    // the blank-fields rejection above, so the guest can immediately
+    // retry without waiting on anything. Blocks a rapid double-click on
+    // this same button from re-entering below.
+    guestinfoSubmitBtn.disabled = true;
     socket.emit('chat:guestInfo', { name: name, email: email });
     // Optimistic: both fields just passed the same non-empty check the
     // server enforces, so assume success and reveal the thread immediately
@@ -837,8 +864,10 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     // The combined welcome+instructions bubble already covered the
     // greeting -- without this, maybeShowGreeting() would fire a second,
     // separate "Hi there! How can we help you today?" the moment
-    // decideMode() below resolves back into live mode.
+    // decideMode() below resolves back into live mode. Replaced here with
+    // a specific thank-you bubble instead of no message at all.
     greetingShown = true;
+    guestInfoThankYouEl = appendMessage({ senderType: 'admin', body: "Thank you for providing that information! What can we help you with today?" });
     decideMode();
   }
 
