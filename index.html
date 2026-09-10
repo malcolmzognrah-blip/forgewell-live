@@ -458,7 +458,6 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 #chat-widget-offline-form{ display:flex; flex-direction:column; gap:8px; }
 .chat-widget-offline-note{ margin:0 0 4px; font-size:0.82rem; color:#444; line-height:1.4; }
 #chat-widget-offline-message{ width:100%; min-height:80px; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; resize:vertical; }
-#chat-widget-offline-email{ width:100%; padding:8px 10px; border:1px solid #E4E4E0; border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.85rem; box-sizing:border-box; }
 #chat-widget-offline-send-btn{ padding:8px 14px; background:#1B4B8C; color:#fff; border:none; border-radius:8px; font-family:'Quicksand',sans-serif; font-weight:600; font-size:0.85rem; cursor:pointer; align-self:flex-start; }
 #chat-widget-offline-send-btn:hover{ background:#123056; }
 #chat-widget-offline-confirmation{ display:none; font-size:0.85rem; color:#444; text-align:center; margin-top:20px; }
@@ -520,7 +519,6 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     <div id="chat-widget-offline-form">
       <p class="chat-widget-offline-note">We're offline right now — leave a message and we'll get back to you.</p>
       <textarea id="chat-widget-offline-message" placeholder="Type your message..."></textarea>
-      <input type="email" id="chat-widget-offline-email" placeholder="Your email (optional)" autocomplete="off" />
       <button type="button" id="chat-widget-offline-send-btn">Send</button>
     </div>
     <div id="chat-widget-offline-confirmation">Thanks! We'll be in touch soon.</div>
@@ -577,7 +575,6 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   var offlineFormEl = document.getElementById('chat-widget-offline-form');
   var offlineConfirmationEl = document.getElementById('chat-widget-offline-confirmation');
   var offlineMessageInput = document.getElementById('chat-widget-offline-message');
-  var offlineEmailInput = document.getElementById('chat-widget-offline-email');
   var offlineSendBtn = document.getElementById('chat-widget-offline-send-btn');
 
   var guestinfoFormEl = document.getElementById('chat-widget-guestinfo-form');
@@ -623,6 +620,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // rejected, rather than leaving a bubble that no longer matches reality
   // sitting in the thread right above the reopened form.
   var guestInfoThankYouEl = null;
+  // True from the moment submitGuestInfo() below transitions away from
+  // the guest-info form until setLiveMode() actually appends the bubble
+  // -- deferred rather than appended immediately, since decideMode()
+  // might resolve to the offline form instead if support happens to be
+  // offline right then, and appending straight into messagesEl would
+  // just hide the bubble the instant setOfflineFormMode() hides liveEl
+  // (and messagesEl inside it) along with it.
+  var guestInfoThankYouPending = false;
 
   var faqPanelEl = document.getElementById('chat-widget-faq-panel');
   var faqListEl = document.getElementById('chat-widget-faq-list');
@@ -652,6 +657,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     messagesEl.style.display = 'flex';
     inputRowEl.style.display = 'flex';
     closeBtn.style.display = 'inline-block';
+    // Appends the deferred "Thank you..." bubble the first real moment
+    // the thread is actually visible -- immediately if support was
+    // online at submit time, or later (here) if an offline-form detour
+    // came first.
+    if (guestInfoThankYouPending) {
+      guestInfoThankYouPending = false;
+      guestInfoThankYouEl = appendMessage({ senderType: 'admin', body: "Thank you for providing that information! What can we help you with today?" });
+    }
   }
 
   function setOfflineFormMode() {
@@ -696,7 +709,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     // maybeShowGreeting() doesn't also fire once the thread reopens.
     if (!guestInfoGreetingShown) {
       guestInfoGreetingShown = true;
-      appendMessage({ senderType: 'admin', body: "Hi! Welcome to Forgewell Support. To get started, please enter your email address and name so we can assist you better." });
+      appendMessage({ senderType: 'admin', body: "Hi! Welcome to Forgewell Support. To get started, please share your name and email so we can assist you." });
     }
   }
 
@@ -710,17 +723,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // regardless of hasConversationHistory now being true from that send.
   function decideMode() {
     if (supportOnline === undefined) return;
-    // needsGuestInfo only ever gates the widget when there's actually
-    // someone online to receive the answer -- with support offline, this
-    // guest gets the normal offline logic below (leave-a-message form for
-    // a brand-new conversation, or the live thread if there's already
-    // real history) exactly as if needsGuestInfo were false. The moment
-    // support comes online -- whether that's this same call
-    // (supportOnline just flipped true) or a later one -- this check
-    // re-runs and takes over before falling into anything below,
-    // including the offlineConfirmation-exit branch immediately after
-    // this.
-    if (needsGuestInfo && supportOnline) { setGuestInfoMode(); return; }
+    // needsGuestInfo now gates unconditionally -- a guest with no
+    // name/email on file resolves that first regardless of support's
+    // online status, before ever reaching either the live thread or the
+    // offline leave-a-message form. This guarantees widgetMode can never
+    // be 'offlineForm'/'offlineConfirmation' while needsGuestInfo is
+    // still true, except via the same kind of should-never-happen
+    // chat:error rollback race already accepted elsewhere in this file.
+    if (needsGuestInfo) { setGuestInfoMode(); return; }
     if (widgetMode === 'offlineConfirmation') {
       if (supportOnline) setLiveMode();
       return;
@@ -736,22 +746,15 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   function sendOfflineMessage() {
     var body = offlineMessageInput.value;
     if (!body || !body.trim()) return;
-    var email = offlineEmailInput.value && offlineEmailInput.value.trim();
-    // chat:message only ever carries a body -- lib/chat.js's customer-side
-    // handler has no email field to send it as, so a provided email is
-    // folded into the message text itself rather than silently dropped.
-    // Still just one plain chat:message emit, same event/shape as the
-    // live send path below.
     // viaOfflineForm: true tells the server this came from the offline
     // "leave a message" form specifically, not the live thread -- FAQ
     // deflection (lib/chat.js) skips unconditionally for it, matching
     // what this widget actually showed the customer, rather than the
     // server re-checking support's live status at the moment this
     // arrives (which can have moved on since the offline form was shown).
-    socket.emit('chat:message', { body: email ? ('Email: ' + email + '\n\n' + body) : body, viaOfflineForm: true });
+    socket.emit('chat:message', { body: body, viaOfflineForm: true });
     hasConversationHistory = true;
     offlineMessageInput.value = '';
-    offlineEmailInput.value = '';
     setOfflineConfirmationMode();
   }
 
@@ -901,9 +904,12 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       // (this step is reopening, not completing), so the live thread
       // should still be free to greet them for real once it does complete.
       greetingShown = false;
-      // Pulls the optimistic "Thank you for providing that information!"
-      // bubble back out -- it never should have shown, since the
-      // submission it was celebrating just got rejected.
+      // Cancels the deferred append (if the bubble was never actually
+      // shown yet -- this rejection racing an offline-form detour) as
+      // well as removing it if it already was (the normal online case,
+      // where setLiveMode() ran synchronously inside submitGuestInfo()
+      // and already appended it before this rejection arrived).
+      guestInfoThankYouPending = false;
       if (guestInfoThankYouEl) {
         guestInfoThankYouEl.remove();
         guestInfoThankYouEl = null;
@@ -955,7 +961,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
     // decideMode() below resolves back into live mode. Replaced here with
     // a specific thank-you bubble instead of no message at all.
     greetingShown = true;
-    guestInfoThankYouEl = appendMessage({ senderType: 'admin', body: "Thank you for providing that information! What can we help you with today?" });
+    guestInfoThankYouPending = true;
     decideMode();
   }
 
