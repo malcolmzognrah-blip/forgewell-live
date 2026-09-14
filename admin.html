@@ -338,7 +338,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 <div class="admin-wrap" id="admin-wrap">
   <div class="admin-tabs">
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
-    <button type="button" class="admin-tab" id="tab-payments">PayRam</button>
+    <button type="button" class="admin-tab" id="tab-payments">Payments</button>
     <button type="button" class="admin-tab" id="tab-coas">COA</button>
     <button type="button" class="admin-tab" id="tab-promo">Promotions</button>
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
@@ -477,14 +477,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view" id="view-payments">
-  <div class="qbo-status-card">
-    <div class="qbo-status-left">
-      <span class="qbo-status-title">QuickBooks Payments (Credit/Debit Card)</span>
-      <span class="qbo-status-detail" id="qbo-status-detail">Checking connection…</span>
-      <span class="qbo-status-badge disconnected" id="qbo-status-badge">Not Connected</span>
-    </div>
-    <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn" id="qbo-connect-btn">Connect</a>
+  <div class="content-subtabs">
+    <button type="button" class="content-subtab active" id="payments-subtab-payram">PayRam</button>
+    <button type="button" class="content-subtab" id="payments-subtab-quickbooks">QuickBooks</button>
   </div>
+
+  <div class="content-subview active" id="payments-subview-payram">
   <div class="filters">
     <input type="text" id="payments-search" placeholder="Search by order number or reference ID...">
     <input type="date" id="payments-date-from" title="Paid from">
@@ -506,6 +504,18 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     </thead>
     <tbody id="payments-tbody"></tbody>
   </table>
+  </div>
+  </div>
+
+  <div class="content-subview" id="payments-subview-quickbooks">
+  <div class="qbo-status-card">
+    <div class="qbo-status-left">
+      <span class="qbo-status-title">QuickBooks Payments (Credit/Debit Card)</span>
+      <span class="qbo-status-detail" id="qbo-status-detail">Checking connection…</span>
+      <span class="qbo-status-badge disconnected" id="qbo-status-badge">Not Connected</span>
+    </div>
+    <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn" id="qbo-connect-btn">Connect</a>
+  </div>
   </div>
   </div>
 
@@ -1566,6 +1576,28 @@ function showPaymentsTab() {
   showAdminTab('tab-payments', 'view-payments');
   loadPayments();
   loadQuickBooksStatus();
+}
+
+// Sub-navigation within the Payments tab -- PayRam (the order/payment
+// history table) / QuickBooks (the connection-status card) -- same
+// active/inactive toggle pattern as showOrdersSubtab()/showContentSubtab()
+// above, just scoped to this tab's own subtab/subview set. Both
+// loadPayments() and loadQuickBooksStatus() still run unconditionally from
+// showPaymentsTab() above regardless of which sub-tab is showing --
+// deliberately not deferred to first click (unlike Orders' own
+// showOrdersFulfillmentSubtab(), which lazy-loads on click -- a
+// deliberate difference, not an inconsistency: both fetches here are
+// cheap and admin-gated, so eager-loading both up front was chosen for
+// simplicity over matching that lazier pattern).
+function showPaymentsSubtab(subtabId, subviewId) {
+  ['payments-subtab-payram', 'payments-subtab-quickbooks'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  ['payments-subview-payram', 'payments-subview-quickbooks'].forEach(function(id) {
+    document.getElementById(id).classList.remove('active');
+  });
+  document.getElementById(subtabId).classList.add('active');
+  document.getElementById(subviewId).classList.add('active');
 }
 
 // GET /api/admin/quickbooks/status -- never returns tokens, just enough
@@ -3579,6 +3611,12 @@ document.getElementById('orders-subtab-import').addEventListener('click', functi
 });
 document.getElementById('orders-subtab-fulfillment').addEventListener('click', showOrdersFulfillmentSubtab);
 document.getElementById('tab-payments').addEventListener('click', showPaymentsTab);
+document.getElementById('payments-subtab-payram').addEventListener('click', function() {
+  showPaymentsSubtab('payments-subtab-payram', 'payments-subview-payram');
+});
+document.getElementById('payments-subtab-quickbooks').addEventListener('click', function() {
+  showPaymentsSubtab('payments-subtab-quickbooks', 'payments-subview-quickbooks');
+});
 document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
 document.getElementById('payments-date-from').addEventListener('change', renderPayments);
 document.getElementById('payments-date-to').addEventListener('change', renderPayments);
