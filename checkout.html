@@ -318,7 +318,18 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 }
 .checkout-card-panel.show{ display:block; }
 .checkout-card-panel-label{ font-size:0.75rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:10px; }
-#checkout-card-fields{ min-height:40px; margin-bottom:10px; }
+/* .checkout-card-panel lives inside .checkout-summary-col (the right-hand
+   order-summary column), NOT inside a .checkout-section (the left-hand
+   form column) -- so it doesn't inherit .checkout-section's
+   input[type="text"]/select styling the way the shipping fields above do.
+   Same declarations, re-scoped, rather than a new visual style. */
+.checkout-card-panel input[type="text"]{
+  width:100%; box-sizing:border-box; padding:11px 12px;
+  border:1.5px solid var(--line); border-radius:8px; font-size:0.88rem;
+  font-family:'Quicksand',sans-serif; color:#333; background:#fff;
+}
+.checkout-card-panel input[type="text"]::placeholder{ color:var(--gray); opacity:1; font-style:italic; }
+.checkout-card-panel input[type="text"]:focus{ outline:none; border-color:var(--navy); }
 .checkout-card-pay-btn{
   width:100%; background:var(--navy); color:#fff; border:none; border-radius:8px;
   padding:12px; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.9rem;
@@ -535,13 +546,67 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           has already created a pending_payment order and come back with
           payment.status === 'awaiting_payment' && !payment.paymentUrl --
           see the submit handler below. Unlike PayRam (which redirects
-          away to a hosted page), QuickBooks needs the card number
-          tokenized right here via Intuit's Web Payments SDK, so this
-          panel IS the "payment page" for card, on this same screen.
+          away to a hosted page), this panel IS the "payment page" for
+          card, on this same screen -- the customer's raw card details are
+          submitted directly to our own backend (server-side tokenization,
+          POST /api/checkout/quickbooks-charge -- see
+          lib/payments/quickbooks.js's createCardToken()), not to any
+          third-party browser SDK.
         -->
         <div class="checkout-card-panel" id="checkout-card-panel">
           <div class="checkout-card-panel-label">Card Details</div>
-          <div id="checkout-card-fields"></div>
+
+          <label class="checkout-field-label" for="checkout-card-number">Card Number</label>
+          <input type="text" id="checkout-card-number" placeholder="1234 5678 9012 3456" autocomplete="cc-number" inputmode="numeric" maxlength="24">
+          <p id="checkout-card-number-error" class="checkout-field-error">Card number is required.</p>
+
+          <div class="checkout-field-row">
+            <div>
+              <label class="checkout-field-label" for="checkout-card-exp-month">Exp. Month</label>
+              <input type="text" id="checkout-card-exp-month" placeholder="MM" autocomplete="cc-exp-month" inputmode="numeric" maxlength="2">
+              <p id="checkout-card-exp-month-error" class="checkout-field-error">Required.</p>
+            </div>
+            <div>
+              <label class="checkout-field-label" for="checkout-card-exp-year">Exp. Year</label>
+              <input type="text" id="checkout-card-exp-year" placeholder="YYYY" autocomplete="cc-exp-year" inputmode="numeric" maxlength="4">
+              <p id="checkout-card-exp-year-error" class="checkout-field-error">Required.</p>
+            </div>
+          </div>
+
+          <label class="checkout-field-label" for="checkout-card-cvc">CVC</label>
+          <input type="text" id="checkout-card-cvc" placeholder="123" autocomplete="cc-csc" inputmode="numeric" maxlength="4">
+          <p id="checkout-card-cvc-error" class="checkout-field-error">Required.</p>
+
+          <label class="checkout-field-label" for="checkout-card-street">Billing Address</label>
+          <input type="text" id="checkout-card-street" placeholder="Street address" autocomplete="billing street-address">
+          <p id="checkout-card-street-error" class="checkout-field-error">Address is required.</p>
+
+          <div class="checkout-field-row">
+            <div>
+              <label class="checkout-field-label" for="checkout-card-city">City</label>
+              <input type="text" id="checkout-card-city" placeholder="City" autocomplete="billing address-level2">
+              <p id="checkout-card-city-error" class="checkout-field-error">City is required.</p>
+            </div>
+            <div>
+              <label class="checkout-field-label" for="checkout-card-region">State</label>
+              <input type="text" id="checkout-card-region" placeholder="State" autocomplete="billing address-level1">
+              <p id="checkout-card-region-error" class="checkout-field-error">State is required.</p>
+            </div>
+          </div>
+
+          <div class="checkout-field-row">
+            <div>
+              <label class="checkout-field-label" for="checkout-card-postal">ZIP Code</label>
+              <input type="text" id="checkout-card-postal" placeholder="ZIP code" autocomplete="billing postal-code" inputmode="numeric">
+              <p id="checkout-card-postal-error" class="checkout-field-error">ZIP code is required.</p>
+            </div>
+            <div>
+              <label class="checkout-field-label" for="checkout-card-country">Country</label>
+              <input type="text" id="checkout-card-country" placeholder="US" autocomplete="billing country" value="US">
+              <p id="checkout-card-country-error" class="checkout-field-error">Country is required.</p>
+            </div>
+          </div>
+
           <button type="button" id="checkout-card-pay-btn" class="checkout-card-pay-btn">Pay Now</button>
           <div class="checkout-card-error" id="checkout-card-error"></div>
         </div>
@@ -2118,72 +2183,141 @@ if (cart.length === 0) {
   // Shows the on-page card form once POST /api/checkout has already
   // created a pending_payment 'card' order (orderId) -- see the submit
   // handler's own comment on why this doesn't happen via a redirect the
-  // way PayRam does. Loads Intuit's Web Payments SDK on first use (not
-  // unconditionally on every page load) since only a 'card' checkout ever
-  // needs it.
-  //
-  // VERIFY BEFORE SETTING QBO_ENABLED=true: the script URL and the
-  // window.Intuit.WebPaymentsSdk API shape below are written to the
-  // documented integration shape as of this writing, but Intuit has
-  // changed this SDK's exact script URL/API before -- confirm both
-  // against developer.intuit.com's current Web Payments SDK docs during
-  // sandbox testing, same "verify against the provider's current docs
-  // once real credentials are in hand" caveat this codebase's own
-  // lib/shipping/ups.js header comment already carries for UPS. The
-  // typeof guard below means a wrong/dead URL fails safe (a clear
-  // in-panel error, not a broken page) rather than silently.
+  // way PayRam does. Card details are submitted directly to our own
+  // backend (server-side tokenization -- routes/checkout.js's POST
+  // /api/checkout/quickbooks-charge calls lib/payments/quickbooks.js's
+  // createCardToken() then chargeCard()); there is no browser SDK to load
+  // here, unlike the client-side-tokenization design this replaces.
   function showQuickBooksCardPanel(orderId) {
     var panel = document.getElementById('checkout-card-panel');
     var errorEl = document.getElementById('checkout-card-error');
     var payBtn = document.getElementById('checkout-card-pay-btn');
     panel.classList.add('show');
 
-    function showError(msg) {
+    var cardFields = {
+      number: document.getElementById('checkout-card-number'),
+      expMonth: document.getElementById('checkout-card-exp-month'),
+      expYear: document.getElementById('checkout-card-exp-year'),
+      cvc: document.getElementById('checkout-card-cvc'),
+      street: document.getElementById('checkout-card-street'),
+      city: document.getElementById('checkout-card-city'),
+      region: document.getElementById('checkout-card-region'),
+      postal: document.getElementById('checkout-card-postal'),
+      country: document.getElementById('checkout-card-country'),
+    };
+    var cardFieldErrors = {
+      number: document.getElementById('checkout-card-number-error'),
+      expMonth: document.getElementById('checkout-card-exp-month-error'),
+      expYear: document.getElementById('checkout-card-exp-year-error'),
+      cvc: document.getElementById('checkout-card-cvc-error'),
+      street: document.getElementById('checkout-card-street-error'),
+      city: document.getElementById('checkout-card-city-error'),
+      region: document.getElementById('checkout-card-region-error'),
+      postal: document.getElementById('checkout-card-postal-error'),
+      country: document.getElementById('checkout-card-country-error'),
+    };
+    // Clears its own field's error the moment the customer starts fixing
+    // it -- same responsive-clearing feel as the shipping fields above,
+    // without duplicating their fuller validateField()/blur machinery
+    // (real card validation is Intuit's Token API's job -- see the 402
+    // branch below -- this is only a "did you forget this box" check).
+    Object.keys(cardFields).forEach(function(key) {
+      cardFields[key].addEventListener('input', function() {
+        if (cardFields[key].value.trim()) cardFieldErrors[key].classList.remove('show');
+      });
+    });
+
+    function validateCardFieldsPresent() {
+      var valid = true;
+      Object.keys(cardFields).forEach(function(key) {
+        if (cardFields[key].value.trim()) {
+          cardFieldErrors[key].classList.remove('show');
+        } else {
+          cardFieldErrors[key].classList.add('show');
+          valid = false;
+        }
+      });
+      return valid;
+    }
+
+    // Single shared banner (id="checkout-card-error", already in the
+    // markup above) for whole-submission-level errors -- not one element
+    // per failure kind. The three branches in the click handler below
+    // just swap this same element's text/visibility depending on
+    // res.status; they don't add or reuse anything else.
+    function showBannerError(msg) {
       errorEl.textContent = msg;
       errorEl.classList.add('show');
     }
+    function clearBannerError() {
+      errorEl.classList.remove('show');
+    }
 
-    var sdkScript = document.createElement('script');
-    sdkScript.src = 'https://js.appcenter.intuit.com/coreui/v1/coreui.min.js'; // VERIFY -- see comment above
-    sdkScript.onload = function() {
-      if (typeof Intuit === 'undefined' || !Intuit.WebPaymentsSdk) {
-        showError('Card payment is temporarily unavailable. Please try again later or use a different payment method.');
-        console.error('Intuit Web Payments SDK loaded but expected global (Intuit.WebPaymentsSdk) is missing -- API shape likely changed, see this function\'s header comment.');
-        return;
-      }
-      var sdk = new Intuit.WebPaymentsSdk(); // VERIFY constructor/init args against current docs
-      sdk.render('#checkout-card-fields');
+    payBtn.addEventListener('click', async function() {
+      clearBannerError();
+      if (!validateCardFieldsPresent()) return;
 
-      payBtn.addEventListener('click', async function() {
-        payBtn.disabled = true;
-        errorEl.classList.remove('show');
-        try {
-          var cardToken = await sdk.createToken(); // VERIFY method name/return shape against current docs
-          const res = await fetch('/api/checkout/quickbooks-charge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: orderId, cardToken: cardToken }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            showError(data.error || 'Your card could not be charged. Please try again.');
-            payBtn.disabled = false;
-            return;
+      payBtn.disabled = true;
+      try {
+        const res = await fetch('/api/checkout/quickbooks-charge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: orderId,
+            card: {
+              number: cardFields.number.value.replace(/\s+/g, ''),
+              expMonth: cardFields.expMonth.value.trim(),
+              expYear: cardFields.expYear.value.trim(),
+              cvc: cardFields.cvc.value.trim(),
+              address: {
+                streetAddress: cardFields.street.value.trim(),
+                city: cardFields.city.value.trim(),
+                region: cardFields.region.value.trim(),
+                postalCode: cardFields.postal.value.trim(),
+                country: cardFields.country.value.trim(),
+              },
+            },
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          // routes/checkout.js's POST /quickbooks-charge now distinguishes
+          // three failure shapes -- surfaced distinctly here rather than
+          // one generic message, but still through this one banner
+          // element (see this function's own comment above):
+          //   402 -- card declined/invalid (createCardToken()/chargeCard())
+          //   429 -- this endpoint's own rate limiter tripped
+          //          (lib/quickbooksChargeRateLimit.js)
+          //   anything else (502/503/...) -- a processing/configuration
+          //          problem on our or Intuit's side, not the card itself
+          // data.error is already a customer-safe message in every case
+          // (lib/payments/quickbooks.js never forwards a raw provider
+          // error) -- these branches only choose the right fallback
+          // wording if data.error is ever somehow missing, not new copy.
+          if (res.status === 402) {
+            showBannerError(data.error || 'Your card was declined. Please check your details or try a different card.');
+          } else if (res.status === 429) {
+            showBannerError(data.error || 'Too many attempts. Please try again later or contact support.');
+          } else {
+            showBannerError(data.error || 'We were unable to process your card payment. Please try again shortly.');
           }
-          localStorage.setItem('forgewell_last_order_id', orderId);
-          localStorage.removeItem('forgewell_promo_code');
-          window.location.href = '/order-confirmation.html';
-        } catch (err) {
-          console.error('QuickBooks card charge failed:', err);
-          showError('Your card could not be charged. Please check your details and try again.');
           payBtn.disabled = false;
+          return;
         }
-      });
-    };
-    sdkScript.onerror = function() {
-      showError('Card payment is temporarily unavailable. Please try again later or use a different payment method.');
-    };
-    document.head.appendChild(sdkScript);
+
+        // Success -- same redirect the PayRam and store-credit-covered
+        // paths above already use once an order is confirmed paid; no
+        // separate success path invented for card.
+        localStorage.setItem('forgewell_last_order_id', orderId);
+        localStorage.removeItem('forgewell_promo_code');
+        window.location.href = '/order-confirmation.html';
+      } catch (err) {
+        console.error('QuickBooks card charge failed:', err);
+        showBannerError('We were unable to process your card payment. Please try again shortly.');
+        payBtn.disabled = false;
+      }
+    });
   }
 
   document.getElementById('checkout-place-order-btn').addEventListener('click', async function() {
