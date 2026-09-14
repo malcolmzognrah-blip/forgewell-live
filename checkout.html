@@ -312,6 +312,22 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
   font-size:0.78rem; line-height:1.5; color:#444; font-weight:500;
 }
 .checkout-payram-help-popover.open{ display:block; }
+.checkout-card-panel{
+  display:none; border:1.5px solid var(--line); border-radius:8px; padding:14px;
+  margin:-2px 0 14px; background:#fff;
+}
+.checkout-card-panel.show{ display:block; }
+.checkout-card-panel-label{ font-size:0.75rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:10px; }
+#checkout-card-fields{ min-height:40px; margin-bottom:10px; }
+.checkout-card-pay-btn{
+  width:100%; background:var(--navy); color:#fff; border:none; border-radius:8px;
+  padding:12px; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.9rem;
+  cursor:pointer;
+}
+.checkout-card-pay-btn:hover{ background:var(--navy-dark); }
+.checkout-card-pay-btn:disabled{ opacity:0.6; cursor:not-allowed; }
+.checkout-card-error{ display:none; color:#c0392b; font-size:0.8rem; font-weight:700; margin-top:8px; }
+.checkout-card-error.show{ display:block; }
 .checkout-store-credit-amount-row{ display:flex; align-items:center; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px; overflow:hidden; }
 .checkout-store-credit-amount-row span{ padding:9px 0 9px 10px; font-size:0.82rem; color:#444; font-family:'Quicksand',sans-serif; }
 .checkout-store-credit-amount-row input{ flex:1; min-width:0; border:none; padding:9px 10px 9px 2px; font-family:'Quicksand',sans-serif; font-size:0.82rem; color:#333; }
@@ -505,13 +521,29 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
             </span>
             <span class="checkout-payment-method-badge">Coming Soon</span>
           </label>
-          <label class="checkout-payment-method-option disabled">
+          <label class="checkout-payment-method-option disabled" id="checkout-card-option">
             <span class="checkout-payment-method-option-left">
-              <input type="radio" name="payment-method" value="card" disabled>
+              <input type="radio" name="payment-method" value="card" id="checkout-card-radio" disabled>
               <span class="checkout-payment-method-name">Credit / Debit Card</span>
             </span>
-            <span class="checkout-payment-method-badge">Coming Soon</span>
+            <span class="checkout-payment-method-badge" id="checkout-card-badge">Coming Soon</span>
           </label>
+        </div>
+
+        <!--
+          Only ever shown for the 'card' method, once POST /api/checkout
+          has already created a pending_payment order and come back with
+          payment.status === 'awaiting_payment' && !payment.paymentUrl --
+          see the submit handler below. Unlike PayRam (which redirects
+          away to a hosted page), QuickBooks needs the card number
+          tokenized right here via Intuit's Web Payments SDK, so this
+          panel IS the "payment page" for card, on this same screen.
+        -->
+        <div class="checkout-card-panel" id="checkout-card-panel">
+          <div class="checkout-card-panel-label">Card Details</div>
+          <div id="checkout-card-fields"></div>
+          <button type="button" id="checkout-card-pay-btn" class="checkout-card-pay-btn">Pay Now</button>
+          <div class="checkout-card-error" id="checkout-card-error"></div>
         </div>
 
         <button type="button" id="checkout-place-order-btn" class="checkout-place-order-btn">Place Order</button>
@@ -2059,6 +2091,101 @@ if (cart.length === 0) {
     }
   });
 
+  // GET /api/checkout/payment-methods is the server-authoritative source
+  // for which methods are actually live (QBO_ENABLED, PayRam configured,
+  // etc.) -- see routes/checkout.js's own comment on that route. The
+  // 'card' radio stays disabled/"Coming Soon" (its markup default) unless
+  // this explicitly confirms it's live; a failed/erroring fetch leaves it
+  // disabled too -- fail-safe-off, same "an unset/unreachable flag never
+  // silently enables something" convention as UPS_ENV/FEDEX_ENV on the
+  // backend.
+  function initCardPaymentOption() {
+    fetch('/api/checkout/payment-methods')
+      .then(function(r) { return r.json(); })
+      .then(function(methods) {
+        if (!methods || !methods.card) return;
+        var option = document.getElementById('checkout-card-option');
+        var radio = document.getElementById('checkout-card-radio');
+        var badge = document.getElementById('checkout-card-badge');
+        option.classList.remove('disabled');
+        radio.disabled = false;
+        if (badge) badge.style.display = 'none';
+      })
+      .catch(function() {});
+  }
+  initCardPaymentOption();
+
+  // Shows the on-page card form once POST /api/checkout has already
+  // created a pending_payment 'card' order (orderId) -- see the submit
+  // handler's own comment on why this doesn't happen via a redirect the
+  // way PayRam does. Loads Intuit's Web Payments SDK on first use (not
+  // unconditionally on every page load) since only a 'card' checkout ever
+  // needs it.
+  //
+  // VERIFY BEFORE SETTING QBO_ENABLED=true: the script URL and the
+  // window.Intuit.WebPaymentsSdk API shape below are written to the
+  // documented integration shape as of this writing, but Intuit has
+  // changed this SDK's exact script URL/API before -- confirm both
+  // against developer.intuit.com's current Web Payments SDK docs during
+  // sandbox testing, same "verify against the provider's current docs
+  // once real credentials are in hand" caveat this codebase's own
+  // lib/shipping/ups.js header comment already carries for UPS. The
+  // typeof guard below means a wrong/dead URL fails safe (a clear
+  // in-panel error, not a broken page) rather than silently.
+  function showQuickBooksCardPanel(orderId) {
+    var panel = document.getElementById('checkout-card-panel');
+    var errorEl = document.getElementById('checkout-card-error');
+    var payBtn = document.getElementById('checkout-card-pay-btn');
+    panel.classList.add('show');
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('show');
+    }
+
+    var sdkScript = document.createElement('script');
+    sdkScript.src = 'https://js.appcenter.intuit.com/coreui/v1/coreui.min.js'; // VERIFY -- see comment above
+    sdkScript.onload = function() {
+      if (typeof Intuit === 'undefined' || !Intuit.WebPaymentsSdk) {
+        showError('Card payment is temporarily unavailable. Please try again later or use a different payment method.');
+        console.error('Intuit Web Payments SDK loaded but expected global (Intuit.WebPaymentsSdk) is missing -- API shape likely changed, see this function\'s header comment.');
+        return;
+      }
+      var sdk = new Intuit.WebPaymentsSdk(); // VERIFY constructor/init args against current docs
+      sdk.render('#checkout-card-fields');
+
+      payBtn.addEventListener('click', async function() {
+        payBtn.disabled = true;
+        errorEl.classList.remove('show');
+        try {
+          var cardToken = await sdk.createToken(); // VERIFY method name/return shape against current docs
+          const res = await fetch('/api/checkout/quickbooks-charge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: orderId, cardToken: cardToken }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showError(data.error || 'Your card could not be charged. Please try again.');
+            payBtn.disabled = false;
+            return;
+          }
+          localStorage.setItem('forgewell_last_order_id', orderId);
+          localStorage.removeItem('forgewell_promo_code');
+          window.location.href = '/order-confirmation.html';
+        } catch (err) {
+          console.error('QuickBooks card charge failed:', err);
+          showError('Your card could not be charged. Please check your details and try again.');
+          payBtn.disabled = false;
+        }
+      });
+    };
+    sdkScript.onerror = function() {
+      showError('Card payment is temporarily unavailable. Please try again later or use a different payment method.');
+    };
+    document.head.appendChild(sdkScript);
+  }
+
   document.getElementById('checkout-place-order-btn').addEventListener('click', async function() {
     // Disabled synchronously, as the very first line -- before any
     // validation or async work -- so a rapid/impatient double-click can
@@ -2267,6 +2394,24 @@ if (cart.length === 0) {
           }).catch(function() {});
         }
         window.location.href = '/order-confirmation.html';
+        return;
+      }
+
+      // payment.status === 'awaiting_payment' with no paymentUrl -- only
+      // ever the 'card' method (lib/payments/quickbooks.js's createCharge()
+      // deliberately returns no redirect target; see its own comment).
+      // The order already exists as pending_payment; instead of navigating
+      // away, show the on-page card form and let showQuickBooksCardPanel()
+      // take over from here (its own "Pay Now" click posts to
+      // /api/checkout/quickbooks-charge, the second step of this flow).
+      if (data.payment && data.payment.status === 'awaiting_payment' && !data.payment.paymentUrl) {
+        showQuickBooksCardPanel(data.orderId);
+        // Deliberately NOT calling reEnable() here -- the order already
+        // exists (a second click on Place Order would create a duplicate
+        // order attempt), so Place Order stays disabled/hidden while the
+        // card panel takes over; the card panel's own Pay Now button is
+        // the only way forward from here.
+        placeOrderBtn.style.display = 'none';
         return;
       }
 

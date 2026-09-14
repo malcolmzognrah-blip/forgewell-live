@@ -57,6 +57,25 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .admin-view{ display:none; }
 .admin-view.active{ display:block; }
 
+.qbo-status-card{
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  border:1.5px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:16px; background:#fff;
+}
+.qbo-status-left{ display:flex; flex-direction:column; gap:4px; }
+.qbo-status-title{ font-weight:700; font-size:0.85rem; color:var(--navy-dark); }
+.qbo-status-detail{ font-size:0.78rem; color:var(--gray); }
+.qbo-status-badge{
+  display:inline-block; font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
+  border-radius:100px; padding:3px 10px; width:fit-content;
+}
+.qbo-status-badge.connected{ color:var(--green); background:#eafaf0; border:1px solid var(--green); }
+.qbo-status-badge.disconnected{ color:var(--gray); background:var(--panel); border:1px solid var(--line); }
+.qbo-connect-btn{
+  background:var(--navy); color:#fff; border:none; border-radius:6px; padding:9px 16px;
+  font-weight:700; font-size:0.82rem; cursor:pointer; text-decoration:none; white-space:nowrap;
+}
+.qbo-connect-btn:hover{ background:var(--navy-dark); }
+
 .coa-panel{ max-width:640px; }
 .coa-panel label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:14px 0 5px; }
 .coa-panel label:first-of-type{ margin-top:0; }
@@ -458,6 +477,14 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view" id="view-payments">
+  <div class="qbo-status-card">
+    <div class="qbo-status-left">
+      <span class="qbo-status-title">QuickBooks Payments (Credit/Debit Card)</span>
+      <span class="qbo-status-detail" id="qbo-status-detail">Checking connection…</span>
+      <span class="qbo-status-badge disconnected" id="qbo-status-badge">Not Connected</span>
+    </div>
+    <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn" id="qbo-connect-btn">Connect</a>
+  </div>
   <div class="filters">
     <input type="text" id="payments-search" placeholder="Search by order number or reference ID...">
     <input type="date" id="payments-date-from" title="Paid from">
@@ -1538,6 +1565,38 @@ function showOrdersSubtab(subtabId, subviewId) {
 function showPaymentsTab() {
   showAdminTab('tab-payments', 'view-payments');
   loadPayments();
+  loadQuickBooksStatus();
+}
+
+// GET /api/admin/quickbooks/status -- never returns tokens, just enough
+// to render "Connected to realm X" vs. "Not Connected" and toggle the
+// button's label between Connect/Reconnect. The button itself is a plain
+// <a href> (not a fetch-driven click handler) since /quickbooks/connect
+// is a real page navigation -- it 302s the admin's browser to Intuit's
+// own consent screen, which a fetch() can't follow across origins the
+// way a top-level navigation can.
+function loadQuickBooksStatus() {
+  const detailEl = document.getElementById('qbo-status-detail');
+  const badgeEl = document.getElementById('qbo-status-badge');
+  const btnEl = document.getElementById('qbo-connect-btn');
+  fetch('/api/admin/quickbooks/status', { credentials: 'include' })
+    .then(function(r) { return r.json(); })
+    .then(function(status) {
+      if (status.connected) {
+        badgeEl.textContent = 'Connected';
+        badgeEl.className = 'qbo-status-badge connected';
+        detailEl.textContent = 'Realm ' + status.realmId + ' (' + status.environment + ')';
+        btnEl.textContent = 'Reconnect';
+      } else {
+        badgeEl.textContent = 'Not Connected';
+        badgeEl.className = 'qbo-status-badge disconnected';
+        detailEl.textContent = 'No QuickBooks account connected yet.';
+        btnEl.textContent = 'Connect';
+      }
+    })
+    .catch(function() {
+      detailEl.textContent = 'Could not check QuickBooks connection status.';
+    });
 }
 
 function showCoaTab() {
