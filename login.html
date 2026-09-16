@@ -205,7 +205,9 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 .google-signin-btn:hover{ background:var(--panel); }
 .auth-divider{ display:flex; align-items:center; gap:12px; margin:18px 0; color:var(--gray); font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
 .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+.turnstile-widget{ margin:14px 0; }
 </style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -244,6 +246,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
     <input type="email" id="login-email" autocomplete="email" required>
     <label class="auth-field-label" for="login-password">Password</label>
     <input type="password" id="login-password" autocomplete="current-password" required>
+    <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAAE4JLwlFTZPPIn3i"></div>
     <button type="submit" class="auth-submit-btn" id="login-submit-btn">Log In</button>
     <p class="auth-error" id="login-error"></p>
     <button type="button" class="forgot-password-link" id="forgot-password-link">Forgot password?</button>
@@ -820,6 +823,7 @@ updateCartIcon();
       body: JSON.stringify({
         email: document.getElementById('login-email').value,
         password: document.getElementById('login-password').value,
+        turnstileToken: (typeof turnstile !== 'undefined') ? turnstile.getResponse() : '',
       }),
     })
       .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })

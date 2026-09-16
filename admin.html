@@ -294,7 +294,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .chat-input-row{ display:flex; gap:8px; padding:12px 16px; border-top:1.5px solid var(--line); }
 .chat-input-row input{ flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
 .chat-input-row button{ padding:9px 18px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
+.turnstile-widget{ margin:14px 0; }
 </style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -331,6 +333,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </svg>
     </button>
   </div>
+  <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAAE4JLwlFTZPPIn3i"></div>
   <button id="admin-login-btn">Log In</button>
   <p class="login-error" id="admin-login-error"></p>
 </div>
@@ -3506,7 +3509,11 @@ document.getElementById('admin-login-btn').addEventListener('click', function() 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ username: username, password: pw }),
+    body: JSON.stringify({
+      username: username,
+      password: pw,
+      turnstileToken: (typeof turnstile !== 'undefined') ? turnstile.getResponse() : '',
+    }),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
     .then(function(r) {

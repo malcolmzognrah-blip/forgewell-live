@@ -110,7 +110,9 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   .gate-hero{ height:30vh; }
   .gate-panel{ height:auto; overflow-y:visible; padding:32px 24px; }
 }
+.turnstile-widget{ margin:14px 0; }
 </style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -176,6 +178,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
           <input type="email" id="login-email" autocomplete="email" required>
           <label class="auth-field-label" for="login-password">Password</label>
           <input type="password" id="login-password" autocomplete="current-password" required>
+          <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAAE4JLwlFTZPPIn3i"></div>
           <button type="submit" class="auth-submit-btn" id="login-submit-btn">Log In</button>
           <p class="auth-error" id="login-error"></p>
         </form>
@@ -359,6 +362,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       body: JSON.stringify({
         email: document.getElementById('login-email').value,
         password: document.getElementById('login-password').value,
+        turnstileToken: (typeof turnstile !== 'undefined') ? turnstile.getResponse() : '',
       }),
     })
       .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })

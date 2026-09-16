@@ -375,8 +375,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
   .checkout-page-wrap{ margin:20px auto 60px; padding:0 16px; }
   .checkout-section{ padding:16px; }
 }
+.turnstile-widget{ margin:14px 0; }
 </style>
 
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -619,6 +621,15 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <button type="button" id="checkout-card-pay-btn" class="checkout-card-pay-btn">Pay Now</button>
           <div class="checkout-card-error" id="checkout-card-error"></div>
         </div>
+
+        <!--
+          Outside .checkout-card-panel deliberately -- this must gate
+          every submission regardless of which payment method is
+          selected, not just card. 'Managed' mode (Cloudflare dashboard
+          setting) means this div is the whole frontend integration;
+          Cloudflare's own script decides invisible vs. interactive.
+        -->
+        <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAAE4JLwlFTZPPIn3i"></div>
 
         <button type="button" id="checkout-place-order-btn" class="checkout-place-order-btn">Place Order</button>
         <a href="/cart.html" class="checkout-back-link">&larr; Back to Cart</a>
@@ -2531,6 +2542,11 @@ if (cart.length === 0) {
           // than hardcoded to 'payram' so this needs no further changes
           // once ACH/Card are enabled.
           paymentMethod: (document.querySelector('input[name="payment-method"]:checked') || {}).value || 'payram',
+          // typeof-guarded in case api.js (async defer) hasn't finished
+          // loading yet -- an empty string here is rejected server-side
+          // the same as a missing one, surfaced through the existing
+          // generic alert(data.error...) fallback below, no new UI.
+          turnstileToken: (typeof turnstile !== 'undefined') ? turnstile.getResponse() : '',
         })
       });
       const data = await res.json();
