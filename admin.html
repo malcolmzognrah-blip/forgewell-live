@@ -308,6 +308,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   <div style="display:flex; align-items:center; gap:16px;">
     <span id="admin-header-username" style="font-size:0.8rem; opacity:0.8; display:none;"></span>
     <a href="#" id="change-password-toggle-link" style="display:none;">Change Password</a>
+    <a href="#" id="mfa-settings-toggle-link" style="display:none;">MFA Settings</a>
     <a href="#" id="admin-logout-link" style="display:none;">Log Out</a>
   </div>
 </div>
@@ -322,6 +323,62 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   <input type="password" id="change-password-confirm" autocomplete="new-password">
   <button type="button" class="product-save-btn" id="change-password-save-btn" style="margin-top:14px;">Update Password</button>
   <span class="product-save-status" id="change-password-status"></span>
+</div>
+
+<div class="product-create-form" id="mfa-settings-form" style="max-width:400px; margin:16px auto 0;">
+  <div id="mfa-status-loading">Loading MFA status…</div>
+
+  <div id="mfa-status-error" style="display:none;">
+    <p class="fulfillment-section-note error" id="mfa-status-error-text">Could not load MFA status.</p>
+  </div>
+
+  <div id="mfa-status-disabled" style="display:none;">
+    <p class="fulfillment-section-note">Two-factor authentication is not enabled on this account.</p>
+    <button type="button" class="product-save-btn" id="mfa-enable-btn">Enable MFA</button>
+  </div>
+
+  <div id="mfa-status-enabled" style="display:none;">
+    <p class="fulfillment-section-note">Two-factor authentication is enabled<span id="mfa-enabled-since"></span>.</p>
+    <button type="button" class="product-save-btn" id="mfa-disable-start-btn">Disable MFA</button>
+  </div>
+
+  <!-- Enrollment: QR + secret + code confirm. A wrong code here just
+       re-shows this same step (see mfa-enroll-confirm-btn below) --
+       enroll/start's own design leaves an unconfirmed secret safe to
+       retry against indefinitely, so there's no need to call it again. -->
+  <div id="mfa-enroll-qr-step" style="display:none;">
+    <p class="fulfillment-section-note">Scan this QR code with an authenticator app (Google Authenticator, Authy, etc.), or enter the code below manually.</p>
+    <img id="mfa-enroll-qr-img" src="" alt="MFA enrollment QR code" style="display:block; width:180px; height:180px; margin:0 auto 14px;">
+    <p style="font-family:monospace; font-size:0.82rem; word-break:break-all; text-align:center; color:var(--gray); margin:0 0 14px;" id="mfa-enroll-secret-text"></p>
+    <label>Code From Your App</label>
+    <input type="text" id="mfa-enroll-code-input" autocomplete="one-time-code">
+    <button type="button" class="product-save-btn" id="mfa-enroll-confirm-btn">Confirm</button>
+    <span class="product-save-status" id="mfa-enroll-status"></span>
+  </div>
+
+  <!-- Shown exactly once, right after enroll/confirm succeeds -- these
+       codes are never retrievable again (see routes/admin.js's own
+       comment on that route), so the Done button stays disabled until
+       the admin explicitly acknowledges having saved them. -->
+  <div id="mfa-enroll-backup-codes-step" style="display:none;">
+    <p class="fulfillment-section-note error" style="margin-bottom:10px;">Save these backup codes now. Each works once, to sign in if you lose access to your authenticator app. <strong>They will not be shown again.</strong></p>
+    <ul id="mfa-backup-codes-list" style="font-family:monospace; font-size:0.9rem; line-height:1.8; list-style:none; padding:12px; margin:0 0 14px; background:#fff; border:1.5px solid var(--line); border-radius:6px;"></ul>
+    <label style="display:flex; align-items:center; gap:8px; font-weight:400; text-transform:none; font-size:0.85rem; color:#1a1a1a;">
+      <input type="checkbox" id="mfa-backup-codes-ack-checkbox" style="width:auto; height:auto; padding:0; margin:0;">
+      I've saved these backup codes
+    </label>
+    <button type="button" class="product-save-btn" id="mfa-backup-codes-done-btn" disabled style="margin-top:14px;">Done</button>
+  </div>
+
+  <!-- Disable: re-verify current password first, same reasoning as
+       change-password's own re-verify step above. -->
+  <div id="mfa-disable-confirm-step" style="display:none;">
+    <label>Current Password</label>
+    <input type="password" id="mfa-disable-password-input" autocomplete="current-password">
+    <button type="button" class="product-save-btn" id="mfa-disable-confirm-btn">Disable MFA</button>
+    <span class="product-save-status" id="mfa-disable-status"></span>
+    <p class="login-mfa-back"><a href="#" id="mfa-disable-cancel-link">Cancel</a></p>
+  </div>
 </div>
 
 <div class="login-wrap" id="login-wrap">
@@ -1233,6 +1290,7 @@ function showAdmin(username) {
   document.getElementById('admin-wrap').style.display = 'block';
   document.getElementById('admin-logout-link').style.display = 'inline';
   document.getElementById('change-password-toggle-link').style.display = 'inline';
+  document.getElementById('mfa-settings-toggle-link').style.display = 'inline';
   var usernameEl = document.getElementById('admin-header-username');
   if (username) {
     usernameEl.textContent = 'Logged in as ' + username;
@@ -1551,6 +1609,8 @@ function showLogin() {
   document.getElementById('admin-header-username').style.display = 'none';
   document.getElementById('change-password-toggle-link').style.display = 'none';
   document.getElementById('change-password-form').classList.remove('show');
+  document.getElementById('mfa-settings-toggle-link').style.display = 'none';
+  document.getElementById('mfa-settings-form').classList.remove('show');
 }
 
 // Shared by every tab (rather than each function individually
@@ -3701,6 +3761,174 @@ document.getElementById('change-password-save-btn').addEventListener('click', fu
     .catch(function() {
       btn.disabled = false;
       statusEl.textContent = 'Could not change password.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// MFA settings -- mfa-settings-form (see admin-header's toggle link) holds
+// several mutually-exclusive steps; this hides all of them except the one
+// requested, same "one visible state at a time" shape as login-wrap's own
+// showLoginMfaStep()/showLoginPasswordStep() pair above.
+var MFA_SETTINGS_STEPS = ['mfa-status-loading', 'mfa-status-error', 'mfa-status-disabled', 'mfa-status-enabled', 'mfa-enroll-qr-step', 'mfa-enroll-backup-codes-step', 'mfa-disable-confirm-step'];
+function showMfaSettingsStep(stepId) {
+  MFA_SETTINGS_STEPS.forEach(function(id) {
+    document.getElementById(id).style.display = (id === stepId) ? 'block' : 'none';
+  });
+}
+
+// Fetches current status fresh every time the panel is (re)opened, rather
+// than caching it -- also the call that returns the panel to its resting
+// "not enabled"/"enabled since X" view after any enroll/disable action
+// completes.
+function loadMfaStatus() {
+  showMfaSettingsStep('mfa-status-loading');
+  fetch('/api/admin/mfa/status', { credentials: 'include' })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) {
+        document.getElementById('mfa-status-error-text').textContent = r.d.error || 'Could not load MFA status.';
+        showMfaSettingsStep('mfa-status-error');
+        return;
+      }
+      if (r.d.enabled) {
+        document.getElementById('mfa-enabled-since').textContent = r.d.enrolledAt ? (' since ' + formatDate(r.d.enrolledAt)) : '';
+        showMfaSettingsStep('mfa-status-enabled');
+      } else {
+        showMfaSettingsStep('mfa-status-disabled');
+      }
+    })
+    .catch(function() {
+      document.getElementById('mfa-status-error-text').textContent = 'Could not load MFA status.';
+      showMfaSettingsStep('mfa-status-error');
+    });
+}
+
+document.getElementById('mfa-settings-toggle-link').addEventListener('click', function(e) {
+  e.preventDefault();
+  var form = document.getElementById('mfa-settings-form');
+  var opening = !form.classList.contains('show');
+  form.classList.toggle('show');
+  if (opening) loadMfaStatus();
+});
+
+document.getElementById('mfa-enable-btn').addEventListener('click', function() {
+  var btn = this;
+  btn.disabled = true;
+  fetch('/api/admin/mfa/enroll/start', { method: 'POST', credentials: 'include' })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        document.getElementById('mfa-status-error-text').textContent = r.d.error || 'Could not start MFA enrollment.';
+        showMfaSettingsStep('mfa-status-error');
+        return;
+      }
+      document.getElementById('mfa-enroll-qr-img').src = r.d.qrCodeDataUrl;
+      document.getElementById('mfa-enroll-secret-text').textContent = r.d.secret;
+      document.getElementById('mfa-enroll-code-input').value = '';
+      document.getElementById('mfa-enroll-status').textContent = '';
+      document.getElementById('mfa-enroll-status').className = 'product-save-status';
+      showMfaSettingsStep('mfa-enroll-qr-step');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      document.getElementById('mfa-status-error-text').textContent = 'Could not start MFA enrollment.';
+      showMfaSettingsStep('mfa-status-error');
+    });
+});
+
+document.getElementById('mfa-enroll-confirm-btn').addEventListener('click', function() {
+  var btn = this;
+  var code = document.getElementById('mfa-enroll-code-input').value.trim();
+  var statusEl = document.getElementById('mfa-enroll-status');
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  if (!code) return;
+  btn.disabled = true;
+  fetch('/api/admin/mfa/enroll/confirm', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: code }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        // Wrong code -- stay on this same step and let them retry rather
+        // than calling /enroll/start again. The stored secret is
+        // unconfirmed (totp_enabled still false) so it's harmless to keep
+        // retrying against -- see routes/admin.js's own comment on why
+        // that route is safe to call repeatedly before confirmation.
+        statusEl.textContent = r.d.error || 'Could not confirm MFA enrollment.';
+        statusEl.className = 'product-save-status error';
+        document.getElementById('mfa-enroll-code-input').value = '';
+        document.getElementById('mfa-enroll-code-input').focus();
+        return;
+      }
+      var list = document.getElementById('mfa-backup-codes-list');
+      list.innerHTML = r.d.backupCodes.map(function(c) { return '<li>' + c + '</li>'; }).join('');
+      var ackCheckbox = document.getElementById('mfa-backup-codes-ack-checkbox');
+      ackCheckbox.checked = false;
+      document.getElementById('mfa-backup-codes-done-btn').disabled = true;
+      showMfaSettingsStep('mfa-enroll-backup-codes-step');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not confirm MFA enrollment.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('mfa-backup-codes-ack-checkbox').addEventListener('change', function() {
+  document.getElementById('mfa-backup-codes-done-btn').disabled = !this.checked;
+});
+
+document.getElementById('mfa-backup-codes-done-btn').addEventListener('click', function() {
+  if (this.disabled) return;
+  loadMfaStatus();
+});
+
+document.getElementById('mfa-disable-start-btn').addEventListener('click', function() {
+  document.getElementById('mfa-disable-password-input').value = '';
+  document.getElementById('mfa-disable-status').textContent = '';
+  document.getElementById('mfa-disable-status').className = 'product-save-status';
+  showMfaSettingsStep('mfa-disable-confirm-step');
+});
+
+document.getElementById('mfa-disable-cancel-link').addEventListener('click', function(e) {
+  e.preventDefault();
+  loadMfaStatus();
+});
+
+document.getElementById('mfa-disable-confirm-btn').addEventListener('click', function() {
+  var btn = this;
+  var password = document.getElementById('mfa-disable-password-input').value;
+  var statusEl = document.getElementById('mfa-disable-status');
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  if (!password) return;
+  btn.disabled = true;
+  fetch('/api/admin/mfa/disable', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: password }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not disable MFA.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      document.getElementById('mfa-disable-password-input').value = '';
+      loadMfaStatus();
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not disable MFA.';
       statusEl.className = 'product-save-status error';
     });
 });
