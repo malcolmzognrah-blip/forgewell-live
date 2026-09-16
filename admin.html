@@ -33,6 +33,9 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 .login-wrap .login-password-toggle-btn:hover{ color:var(--navy); }
 .login-error{ color:#c0392b; font-size:0.82rem; margin-top:10px; display:none; }
 .login-error.show{ display:block; }
+.login-mfa-back{ margin-top:14px; font-size:0.82rem; }
+.login-mfa-back a{ color:var(--gray); }
+.login-mfa-back a:hover{ color:var(--navy); }
 
 .admin-wrap{ max-width:1200px; margin:0 auto; padding:24px; display:none; }
 .filters{ display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
@@ -322,19 +325,31 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 </div>
 
 <div class="login-wrap" id="login-wrap">
-  <h1>Admin Login</h1>
-  <input type="text" id="admin-username-input" placeholder="Username" autocomplete="username">
-  <div class="login-password-wrap">
-    <input type="password" id="admin-password-input" placeholder="Password" autocomplete="current-password">
-    <button type="button" class="login-password-toggle-btn" id="admin-password-toggle-btn" aria-label="Show password">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    </button>
+  <h1 id="login-wrap-title">Admin Login</h1>
+  <div id="login-password-step">
+    <input type="text" id="admin-username-input" placeholder="Username" autocomplete="username">
+    <div class="login-password-wrap">
+      <input type="password" id="admin-password-input" placeholder="Password" autocomplete="current-password">
+      <button type="button" class="login-password-toggle-btn" id="admin-password-toggle-btn" aria-label="Show password">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+    <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAE5EWgKwd5A5KMKs"></div>
+    <button id="admin-login-btn">Log In</button>
   </div>
-  <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAE5EWgKwd5A5KMKs"></div>
-  <button id="admin-login-btn">Log In</button>
+  <!-- Shown instead of the block above once POST /api/admin/login comes
+       back { ok:true, mfaRequired:true, pendingToken } -- an account with
+       TOTP enrolled, not a completed login yet. Hidden by default; the
+       login click-handler toggles between this and #login-password-step,
+       never both at once. -->
+  <div id="login-mfa-step" style="display:none;">
+    <input type="text" id="admin-mfa-code-input" placeholder="6-digit code or backup code" autocomplete="one-time-code">
+    <button id="admin-mfa-verify-btn">Verify</button>
+    <p class="login-mfa-back"><a href="#" id="admin-mfa-back-link">Use a different account</a></p>
+  </div>
   <p class="login-error" id="admin-login-error"></p>
 </div>
 
@@ -3500,6 +3515,35 @@ document.getElementById('credit-issue-btn').addEventListener('click', function()
     });
 });
 
+// Holds the pendingToken between POST /login's mfaRequired response and
+// POST /login/verify-totp -- module-scope so both click handlers below
+// can reach it. Null whenever #login-mfa-step isn't showing.
+var currentMfaPendingToken = null;
+
+// Switches login-wrap from the password step to the code-entry step --
+// called only after POST /login responds mfaRequired:true.
+function showLoginMfaStep() {
+  document.getElementById('login-password-step').style.display = 'none';
+  document.getElementById('login-mfa-step').style.display = 'block';
+  document.getElementById('login-wrap-title').textContent = 'Verification Code';
+  document.getElementById('admin-mfa-code-input').value = '';
+  document.getElementById('admin-mfa-code-input').focus();
+}
+
+// Switches back to the password step and discards the pending login --
+// called on the "Use a different account" link, and whenever POST
+// /login/verify-totp comes back restart:true (see that handler below).
+function showLoginPasswordStep() {
+  currentMfaPendingToken = null;
+  document.getElementById('login-mfa-step').style.display = 'none';
+  document.getElementById('login-password-step').style.display = 'block';
+  document.getElementById('login-wrap-title').textContent = 'Admin Login';
+  // The Turnstile token from the ORIGINAL POST /login call that got us
+  // here is already consumed server-side -- reset the widget so the next
+  // login attempt gets a fresh one instead of resubmitting a used token.
+  if (typeof turnstile !== 'undefined') turnstile.reset();
+}
+
 document.getElementById('admin-login-btn').addEventListener('click', function() {
   var username = document.getElementById('admin-username-input').value.trim();
   var pw = document.getElementById('admin-password-input').value;
@@ -3522,8 +3566,67 @@ document.getElementById('admin-login-btn').addEventListener('click', function() 
         errorEl.classList.add('show');
         return;
       }
+      // A 200/r.ok response is NOT always a completed login -- once an
+      // account has TOTP enrolled, POST /login returns
+      // { ok:true, mfaRequired:true, pendingToken } (still HTTP 200, no
+      // session cookie set) instead of { ok:true, username }. Branching
+      // on response CONTENT here, not just res.ok -- HTTP status alone
+      // can't tell these two 200 shapes apart. Before this check existed,
+      // showAdmin(undefined) ran anyway: admin-wrap flashed visible with
+      // no real session behind it, then its own first data fetch (401,
+      // no cookie) called showLogin() and snapped straight back --
+      // visible as a flash/reset with no obvious cause.
+      if (r.d.mfaRequired) {
+        currentMfaPendingToken = r.d.pendingToken;
+        showLoginMfaStep();
+        return;
+      }
       showAdmin(r.d.username);
     });
+});
+
+document.getElementById('admin-mfa-verify-btn').addEventListener('click', function() {
+  var code = document.getElementById('admin-mfa-code-input').value.trim();
+  var errorEl = document.getElementById('admin-login-error');
+  errorEl.classList.remove('show');
+  if (!code || !currentMfaPendingToken) return;
+  fetch('/api/admin/login/verify-totp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ pendingToken: currentMfaPendingToken, code: code }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      if (!r.ok) {
+        // restart:true (routes/admin.js) is a distinct signal from plain
+        // response text -- deliberately not message-matched on the
+        // frontend, which would silently break if the backend's wording
+        // ever changed. It means the pendingToken itself is now
+        // unrecoverable (expired, a lockout, or the account's state
+        // changed mid-flow) -- go all the way back to the password step.
+        // Its absence (a wrong code, or a real code that just rolled
+        // over to the next 30s window) means the SAME pendingToken is
+        // still good -- stay on this step and let them retry the code
+        // field in place.
+        if (r.d.restart) {
+          showLoginPasswordStep();
+        } else {
+          document.getElementById('admin-mfa-code-input').value = '';
+          document.getElementById('admin-mfa-code-input').focus();
+        }
+        errorEl.textContent = r.d.error || 'Verification failed.';
+        errorEl.classList.add('show');
+        return;
+      }
+      currentMfaPendingToken = null;
+      showAdmin(r.d.username);
+    });
+});
+
+document.getElementById('admin-mfa-back-link').addEventListener('click', function(e) {
+  e.preventDefault();
+  showLoginPasswordStep();
 });
 
 document.getElementById('admin-username-input').addEventListener('keydown', function(e) {
@@ -3531,6 +3634,9 @@ document.getElementById('admin-username-input').addEventListener('keydown', func
 });
 document.getElementById('admin-password-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') document.getElementById('admin-login-btn').click();
+});
+document.getElementById('admin-mfa-code-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('admin-mfa-verify-btn').click();
 });
 
 // Show/hide toggle for the login password field -- toggles the input's
