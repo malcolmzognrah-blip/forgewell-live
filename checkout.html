@@ -323,13 +323,16 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
    form column) -- so it doesn't inherit .checkout-section's
    input[type="text"]/select styling the way the shipping fields above do.
    Same declarations, re-scoped, rather than a new visual style. */
-.checkout-card-panel input[type="text"]{
+.checkout-card-panel input[type="text"],
+.checkout-card-panel select{
   width:100%; box-sizing:border-box; padding:11px 12px;
   border:1.5px solid var(--line); border-radius:8px; font-size:0.88rem;
   font-family:'Quicksand',sans-serif; color:#333; background:#fff;
 }
 .checkout-card-panel input[type="text"]::placeholder{ color:var(--gray); opacity:1; font-style:italic; }
-.checkout-card-panel input[type="text"]:focus{ outline:none; border-color:var(--navy); }
+.checkout-card-panel select:has(option:checked[value=""]){ color:var(--gray); font-style:italic; }
+.checkout-card-panel input[type="text"]:focus,
+.checkout-card-panel select:focus{ outline:none; border-color:var(--navy); }
 .checkout-card-pay-btn{
   width:100%; background:var(--navy); color:#fff; border:none; border-radius:8px;
   padding:12px; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.9rem;
@@ -593,7 +596,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
             </div>
             <div>
               <label class="checkout-field-label" for="checkout-card-region">State</label>
-              <input type="text" id="checkout-card-region" placeholder="State" autocomplete="billing address-level1">
+              <select id="checkout-card-region" autocomplete="billing address-level1">
+                <option value="">Select a state...</option>
+              </select>
               <p id="checkout-card-region-error" class="checkout-field-error">State is required.</p>
             </div>
           </div>
@@ -2210,6 +2215,23 @@ if (cart.length === 0) {
       postal: document.getElementById('checkout-card-postal'),
       country: document.getElementById('checkout-card-country'),
     };
+    // Same US_STATES list #checkout-ship-state's own options are built
+    // from further up this function -- reused here rather than
+    // redefined, both to stay a single source of truth and because a
+    // free-text state input was the confirmed root cause of live
+    // QuickBooks charge failures: browser autofill populates it with a
+    // full state name (e.g. "Nebraska") instead of the 2-letter code
+    // Intuit's Charges API requires, which Intuit then rejects with a
+    // misleading "card.number is invalid" error unrelated to the actual
+    // problem. A <select> makes that value always one of the valid
+    // 2-letter codes, the same fix already in place for shipping.
+    US_STATES.forEach(function(s) {
+      const opt = document.createElement('option');
+      opt.value = s[0];
+      opt.textContent = s[0] + ' — ' + s[1];
+      cardFields.region.appendChild(opt);
+    });
+
     var cardFieldErrors = {
       name: document.getElementById('checkout-card-name-error'),
       number: document.getElementById('checkout-card-number-error'),
