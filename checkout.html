@@ -2233,6 +2233,61 @@ if (cart.length === 0) {
       });
     });
 
+    // Live card-number grouping -- purely a visual/typing aid, added
+    // alongside (not replacing) the generic error-clearing 'input'
+    // listener above, which still fires independently on this same
+    // field. Network detection is by IIN/leading-digit ranges only
+    // (standard industry ranges, not a Luhn check or full BIN lookup --
+    // this never validates the card, it only decides how to group it).
+    // The submit handler's cardFields.number.value.replace(/\s+/g, '')
+    // still strips whatever spaces this inserts before the digits-only
+    // value is sent to the backend, so that line needs no change.
+    function detectCardNetwork(digits) {
+      if (/^4/.test(digits)) return 'visa';
+      if (/^3[47]/.test(digits)) return 'amex';
+      if (/^6011/.test(digits) || /^65/.test(digits) || /^64[4-9]/.test(digits)) return 'discover';
+      var prefix6 = parseInt(digits.slice(0, 6), 10);
+      if (!isNaN(prefix6) && prefix6 >= 622126 && prefix6 <= 622925) return 'discover';
+      if (/^5[1-5]/.test(digits)) return 'mastercard';
+      var prefix4 = parseInt(digits.slice(0, 4), 10);
+      if (!isNaN(prefix4) && prefix4 >= 2221 && prefix4 <= 2720) return 'mastercard';
+      return null;
+    }
+
+    function groupCardNumber(digits, network) {
+      if (network === 'amex') {
+        return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(' ');
+      }
+      var groups = [];
+      for (var i = 0; i < digits.length; i += 4) groups.push(digits.slice(i, i + 4));
+      return groups.join(' ');
+    }
+
+    cardFields.number.addEventListener('input', function() {
+      var digitsBeforeCursor = cardFields.number.value.slice(0, cardFields.number.selectionStart).replace(/\D/g, '').length;
+      var digits = cardFields.number.value.replace(/\D/g, '');
+      var network = detectCardNetwork(digits);
+
+      cardFields.number.value = groupCardNumber(digits, network);
+
+      // Cursor-preservation: walk forward through the reformatted value
+      // until the same count of digits (not characters) that preceded
+      // the cursor before reformatting has been passed again. Simple and
+      // good enough -- not a full formatter cursor-mapping solution.
+      var pos = 0, seenDigits = 0;
+      while (pos < cardFields.number.value.length && seenDigits < digitsBeforeCursor) {
+        if (/\d/.test(cardFields.number.value[pos])) seenDigits++;
+        pos++;
+      }
+      cardFields.number.setSelectionRange(pos, pos);
+
+      // Amex CVCs are 4 digits, every other network's is 3 -- tightened
+      // here since network detection is already being computed above;
+      // the field's maxlength="4" in the markup remains the fallback for
+      // before a network is detected (blank/ambiguous number).
+      cardFields.cvc.setAttribute('maxlength', network === 'amex' ? '4' : '3');
+    });
+
     function validateCardFieldsPresent() {
       var valid = true;
       Object.keys(cardFields).forEach(function(key) {
