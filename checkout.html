@@ -2184,6 +2184,19 @@ if (cart.length === 0) {
         option.classList.remove('disabled');
         radio.disabled = false;
         if (badge) badge.style.display = 'none';
+        // Card becomes the default selection once it's actually live --
+        // PayRam (the markup's static `checked` default) stays default
+        // only when card isn't available. This only flips which radio
+        // is checked -- nothing reads that state until the Place Order
+        // click handler's own fetch body further down reads whichever
+        // radio is checked at submit time (confirmed the only reader in
+        // this file), so this has no other effect: it doesn't reserve an
+        // order or show the on-page card form, same as a customer
+        // clicking the card radio themselves would not do either of
+        // those until they separately click Place Order.
+        var payramRadio = document.querySelector('input[name="payment-method"][value="payram"]');
+        if (payramRadio) payramRadio.checked = false;
+        radio.checked = true;
       })
       .catch(function() {});
   }
