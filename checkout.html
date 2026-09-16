@@ -556,6 +556,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
         <div class="checkout-card-panel" id="checkout-card-panel">
           <div class="checkout-card-panel-label">Card Details</div>
 
+          <label class="checkout-field-label" for="checkout-card-name">Name on Card</label>
+          <input type="text" id="checkout-card-name" placeholder="Full name as shown on card" autocomplete="cc-name">
+          <p id="checkout-card-name-error" class="checkout-field-error">Name on card is required.</p>
+
           <label class="checkout-field-label" for="checkout-card-number">Card Number</label>
           <input type="text" id="checkout-card-number" placeholder="1234 5678 9012 3456" autocomplete="cc-number" inputmode="numeric" maxlength="24">
           <p id="checkout-card-number-error" class="checkout-field-error">Card number is required.</p>
@@ -2195,6 +2199,7 @@ if (cart.length === 0) {
     panel.classList.add('show');
 
     var cardFields = {
+      name: document.getElementById('checkout-card-name'),
       number: document.getElementById('checkout-card-number'),
       expMonth: document.getElementById('checkout-card-exp-month'),
       expYear: document.getElementById('checkout-card-exp-year'),
@@ -2206,6 +2211,7 @@ if (cart.length === 0) {
       country: document.getElementById('checkout-card-country'),
     };
     var cardFieldErrors = {
+      name: document.getElementById('checkout-card-name-error'),
       number: document.getElementById('checkout-card-number-error'),
       expMonth: document.getElementById('checkout-card-exp-month-error'),
       expYear: document.getElementById('checkout-card-exp-year-error'),
@@ -2265,6 +2271,7 @@ if (cart.length === 0) {
           body: JSON.stringify({
             orderId: orderId,
             card: {
+              name: cardFields.name.value.trim(),
               number: cardFields.number.value.replace(/\s+/g, ''),
               expMonth: cardFields.expMonth.value.trim(),
               expYear: cardFields.expYear.value.trim(),
