@@ -77,6 +77,12 @@ h1{ text-align:center; color:var(--navy-dark); font-size:1.6rem; margin:0 0 8px;
 }
 .shop-link:hover{ text-decoration:underline; }
 
+/* Same small/gray/top-bordered footnote convention as product.html's
+   .trust-note ("For laboratory research use only.") -- this page has
+   its own copy rather than a shared class, same no-shared-CSS
+   convention as the rest of this site (see CLAUDE.md). */
+.payment-disclosure{ font-size:0.75rem; color:var(--gray); margin-top:20px; padding-top:16px; border-top:1px solid var(--line); }
+
 .error-box{
   text-align:center; padding:20px; color:var(--gray); font-size:0.9rem;
 }
@@ -254,6 +260,10 @@ function renderOrder(order, timedOut) {
     </div>
 
     ${ctaHtml(order, timedOut)}
+
+    ${order.payment_method === 'card' ? `
+    <p class="payment-disclosure">Payment is processed by: Intuit Payments Inc., 2700 Coast Avenue, Mountain View, CA 94043. Phone: 1-888-536-4801. NMLS #1098819</p>
+    ` : ''}
   `;
   updateContinueShoppingLink();
 }
