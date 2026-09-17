@@ -235,6 +235,33 @@ function renderOrder(order, timedOut) {
   const shippingCost = Number(order.shipping_cost || 0);
   const shippingLine = shippingCost === 0 ? 'Free' : '$' + shippingCost.toFixed(2);
 
+  // discount_cents is captured at order-creation time in routes/checkout.js
+  // (backend repo) from the real subtotal-before-discount vs. after
+  // difference -- null on any order placed before that column existed, in
+  // which case this falls back to the old "Applied"/bare-code text rather
+  // than showing a dollar figure it doesn't actually have. coupon_code and
+  // the bulk-discount flag are mutually exclusive by construction (backend
+  // only ever sets coupon_code when the coupon itself won), so at most one
+  // of these two lines ever renders -- same logic as the confirmation email
+  // (lib/emailTemplates.js, backend repo), kept in sync by hand per this
+  // site's no-shared-JS convention.
+  const discountCents = order.discount_cents != null ? Number(order.discount_cents) : null;
+  let discountLine = '';
+  if (order.coupon_code) {
+    discountLine = discountCents > 0
+      ? `<div class="totals-row"><span>Coupon ${escapeHtml(order.coupon_code)}</span><span>&minus;$${(discountCents / 100).toFixed(2)}</span></div>`
+      : `<div class="totals-row"><span>Coupon ${escapeHtml(order.coupon_code)}</span><span>Applied</span></div>`;
+  } else if (order.discount_applied) {
+    discountLine = discountCents > 0
+      ? `<div class="totals-row"><span>Bulk discount</span><span>&minus;$${(discountCents / 100).toFixed(2)}</span></div>`
+      : `<div class="totals-row"><span>Bulk discount</span><span>Applied</span></div>`;
+  }
+
+  const storeCreditCents = Number(order.store_credit_applied_cents || 0);
+  const storeCreditLine = storeCreditCents > 0
+    ? `<div class="totals-row"><span>Store credit applied</span><span>&minus;$${(storeCreditCents / 100).toFixed(2)}</span></div>`
+    : '';
+
   document.getElementById('main-content').innerHTML = `
     <div class="status-icon">${iconSvg(s.icon)}</div>
     <h1>${escapeHtml(s.title)}</h1>
@@ -252,8 +279,9 @@ function renderOrder(order, timedOut) {
       <h2>Items</h2>
       ${items || '<p style="color:var(--gray);font-size:0.85rem;">No item details available.</p>'}
       <div class="totals-row"><span>Subtotal</span><span>$${Number(order.subtotal).toFixed(2)}</span></div>
-      ${order.discount_applied ? '<div class="totals-row"><span>Bulk discount</span><span>Applied</span></div>' : ''}
+      ${discountLine}
       <div class="totals-row"><span>Shipping</span><span>${shippingLine}</span></div>
+      ${storeCreditLine}
       <div class="totals-row final"><span>Total</span><span>$${Number(order.total).toFixed(2)}</span></div>
     </div>
 
