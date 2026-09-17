@@ -78,6 +78,14 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
   font-weight:700; font-size:0.82rem; cursor:pointer; text-decoration:none; white-space:nowrap;
 }
 .qbo-connect-btn:hover{ background:var(--navy-dark); }
+.qbo-detail-columns{ display:flex; gap:20px; flex-wrap:wrap; margin-bottom:16px; }
+.qbo-detail-column{ flex:1; min-width:260px; border:1.5px solid var(--line); border-radius:8px; padding:12px 14px; background:#fff; }
+.qbo-detail-column h4{ margin:0 0 8px; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.03em; color:var(--gray); }
+.qbo-detail-column p{ margin:0 0 6px; font-size:0.82rem; }
+.qbo-refund-history-row{ font-size:0.8rem; padding:6px 0; border-bottom:1px solid var(--line); }
+.qbo-refund-history-row:last-child{ border-bottom:none; }
+.qbo-degraded-note{ font-size:0.78rem; color:#9A6B1E; background:#FDECD2; border-radius:6px; padding:8px 10px; margin-bottom:12px; }
+.qbo-ineligible-note{ font-size:0.82rem; color:var(--gray); background:var(--panel); border-radius:6px; padding:10px 12px; }
 
 .coa-panel{ max-width:640px; }
 .coa-panel label{ display:block; font-size:0.78rem; font-weight:700; color:var(--gray); margin:14px 0 5px; }
@@ -117,6 +125,7 @@ table.orders-table tr:hover{ background:var(--panel); }
 .order-status-pill{ display:inline-block; padding:3px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
 .order-status-pill.paid{ background:#DCF3E0; color:#1F7A34; }
 .order-status-pill.pending_payment{ background:#FDECD2; color:#9A6B1E; }
+.order-status-pill.refunded{ background:#DCE8F7; color:var(--navy); }
 .order-status-pill.other{ background:var(--line); color:var(--gray); }
 .job-status-pill{ display:inline-block; padding:3px 8px; border-radius:12px; font-size:0.7rem; font-weight:700; text-transform:uppercase; }
 .job-status-pill.success{ background:#DCF3E0; color:#1F7A34; }
@@ -590,6 +599,54 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <span class="qbo-status-badge disconnected" id="qbo-status-badge">Not Connected</span>
     </div>
     <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn" id="qbo-connect-btn">Connect</a>
+  </div>
+
+  <!-- Transaction list -- server-side filtered, same GET /api/admin/orders
+       pattern as the Orders tab (admin.html's own #view-orders), with
+       paymentMethod=card sent as a fixed filter on every request and the
+       new referenceId search added alongside email/status/date. -->
+  <div class="filters">
+    <input type="text" id="qbo-filter-email" placeholder="Filter by customer email...">
+    <select id="qbo-filter-status">
+      <option value="">All statuses</option>
+      <option value="paid">Paid</option>
+      <option value="refunded">Refunded</option>
+    </select>
+    <input type="text" id="qbo-filter-reference-id" placeholder="Filter by reference ID...">
+    <button type="button" id="qbo-filter-btn">Search</button>
+  </div>
+  <div class="date-range-filter">
+    <div class="date-range-field">
+      <label for="qbo-filter-date-from">From</label>
+      <div class="date-range-inputs">
+        <input type="date" id="qbo-filter-date-from">
+      </div>
+    </div>
+    <div class="date-range-field">
+      <label for="qbo-filter-date-to">To</label>
+      <div class="date-range-inputs">
+        <input type="date" id="qbo-filter-date-to">
+      </div>
+    </div>
+    <button type="button" id="qbo-filter-date-apply-btn">Apply Filter</button>
+  </div>
+
+  <p class="result-count" id="qbo-result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Date</th>
+        <th>Reference ID</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="qbo-transactions-tbody"></tbody>
+  </table>
   </div>
   </div>
   </div>
@@ -1245,7 +1302,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 function formatDate(iso) {
   return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
-function statusClass(s) { return s === 'paid' ? 'paid' : s === 'pending_payment' ? 'pending_payment' : 'other'; }
+function statusClass(s) { return s === 'paid' ? 'paid' : s === 'pending_payment' ? 'pending_payment' : s === 'refunded' ? 'refunded' : 'other'; }
 var FULFILLMENT_STATUSES = ['pending', 'processing', 'shipped', 'delivered'];
 
 // escapeForHtml() (further down) only escapes &/</> -- safe for text-node
@@ -1654,6 +1711,7 @@ function showPaymentsTab() {
   showAdminTab('tab-payments', 'view-payments');
   loadPayments();
   loadQuickBooksStatus();
+  loadQuickBooksTransactions();
 }
 
 // Sub-navigation within the Payments tab -- PayRam (the order/payment
@@ -1708,6 +1766,314 @@ function loadQuickBooksStatus() {
       detailEl.textContent = 'Could not check QuickBooks connection status.';
     });
 }
+
+// ============================================================
+// QuickBooks transactions -- server-side filtered list (same
+// GET /api/admin/orders pattern as the Orders tab, paymentMethod=card
+// sent as a fixed filter on every request) plus a per-row inline-expand
+// detail panel (same .product-detail-row shape as the Products/Coupons/
+// Store-Credit-correction tables elsewhere in this file), lazy-fetched
+// on each fresh expand via GET /orders/:id/refunds.
+// ============================================================
+
+function loadQuickBooksTransactions() {
+  var params = new URLSearchParams();
+  params.set('paymentMethod', 'card');
+  var email = document.getElementById('qbo-filter-email').value.trim();
+  var status = document.getElementById('qbo-filter-status').value;
+  var referenceId = document.getElementById('qbo-filter-reference-id').value.trim();
+  // buildRangeTimestamp() (defined above for the Orders tab) already
+  // degrades correctly to a full-day boundary when no time-of-day is
+  // given -- reused as-is rather than duplicating date-range logic just
+  // because this tab has no time-of-day inputs of its own.
+  var fromTimestamp = buildRangeTimestamp(document.getElementById('qbo-filter-date-from').value, '', false);
+  var toTimestamp = buildRangeTimestamp(document.getElementById('qbo-filter-date-to').value, '', true);
+  if (email) params.set('email', email);
+  if (status) params.set('status', status);
+  if (referenceId) params.set('referenceId', referenceId);
+  if (fromTimestamp) params.set('from', fromTimestamp);
+  if (toTimestamp) params.set('to', toTimestamp);
+
+  document.getElementById('qbo-result-count').textContent = 'Loading…';
+  fetch('/api/admin/orders?' + params.toString(), { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json();
+    })
+    .then(function(orders) {
+      if (!orders) return;
+      document.getElementById('qbo-result-count').textContent = orders.length + ' transaction' + (orders.length === 1 ? '' : 's');
+      if (!orders.length) {
+        document.getElementById('qbo-transactions-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">No transactions.</td></tr>';
+        return;
+      }
+      document.getElementById('qbo-transactions-tbody').innerHTML = orders.map(qboBuildTransactionRowsHtml).join('');
+    })
+    .catch(function() {
+      document.getElementById('qbo-result-count').textContent = '';
+      document.getElementById('qbo-transactions-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load transactions.</td></tr>';
+    });
+}
+
+// Two <tr>s per order -- a summary row plus a sibling .product-detail-row
+// (hidden until toggled). Only orders with a reference_id get a working
+// toggle -- one that never reached QuickBooks (still pending_payment,
+// e.g.) has nothing to show in the detail panel.
+function qboBuildTransactionRowsHtml(o) {
+  var orderLabel = o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...';
+  var toggleCell = o.reference_id
+    ? '<button type="button" class="product-edit-toggle-btn qbo-detail-toggle-btn" data-order-id="' + o.id + '">View Details</button>'
+    : '<span style="color:var(--gray);">—</span>';
+  return '<tr data-order-id="' + o.id + '">' +
+      '<td><code title="' + escapeForAttr(o.id) + '">' + orderLabel + '</code></td>' +
+      '<td>' + escapeForHtml(o.customer_email) + '</td>' +
+      '<td>$' + Number(o.total).toFixed(2) + '</td>' +
+      '<td class="qbo-status-cell"><span class="order-status-pill ' + statusClass(o.status) + '">' + o.status.replace('_', ' ') + '</span></td>' +
+      '<td>' + formatDate(o.created_at) + '</td>' +
+      '<td>' + (o.reference_id ? '<code>' + escapeForHtml(o.reference_id) + '</code>' : '—') + '</td>' +
+      '<td>' + toggleCell + '</td>' +
+    '</tr>' +
+    '<tr class="product-detail-row" data-order-id="' + o.id + '">' +
+      '<td colspan="7" class="product-detail-cell" id="qbo-detail-cell-' + o.id + '"></td>' +
+    '</tr>';
+}
+
+// orderId -> idempotencyKey. Generated fresh every time a row's detail
+// is (re)loaded -- i.e. every fresh expand -- and reused across however
+// many times the refund form inside that same expand is submitted
+// (including a retry after an error), per this feature's own idempotency
+// design. Collapsing and re-expanding the row calls this again and gets
+// a genuinely new key, matching "close and reopen the form" exactly.
+var qboRefundIdempotencyKeys = {};
+
+function qboLoadTransactionDetail(orderId) {
+  var cell = document.getElementById('qbo-detail-cell-' + orderId);
+  if (!cell) return;
+  cell.innerHTML = '<p style="color:var(--gray);">Loading transaction detail…</p>';
+  qboRefundIdempotencyKeys[orderId] = crypto.randomUUID();
+
+  fetch('/api/admin/orders/' + encodeURIComponent(orderId) + '/refunds', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json().then(function(d) { return { ok: res.ok, d: d }; });
+    })
+    .then(function(r) {
+      if (!r) return;
+      if (!r.ok) {
+        cell.innerHTML = '<p style="color:#c0392b;">' + escapeForHtml(r.d.error || 'Could not load transaction detail.') + '</p>';
+        return;
+      }
+      cell.innerHTML = qboBuildDetailHtml(orderId, r.d);
+      // Keeps the summary row's status pill in sync with whatever this
+      // fetch just confirmed -- e.g. flips paid -> refunded immediately
+      // after a full refund, without needing a full list reload (which
+      // would also collapse this row right back to closed).
+      var summaryRow = document.querySelector('tr[data-order-id="' + orderId + '"]:not(.product-detail-row)');
+      var statusCell = summaryRow ? summaryRow.querySelector('.qbo-status-cell') : null;
+      if (statusCell && r.d.order) {
+        statusCell.innerHTML = '<span class="order-status-pill ' + statusClass(r.d.order.status) + '">' + r.d.order.status.replace('_', ' ') + '</span>';
+      }
+    })
+    .catch(function() {
+      cell.innerHTML = '<p style="color:#c0392b;">Could not load transaction detail.</p>';
+    });
+}
+
+function qboBuildDetailHtml(orderId, data) {
+  var html = '';
+
+  if (!data.intuitDetail) {
+    // Explicit, not a silent omission -- per this feature's own design,
+    // failing to check Intuit's live side is exactly the misleading
+    // state this feature exists to avoid, given local and Intuit records
+    // can genuinely diverge (e.g. a charge voided directly through
+    // Intuit's Merchant Service Center, outside this app entirely).
+    html += '<div class="qbo-degraded-note">Unable to load live QuickBooks status — showing local records only.</div>';
+  }
+
+  html += '<div class="qbo-detail-columns">';
+  html += '<div class="qbo-detail-column"><h4>QuickBooks (Live)</h4>' + qboRenderIntuitDetail(data.intuitDetail) + '</div>';
+  html += '<div class="qbo-detail-column"><h4>Local Records</h4>' + qboRenderLocalRefunds(data.refunds) + '</div>';
+  html += '</div>';
+
+  html += '<p><strong>Total Refunded:</strong> $' + Number(data.totalRefunded).toFixed(2) +
+    ' &nbsp; <strong>Remaining Balance:</strong> $' + Number(data.remainingBalance).toFixed(2) + '</p>';
+
+  html += qboBuildRefundFormHtml(orderId, data.order, data.remainingBalance);
+
+  return html;
+}
+
+// Card field names below are confirmed against a real response (2026-09-
+// 17, charge 18ah2jbuvv4w via check-refund-charge-state.mjs), not
+// guessed: card.number is ALREADY masked by Intuit itself (e.g.
+// "xxxxxxxxxxxx4986") and rendered exactly as given, no slicing/
+// reformatting; card.cardType (NOT card.brand -- e.g. "Visa"), card.name,
+// card.expMonth/expYear, and card.address ({streetAddress, city, region,
+// country, postalCode}) are all confirmed correct as named. Only
+// refundDetail's own shape (id/status/amount/type/created) was
+// independently confirmed earlier in this same investigation -- both are
+// now used exactly as given, no fallbacks/guessed alternates needed. The
+// raw response is still included (collapsed) below regardless, since a
+// future Intuit API change is still worth being able to see directly.
+function qboRenderIntuitDetail(detail) {
+  if (!detail) return '<p style="color:var(--gray);">Not available.</p>';
+  var card = detail.card || {};
+  var address = card.address || {};
+
+  var html = '<p><strong>Status:</strong> ' + escapeForHtml(detail.status || '—') + '</p>';
+  html += '<p><strong>Card:</strong> ' + escapeForHtml(card.cardType || '—') + ' ' + escapeForHtml(card.number || '—') + '</p>';
+  html += '<p><strong>Name on Card:</strong> ' + escapeForHtml(card.name || '—') + '</p>';
+  if (card.expMonth || card.expYear) {
+    html += '<p><strong>Expires:</strong> ' + escapeForHtml(card.expMonth || '—') + '/' + escapeForHtml(card.expYear || '—') + '</p>';
+  }
+  var addressParts = [address.streetAddress, address.city, address.region, address.postalCode, address.country].filter(function(p) { return !!p; });
+  if (addressParts.length) {
+    html += '<p><strong>Billing Address:</strong> ' + addressParts.map(function(p) { return escapeForHtml(p); }).join(', ') + '</p>';
+  }
+
+  var refundDetail = Array.isArray(detail.refundDetail) ? detail.refundDetail : [];
+  if (refundDetail.length) {
+    html += '<p style="margin-top:10px;margin-bottom:2px;"><strong>Intuit Refund History</strong></p>';
+    html += refundDetail.map(function(r) {
+      return '<div class="qbo-refund-history-row">' +
+        '$' + Number(r.amount).toFixed(2) + ' — ' + escapeForHtml(r.type) + ' (' + escapeForHtml(r.status) + ')' +
+        '<br><span style="color:var(--gray);font-size:0.75rem;">' + (r.created ? formatDate(r.created) : '') + ' · ' + escapeForHtml(r.id) + '</span>' +
+      '</div>';
+    }).join('');
+  } else {
+    html += '<p style="color:var(--gray);">No refunds recorded at Intuit.</p>';
+  }
+
+  html += '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--gray);font-size:0.75rem;">Raw response</summary>' +
+    '<pre style="white-space:pre-wrap;word-break:break-all;font-size:0.7rem;background:var(--panel);padding:8px;border-radius:6px;">' +
+    escapeForHtml(JSON.stringify(detail, null, 2)) + '</pre></details>';
+
+  return html;
+}
+
+function qboRenderLocalRefunds(refunds) {
+  if (!refunds || !refunds.length) {
+    return '<p style="color:var(--gray);">No refunds recorded locally.</p>';
+  }
+  return refunds.map(function(r) {
+    return '<div class="qbo-refund-history-row">' +
+      '$' + Number(r.amount).toFixed(2) + ' — ' + escapeForHtml(r.intuit_type) + ' (' + escapeForHtml(r.status) + ')' +
+      (r.description ? '<br>' + escapeForHtml(r.description) : '') +
+      '<br><span style="color:var(--gray);font-size:0.75rem;">' + formatDate(r.created_at) + ' · ' + escapeForHtml(r.intuit_refund_id) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// Renders the refund form only if genuinely eligible -- otherwise a
+// disabled-state note explaining WHY, per this feature's own design
+// ("surface why it's disabled, don't just hide it silently"). All four
+// checks mirror POST /orders/:id/refund's own eligibility gate exactly,
+// so this never promises something the backend would then reject.
+function qboBuildRefundFormHtml(orderId, order, remainingBalance) {
+  var reasons = [];
+  if (order.payment_method !== 'card') reasons.push('This order was not paid via QuickBooks card processing.');
+  if (order.status !== 'paid') reasons.push("This order's status is '" + order.status + "', not 'paid'.");
+  if (!order.reference_id) reasons.push('This order has no QuickBooks charge reference.');
+  if (Number(remainingBalance) <= 0) reasons.push('This order has already been fully refunded.');
+
+  if (reasons.length) {
+    return '<div class="qbo-ineligible-note"><strong>Refund not available:</strong> ' + reasons.map(function(r) { return escapeForHtml(r); }).join(' ') + '</div>';
+  }
+
+  var maxAmount = Number(remainingBalance).toFixed(2);
+  return (
+    '<div class="product-create-form show" style="margin-top:10px;">' +
+      '<label>Refund Amount (USD)</label>' +
+      '<input type="number" step="0.01" min="0.01" max="' + maxAmount + '" value="' + maxAmount + '" class="qbo-refund-amount-input" data-order-id="' + orderId + '">' +
+      '<label>Description (optional)</label>' +
+      '<input type="text" class="qbo-refund-description-input" data-order-id="' + orderId + '" placeholder="Reason for refund...">' +
+      '<button type="button" class="product-save-btn qbo-refund-submit-btn" data-order-id="' + orderId + '" style="margin-top:10px;">Issue Refund</button>' +
+      '<span class="product-save-status" id="qbo-refund-status-' + orderId + '"></span>' +
+    '</div>'
+  );
+}
+
+function qboSubmitRefund(orderId) {
+  var amountInput = document.querySelector('.qbo-refund-amount-input[data-order-id="' + orderId + '"]');
+  var descriptionInput = document.querySelector('.qbo-refund-description-input[data-order-id="' + orderId + '"]');
+  var statusEl = document.getElementById('qbo-refund-status-' + orderId);
+  var btn = document.querySelector('.qbo-refund-submit-btn[data-order-id="' + orderId + '"]');
+  if (!amountInput || !statusEl || !btn) return;
+
+  var amount = parseFloat(amountInput.value);
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  if (!amount || amount <= 0) {
+    statusEl.textContent = 'Enter a valid refund amount.';
+    statusEl.className = 'product-save-status error';
+    return;
+  }
+
+  // Fails safe rather than submitting with no key at all -- should
+  // always already be set by qboLoadTransactionDetail() at this point.
+  var idempotencyKey = qboRefundIdempotencyKeys[orderId] || crypto.randomUUID();
+  qboRefundIdempotencyKeys[orderId] = idempotencyKey;
+
+  btn.disabled = true;
+  fetch('/api/admin/orders/' + encodeURIComponent(orderId) + '/refund', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      amount: amount,
+      description: descriptionInput.value.trim() || undefined,
+      idempotencyKey: idempotencyKey,
+    }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        statusEl.textContent = r.d.error || 'Could not process refund.';
+        statusEl.className = 'product-save-status error';
+        return;
+      }
+      statusEl.textContent = (r.d.alreadyRecorded ? 'Already recorded — ' : '') + 'Refund issued (' + r.d.type + ', $' + Number(r.d.amount).toFixed(2) + ').';
+      statusEl.className = 'product-save-status success';
+      // Refreshes the detail panel in place (history, remaining balance,
+      // re-gates the form if now fully refunded) and rotates the
+      // idempotency key -- a completed submission is exactly the kind of
+      // boundary that should end this "form instance", same as closing
+      // and reopening it. Deliberately NOT a full loadQuickBooksTransactions()
+      // list reload here -- that would rebuild the whole tbody and
+      // collapse this row right back to closed immediately after the
+      // admin just acted on it.
+      qboLoadTransactionDetail(orderId);
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not process refund.';
+      statusEl.className = 'product-save-status error';
+    });
+}
+
+document.getElementById('qbo-transactions-tbody').addEventListener('click', function(e) {
+  var toggleBtn = e.target.closest('.qbo-detail-toggle-btn');
+  if (toggleBtn) {
+    var orderId = toggleBtn.getAttribute('data-order-id');
+    var detailRow = document.querySelector('.product-detail-row[data-order-id="' + orderId + '"]');
+    if (!detailRow) return;
+    var opening = !detailRow.classList.contains('show');
+    detailRow.classList.toggle('show');
+    toggleBtn.textContent = opening ? 'Hide Details' : 'View Details';
+    if (opening) qboLoadTransactionDetail(orderId);
+    return;
+  }
+  var refundSubmitBtn = e.target.closest('.qbo-refund-submit-btn');
+  if (refundSubmitBtn) qboSubmitRefund(refundSubmitBtn.getAttribute('data-order-id'));
+});
+
+document.getElementById('qbo-filter-btn').addEventListener('click', loadQuickBooksTransactions);
+document.getElementById('qbo-filter-date-apply-btn').addEventListener('click', loadQuickBooksTransactions);
+document.getElementById('qbo-filter-email').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadQuickBooksTransactions(); });
+document.getElementById('qbo-filter-reference-id').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadQuickBooksTransactions(); });
+document.getElementById('qbo-filter-status').addEventListener('change', loadQuickBooksTransactions);
 
 function showCoaTab() {
   showAdminTab('tab-coas', 'view-coas');
