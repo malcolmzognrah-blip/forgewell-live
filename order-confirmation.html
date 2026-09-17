@@ -243,6 +243,9 @@ function renderOrder(order, timedOut) {
     <div class="card">
       <h2>Order details</h2>
       <div class="order-id">Order Number: ${escapeHtml(order.order_number || order.id)}</div>
+      ${order.paid_at ? `<div class="totals-row"><span>Transaction date</span><span>${escapeHtml(new Date(order.paid_at).toLocaleString())}</span></div>` : ''}
+      ${order.reference_id ? `<div class="totals-row"><span>Transaction ID</span><span>${escapeHtml(order.reference_id)}</span></div>` : ''}
+      ${order.card_last4 ? `<div class="totals-row"><span>Card ending in</span><span>&bull;&bull;&bull;&bull; ${escapeHtml(order.card_last4)}</span></div>` : ''}
     </div>
 
     <div class="card">
@@ -262,7 +265,7 @@ function renderOrder(order, timedOut) {
     ${ctaHtml(order, timedOut)}
 
     ${order.payment_method === 'card' ? `
-    <p class="payment-disclosure">Payment is processed by: Intuit Payments Inc., 2700 Coast Avenue, Mountain View, CA 94043. Phone: 1-888-536-4801. NMLS #1098819</p>
+    <p class="payment-disclosure">Payment is processed by: Intuit Payments Inc., 2700 Coast Avenue, Mountain View, CA 94043, Phone number 1-888-536-4801, NMLS #1098819</p>
     ` : ''}
   `;
   updateContinueShoppingLink();

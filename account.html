@@ -1034,6 +1034,10 @@ updateCartIcon();
         ? '<div class="order-tracking">Tracking: ' + escapeHtml(order.tracking_number) + '</div>'
         : '';
 
+      var storeCreditRow = (order.store_credit_applied_cents > 0)
+        ? '<div class="order-total-row"><span>Store credit applied</span><span>-' + formatCents(order.store_credit_applied_cents) + '</span></div>'
+        : '';
+
       return '<div class="order-card">' +
         '<div class="order-card-top">' +
           '<div><div class="order-id">Order ' + escapeHtml(order.order_number || order.id) + '</div><div class="order-date">' + formatDate(order.created_at) + '</div></div>' +
@@ -1044,6 +1048,7 @@ updateCartIcon();
         '</div>' +
         trackingRow +
         '<div class="order-items">' + items + '</div>' +
+        storeCreditRow +
         '<div class="order-total-row"><span>Total</span><span>$' + Number(order.total).toFixed(2) + '</span></div>' +
       '</div>';
     }).join('');
