@@ -232,7 +232,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .product-detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
 .product-detail-cell label{ display:block; font-size:0.72rem; font-weight:700; color:var(--gray); margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.03em; }
 .product-detail-cell label:first-of-type{ margin-top:0; }
-.product-detail-cell input, .product-detail-cell textarea{ width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:0.82rem; font-family:inherit; }
+.product-detail-cell input, .product-detail-cell textarea, .product-detail-cell select{ width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:0.82rem; font-family:inherit; }
 .product-detail-cell textarea{ min-height:70px; resize:vertical; }
 .product-save-btn{ margin-top:14px; padding:9px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.8rem; }
 .product-save-btn:disabled{ opacity:0.5; cursor:not-allowed; }
@@ -566,6 +566,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="content-subtab" id="payments-subtab-quickbooks">QuickBooks</button>
     <button type="button" class="content-subtab" id="payments-subtab-storecredit">Store Credit</button>
     <button type="button" class="content-subtab" id="payments-subtab-coupon">Coupon</button>
+    <button type="button" class="content-subtab" id="payments-subtab-referrals">Referrals</button>
   </div>
 
   <div class="content-subview active" id="payments-subview-payram">
@@ -700,6 +701,55 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </tr>
     </thead>
     <tbody id="coupon-tbody"></tbody>
+  </table>
+  </div>
+  </div>
+
+  <!-- Own endpoint (GET/PATCH /api/admin/referral-commissions), unlike
+       the three sub-tabs above -- referral_commissions is its own
+       domain object (referrer/referred/order/payout), not another view
+       of the orders table, so there was no existing paymentsOrdersCache
+       shape to reuse here. -->
+  <div class="content-subview" id="payments-subview-referrals">
+  <!-- Visible, not just a code comment -- see lib/referrals.js's own
+       REVENUE_BASIS_CENTS comment (backend repo) and this migration's
+       header comment for the same statement kept next to the code that
+       actually computes/stores it. Anyone marking a commission paid from
+       this tab should see this, not just whoever reads the source later. -->
+  <div style="background:#FDECD2; border:1px solid #F0D5A8; border-radius:8px; padding:12px 16px; margin-bottom:20px; font-size:0.82rem; color:#7A5416;">
+    <strong>Temporary basis:</strong> Commission is currently calculated on <strong>revenue</strong>, not profit -- no per-product cost-basis data exists in the system yet. This will switch to profit-based once real cost data is available.
+  </div>
+  <div class="fulfillment-section" style="margin-bottom:20px;">
+    <label for="referral-rate-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:5px;">Commission Rate (%)</label>
+    <input type="number" step="0.01" min="0" max="100" id="referral-rate-input" style="width:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem;">
+    <button type="button" class="fulfillment-btn" id="referral-rate-save-btn" style="margin-left:10px;">Save</button>
+    <span class="product-save-status" id="referral-rate-status"></span>
+    <p class="fulfillment-section-note" style="margin-top:8px;">Applies only to commissions calculated after this change -- every existing commission keeps the rate it was actually calculated at.</p>
+  </div>
+
+  <div class="filters">
+    <input type="text" id="referral-search" placeholder="Search by order number, referrer, or referred email...">
+    <select id="referral-status-filter">
+      <option value="">All statuses</option>
+      <option value="pending">Pending</option>
+      <option value="paid">Paid</option>
+    </select>
+  </div>
+  <p class="result-count" id="referral-result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Referrer</th>
+        <th>Referred Customer</th>
+        <th>Order</th>
+        <th>Date</th>
+        <th>Commission</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="referral-tbody"></tbody>
   </table>
   </div>
   </div>
@@ -1837,6 +1887,182 @@ function debouncedRenderCouponPayments() {
   couponSearchDebounceTimer = setTimeout(renderCouponPayments, 200);
 }
 
+// ============================================================
+// Payments > Referrals
+// ============================================================
+
+// Reads from the PUBLIC GET (same one account.html's "Refer & Earn" tab
+// and product-facing copy would read) rather than a separate admin-only
+// endpoint -- this setting isn't sensitive, and it means this input
+// always reflects exactly what's live, same convention as
+// content-free-shipping-input above.
+function loadReferralRate() {
+  fetch('/api/content/referral-commission-rate')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { document.getElementById('referral-rate-input').value = d.ratePercent != null ? d.ratePercent : ''; })
+    .catch(function() {});
+}
+
+document.getElementById('referral-rate-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('referral-rate-status');
+  var ratePercent = document.getElementById('referral-rate-input').value;
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/referral-commission-rate', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ratePercent: ratePercent }),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+// Fetched once into referralCommissionsCache; search/status filters below
+// re-filter that same array client-side -- same "fetch once, filter
+// client-side" spirit as paymentsOrdersCache, just its own cache since
+// this is a different endpoint/domain object (see this subview's own
+// markup comment).
+var referralCommissionsCache = [];
+
+function loadReferralCommissions() {
+  fetch('/api/admin/referral-commissions', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json();
+    })
+    .then(function(rows) {
+      if (!rows) return;
+      referralCommissionsCache = rows;
+      renderReferralCommissions();
+    })
+    .catch(function() {
+      document.getElementById('referral-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load referral commissions.</td></tr>';
+    });
+}
+
+function renderReferralCommissions() {
+  var q = document.getElementById('referral-search').value.trim().toLowerCase();
+  var statusFilter = document.getElementById('referral-status-filter').value;
+
+  var filtered = referralCommissionsCache.filter(function(c) {
+    if (statusFilter && c.status !== statusFilter) return false;
+    if (q) {
+      var haystack = [c.order_number, c.referrer_email, c.referred_email].join(' ').toLowerCase();
+      if (haystack.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('referral-result-count').textContent = filtered.length + ' commission' + (filtered.length === 1 ? '' : 's');
+  document.getElementById('referral-tbody').innerHTML = filtered.map(function(c) {
+    var isPending = c.status === 'pending';
+    var row = '<tr>' +
+      '<td>' + escapeForHtml(c.referrer_name || c.referrer_email) + '</td>' +
+      '<td>' + escapeForHtml(c.referred_name || c.referred_email) + '</td>' +
+      '<td><code>' + escapeForHtml(c.order_number || c.order_id.slice(0, 8) + '...') + '</code></td>' +
+      '<td>' + formatDate(c.created_at) + '</td>' +
+      '<td>' + formatCents(c.commission_cents) + '</td>' +
+      '<td><span class="order-status-pill ' + (isPending ? 'pending_payment' : 'paid') + '">' + (isPending ? 'Pending' : 'Paid') + '</span></td>' +
+      '<td>' + (isPending
+        ? '<button type="button" class="product-edit-toggle-btn referral-markpaid-toggle-btn" data-commission-id="' + c.id + '">Mark Paid</button>'
+        : (c.payment_type ? escapeForHtml(c.payment_type) + (c.payment_reference ? ' — ' + escapeForHtml(c.payment_reference) : '') : '—')) +
+      '</td>' +
+    '</tr>';
+    if (!isPending) return row;
+    row += '<tr class="product-detail-row" data-commission-id="' + c.id + '">' +
+      '<td colspan="7" class="product-detail-cell">' +
+        '<label>Payment Type</label>' +
+        '<select class="referral-markpaid-type">' +
+          '<option value="PayPal">PayPal</option>' +
+          '<option value="Venmo">Venmo</option>' +
+          '<option value="Zelle">Zelle</option>' +
+          '<option value="Check">Check</option>' +
+          '<option value="Bank Transfer">Bank Transfer</option>' +
+          '<option value="Cash">Cash</option>' +
+          '<option value="Other">Other</option>' +
+        '</select>' +
+        '<label>Reference / Note (optional)</label>' +
+        '<input type="text" class="referral-markpaid-reference" placeholder="Transaction ID, check #, etc.">' +
+        '<div style="margin-top:12px;">' +
+          '<button type="button" class="product-save-btn referral-markpaid-save-btn" data-commission-id="' + c.id + '">Confirm Paid</button> ' +
+          '<button type="button" class="product-edit-toggle-btn referral-markpaid-cancel-btn" data-commission-id="' + c.id + '">Cancel</button>' +
+        '</div>' +
+        '<p class="credit-issue-status" id="referral-markpaid-status-' + c.id + '"></p>' +
+      '</td>' +
+    '</tr>';
+    return row;
+  }).join('');
+}
+
+var referralSearchDebounceTimer = null;
+function debouncedRenderReferralCommissions() {
+  clearTimeout(referralSearchDebounceTimer);
+  referralSearchDebounceTimer = setTimeout(renderReferralCommissions, 200);
+}
+
+// Delegated -- #referral-tbody is fully rebuilt by every
+// renderReferralCommissions() call, same idiom as #credit-history-tbody's
+// own delegated Correct/Remove/Save handler.
+document.getElementById('referral-tbody').addEventListener('click', function(e) {
+  var toggleBtn = e.target.closest('.referral-markpaid-toggle-btn');
+  if (toggleBtn) {
+    var toggleId = toggleBtn.getAttribute('data-commission-id');
+    var detailRow = document.querySelector('.product-detail-row[data-commission-id="' + toggleId + '"]');
+    if (detailRow) detailRow.classList.toggle('show');
+    return;
+  }
+
+  var cancelBtn = e.target.closest('.referral-markpaid-cancel-btn');
+  if (cancelBtn) {
+    var cancelId = cancelBtn.getAttribute('data-commission-id');
+    var cancelRow = document.querySelector('.product-detail-row[data-commission-id="' + cancelId + '"]');
+    if (cancelRow) cancelRow.classList.remove('show');
+    return;
+  }
+
+  var saveBtn = e.target.closest('.referral-markpaid-save-btn');
+  if (saveBtn) {
+    var saveId = saveBtn.getAttribute('data-commission-id');
+    var saveRow = document.querySelector('.product-detail-row[data-commission-id="' + saveId + '"]');
+    var statusEl = document.getElementById('referral-markpaid-status-' + saveId);
+    var paymentType = saveRow.querySelector('.referral-markpaid-type').value;
+    var paymentReference = saveRow.querySelector('.referral-markpaid-reference').value.trim();
+    statusEl.className = 'credit-issue-status';
+    statusEl.textContent = '';
+    saveBtn.disabled = true;
+    fetch('/api/admin/referral-commissions/' + encodeURIComponent(saveId), {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentType: paymentType, paymentReference: paymentReference }),
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        saveBtn.disabled = false;
+        if (!r.ok) {
+          statusEl.textContent = r.d.error || 'Could not mark this commission paid.';
+          statusEl.className = 'credit-issue-status error';
+          return;
+        }
+        loadReferralCommissions();
+      })
+      .catch(function() {
+        saveBtn.disabled = false;
+        statusEl.textContent = 'Could not mark this commission paid.';
+        statusEl.className = 'credit-issue-status error';
+      });
+    return;
+  }
+});
+
 function showLogin() {
   document.getElementById('login-wrap').style.display = 'block';
   document.getElementById('admin-wrap').style.display = 'none';
@@ -1890,6 +2116,8 @@ function showPaymentsTab() {
   loadPayments();
   loadQuickBooksStatus();
   loadQuickBooksTransactions();
+  loadReferralRate();
+  loadReferralCommissions();
 }
 
 // Sub-navigation within the Payments tab -- PayRam (the order/payment
@@ -1907,10 +2135,10 @@ function showPaymentsTab() {
 // and admin-gated, so eager-loading all of them up front was chosen for
 // simplicity over matching that lazier pattern).
 function showPaymentsSubtab(subtabId, subviewId) {
-  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon'].forEach(function(id) {
+  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon', 'payments-subtab-referrals'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon'].forEach(function(id) {
+  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon', 'payments-subview-referrals'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -4511,6 +4739,9 @@ document.getElementById('payments-subtab-storecredit').addEventListener('click',
 document.getElementById('payments-subtab-coupon').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-coupon', 'payments-subview-coupon');
 });
+document.getElementById('payments-subtab-referrals').addEventListener('click', function() {
+  showPaymentsSubtab('payments-subtab-referrals', 'payments-subview-referrals');
+});
 document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
 document.getElementById('payments-date-from').addEventListener('change', renderPayments);
 document.getElementById('payments-date-to').addEventListener('change', renderPayments);
@@ -4520,6 +4751,8 @@ document.getElementById('storecredit-date-to').addEventListener('change', render
 document.getElementById('coupon-search').addEventListener('input', debouncedRenderCouponPayments);
 document.getElementById('coupon-date-from').addEventListener('change', renderCouponPayments);
 document.getElementById('coupon-date-to').addEventListener('change', renderCouponPayments);
+document.getElementById('referral-search').addEventListener('input', debouncedRenderReferralCommissions);
+document.getElementById('referral-status-filter').addEventListener('change', renderReferralCommissions);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
