@@ -1663,11 +1663,21 @@ function loadPayments() {
     });
 }
 
-// Applies the search box (order_number, falling back to reference_id)
-// and paid-at date range to paymentsOrdersCache, AND'd together, and
-// re-renders the table + result count from the filtered set. Never
-// re-fetches -- called on every keystroke (debounced) and date-input
-// change.
+// Applies payment_method === 'payram', the search box (order_number,
+// falling back to reference_id), and paid-at date range to
+// paymentsOrdersCache, AND'd together, and re-renders the table + result
+// count from the filtered set. Never re-fetches -- called on every
+// keystroke (debounced) and date-input change.
+//
+// The payment_method check was missing entirely until this fix -- this
+// sub-tab used to be the WHOLE top-level "Payments" tab back when PayRam
+// was the only method (see git history: 604fee2 renamed that tab to
+// "Payments" and split it into PayRam/QuickBooks sub-tabs, but carried
+// this all-orders list into the new "PayRam" sub-tab as-is, without ever
+// adding a method filter) -- card/QuickBooks orders were showing up here
+// too. QuickBooks' own sub-tab was never affected -- it already sends
+// paymentMethod=card as a fixed server-side filter (see
+// loadQuickBooksTransactions()).
 function renderPayments() {
   var q = document.getElementById('payments-search').value.trim().toLowerCase();
   var fromVal = document.getElementById('payments-date-from').value;
@@ -1676,6 +1686,7 @@ function renderPayments() {
   var toDate = toVal ? new Date(toVal + 'T23:59:59.999') : null;
 
   var filtered = paymentsOrdersCache.filter(function(o) {
+    if (o.payment_method !== 'payram') return false;
     if (q) {
       var orderNumber = (o.order_number || '').toLowerCase();
       var referenceId = (o.reference_id || '').toLowerCase();
