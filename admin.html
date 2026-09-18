@@ -564,6 +564,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   <div class="content-subtabs">
     <button type="button" class="content-subtab active" id="payments-subtab-payram">PayRam</button>
     <button type="button" class="content-subtab" id="payments-subtab-quickbooks">QuickBooks</button>
+    <button type="button" class="content-subtab" id="payments-subtab-storecredit">Store Credit</button>
+    <button type="button" class="content-subtab" id="payments-subtab-coupon">Coupon</button>
   </div>
 
   <div class="content-subview active" id="payments-subview-payram">
@@ -646,6 +648,58 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </tr>
     </thead>
     <tbody id="qbo-transactions-tbody"></tbody>
+  </table>
+  </div>
+  </div>
+
+  <!-- Same "fetch paymentsOrdersCache once, filter client-side" pattern
+       as payments-subview-payram above (renderStoreCreditPayments()) --
+       no new endpoint, just two more columns already added to GET
+       /api/admin/orders' SELECT (store_credit_applied_cents, coupon_code,
+       discount_cents). -->
+  <div class="content-subview" id="payments-subview-storecredit">
+  <div class="filters">
+    <input type="text" id="storecredit-search" placeholder="Search by order number...">
+    <input type="date" id="storecredit-date-from" title="Order date from">
+    <input type="date" id="storecredit-date-to" title="Order date to">
+  </div>
+  <p class="result-count" id="storecredit-result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Order Date</th>
+        <th>Order Total</th>
+        <th>Store Credit Applied</th>
+        <th>Redemption</th>
+      </tr>
+    </thead>
+    <tbody id="storecredit-tbody"></tbody>
+  </table>
+  </div>
+  </div>
+
+  <div class="content-subview" id="payments-subview-coupon">
+  <div class="filters">
+    <input type="text" id="coupon-search" placeholder="Search by order number or coupon code...">
+    <input type="date" id="coupon-date-from" title="Order date from">
+    <input type="date" id="coupon-date-to" title="Order date to">
+  </div>
+  <p class="result-count" id="coupon-result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Order Date</th>
+        <th>Coupon Code</th>
+        <th>Discount Amount</th>
+      </tr>
+    </thead>
+    <tbody id="coupon-tbody"></tbody>
   </table>
   </div>
   </div>
@@ -1599,9 +1653,13 @@ function loadPayments() {
         return new Date(b.paid_at) - new Date(a.paid_at);
       });
       renderPayments();
+      renderStoreCreditPayments();
+      renderCouponPayments();
     })
     .catch(function() {
       document.getElementById('payments-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load payments.</td></tr>';
+      document.getElementById('storecredit-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
+      document.getElementById('coupon-tbody').innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">Could not load orders.</td></tr>';
     });
 }
 
@@ -1657,6 +1715,115 @@ var paymentsSearchDebounceTimer = null;
 function debouncedRenderPayments() {
   clearTimeout(paymentsSearchDebounceTimer);
   paymentsSearchDebounceTimer = setTimeout(renderPayments, 200);
+}
+
+// Applies the search box (order_number) and order-date range to
+// paymentsOrdersCache, filtered down to store_credit_applied_cents > 0 --
+// same "fetch once, filter client-side" pattern as renderPayments() above,
+// sharing its cache rather than a separate fetch. Sorted by created_at
+// (order date) here specifically, not paid_at like paymentsOrdersCache's
+// own sort order -- a store-credit order can be pending/cancelled with no
+// paid_at at all, and this view is about when the order was PLACED, not
+// when it was paid.
+//
+// Redemption ("Full"/"Partial"): Full means store credit covered the
+// ENTIRE order (order.total === 0, the exact same <= 0 condition
+// routes/checkout.js's own "fully covered by store credit" branch uses to
+// skip a real charge entirely) -- confirmed via a real order
+// (FW-2026-00104) that there's no separate minimum-charge floor anywhere
+// in checkout.js/checkout.html; that order simply had less store credit
+// REQUESTED than its total, landing on a nonzero remainder for entirely
+// ordinary reasons, not a floor. Pre-credit order total is derived as
+// total + store_credit_applied_cents/100 -- always exactly correct by
+// construction (checkout.js subtracts store credit last, after shipping),
+// unlike trying to reconstruct it from subtotal/discount_cents/shipping_cost.
+function renderStoreCreditPayments() {
+  var q = document.getElementById('storecredit-search').value.trim().toLowerCase();
+  var fromVal = document.getElementById('storecredit-date-from').value;
+  var toVal = document.getElementById('storecredit-date-to').value;
+  var fromDate = fromVal ? new Date(fromVal + 'T00:00:00') : null;
+  var toDate = toVal ? new Date(toVal + 'T23:59:59.999') : null;
+
+  var filtered = paymentsOrdersCache.filter(function(o) {
+    if (!(Number(o.store_credit_applied_cents) > 0)) return false;
+    if (q && (o.order_number || '').toLowerCase().indexOf(q) === -1) return false;
+    if (fromDate || toDate) {
+      var createdAt = new Date(o.created_at);
+      if (fromDate && createdAt < fromDate) return false;
+      if (toDate && createdAt > toDate) return false;
+    }
+    return true;
+  }).sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+
+  document.getElementById('storecredit-result-count').textContent = filtered.length + ' order' + (filtered.length === 1 ? '' : 's');
+  document.getElementById('storecredit-tbody').innerHTML = filtered.map(function(o) {
+    var creditCents = Number(o.store_credit_applied_cents);
+    var preCreditTotal = Number(o.total) + creditCents / 100;
+    var isFull = Number(o.total) === 0;
+    return '<tr>' +
+      '<td><code title="' + escapeForAttr(o.id) + '">' + (o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...') + '</code></td>' +
+      '<td>' + escapeForHtml(o.customer_email) + '</td>' +
+      '<td>' + formatDate(o.created_at) + '</td>' +
+      '<td>$' + preCreditTotal.toFixed(2) + '</td>' +
+      '<td>$' + (creditCents / 100).toFixed(2) + '</td>' +
+      '<td><span class="order-status-pill ' + (isFull ? 'paid' : 'pending_payment') + '">' + (isFull ? 'Full' : 'Partial') + '</span></td>' +
+    '</tr>';
+  }).join('');
+}
+
+var storeCreditSearchDebounceTimer = null;
+function debouncedRenderStoreCreditPayments() {
+  clearTimeout(storeCreditSearchDebounceTimer);
+  storeCreditSearchDebounceTimer = setTimeout(renderStoreCreditPayments, 200);
+}
+
+// Same pattern as renderStoreCreditPayments() above, filtered to
+// coupon_code IS NOT NULL instead. discount_cents is null on any order
+// placed before that column existed (see discount-cents-migration.sql) --
+// shown as "—" rather than guessing at a dollar amount, same convention
+// order-confirmation.html/the confirmation email already use for the same
+// null case.
+function renderCouponPayments() {
+  var q = document.getElementById('coupon-search').value.trim().toLowerCase();
+  var fromVal = document.getElementById('coupon-date-from').value;
+  var toVal = document.getElementById('coupon-date-to').value;
+  var fromDate = fromVal ? new Date(fromVal + 'T00:00:00') : null;
+  var toDate = toVal ? new Date(toVal + 'T23:59:59.999') : null;
+
+  var filtered = paymentsOrdersCache.filter(function(o) {
+    if (!o.coupon_code) return false;
+    if (q) {
+      var orderNumber = (o.order_number || '').toLowerCase();
+      var couponCode = o.coupon_code.toLowerCase();
+      if (orderNumber.indexOf(q) === -1 && couponCode.indexOf(q) === -1) return false;
+    }
+    if (fromDate || toDate) {
+      var createdAt = new Date(o.created_at);
+      if (fromDate && createdAt < fromDate) return false;
+      if (toDate && createdAt > toDate) return false;
+    }
+    return true;
+  }).sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+
+  document.getElementById('coupon-result-count').textContent = filtered.length + ' order' + (filtered.length === 1 ? '' : 's');
+  document.getElementById('coupon-tbody').innerHTML = filtered.map(function(o) {
+    var discountText = (o.discount_cents != null && Number(o.discount_cents) > 0)
+      ? '$' + (Number(o.discount_cents) / 100).toFixed(2)
+      : '—';
+    return '<tr>' +
+      '<td><code title="' + escapeForAttr(o.id) + '">' + (o.order_number ? escapeForHtml(o.order_number) : o.id.slice(0, 8) + '...') + '</code></td>' +
+      '<td>' + escapeForHtml(o.customer_email) + '</td>' +
+      '<td>' + formatDate(o.created_at) + '</td>' +
+      '<td><code>' + escapeForHtml(o.coupon_code) + '</code></td>' +
+      '<td>' + discountText + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+var couponSearchDebounceTimer = null;
+function debouncedRenderCouponPayments() {
+  clearTimeout(couponSearchDebounceTimer);
+  couponSearchDebounceTimer = setTimeout(renderCouponPayments, 200);
 }
 
 function showLogin() {
@@ -1715,21 +1882,24 @@ function showPaymentsTab() {
 }
 
 // Sub-navigation within the Payments tab -- PayRam (the order/payment
-// history table) / QuickBooks (the connection-status card) -- same
+// history table) / QuickBooks (the connection-status card) / Store Credit
+// / Coupon (both order-history views, same "fetch paymentsOrdersCache
+// once, filter client-side" pattern as PayRam -- see
+// renderStoreCreditPayments()/renderCouponPayments() below) -- same
 // active/inactive toggle pattern as showOrdersSubtab()/showContentSubtab()
-// above, just scoped to this tab's own subtab/subview set. Both
-// loadPayments() and loadQuickBooksStatus() still run unconditionally from
-// showPaymentsTab() above regardless of which sub-tab is showing --
-// deliberately not deferred to first click (unlike Orders' own
-// showOrdersFulfillmentSubtab(), which lazy-loads on click -- a
-// deliberate difference, not an inconsistency: both fetches here are
-// cheap and admin-gated, so eager-loading both up front was chosen for
+// above, just scoped to this tab's own subtab/subview set. All four of
+// loadPayments()/loadQuickBooksStatus()/loadQuickBooksTransactions() still
+// run unconditionally from showPaymentsTab() above regardless of which
+// sub-tab is showing -- deliberately not deferred to first click (unlike
+// Orders' own showOrdersFulfillmentSubtab(), which lazy-loads on click --
+// a deliberate difference, not an inconsistency: these fetches are cheap
+// and admin-gated, so eager-loading all of them up front was chosen for
 // simplicity over matching that lazier pattern).
 function showPaymentsSubtab(subtabId, subviewId) {
-  ['payments-subtab-payram', 'payments-subtab-quickbooks'].forEach(function(id) {
+  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['payments-subview-payram', 'payments-subview-quickbooks'].forEach(function(id) {
+  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -4324,9 +4494,21 @@ document.getElementById('payments-subtab-payram').addEventListener('click', func
 document.getElementById('payments-subtab-quickbooks').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-quickbooks', 'payments-subview-quickbooks');
 });
+document.getElementById('payments-subtab-storecredit').addEventListener('click', function() {
+  showPaymentsSubtab('payments-subtab-storecredit', 'payments-subview-storecredit');
+});
+document.getElementById('payments-subtab-coupon').addEventListener('click', function() {
+  showPaymentsSubtab('payments-subtab-coupon', 'payments-subview-coupon');
+});
 document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
 document.getElementById('payments-date-from').addEventListener('change', renderPayments);
 document.getElementById('payments-date-to').addEventListener('change', renderPayments);
+document.getElementById('storecredit-search').addEventListener('input', debouncedRenderStoreCreditPayments);
+document.getElementById('storecredit-date-from').addEventListener('change', renderStoreCreditPayments);
+document.getElementById('storecredit-date-to').addEventListener('change', renderStoreCreditPayments);
+document.getElementById('coupon-search').addEventListener('input', debouncedRenderCouponPayments);
+document.getElementById('coupon-date-from').addEventListener('change', renderCouponPayments);
+document.getElementById('coupon-date-to').addEventListener('change', renderCouponPayments);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
