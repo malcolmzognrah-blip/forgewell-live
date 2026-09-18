@@ -219,6 +219,59 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 </div>
 
 <script>
+// ---- Referral code capture (?ref=CODE) ----
+// Runs unconditionally, before anything else on this page -- a referral
+// link can land here whether the visitor ends up seeing the age gate,
+// going straight to the auth step, or (if already signed in) getting
+// bounced to /home.html before any of this UI ever shows. Capturing here
+// regardless of that outcome is harmless: the code is only ever actually
+// USED by the Sign Up form's submit / the Google sign-in link below,
+// never by Log In, so an already-has-an-account visitor simply never
+// reaches a code path that would apply it -- see this file's own
+// signupForm/gate-google-btn handlers further down.
+//
+// localStorage (not sessionStorage) so a referral link that's clicked,
+// then acted on in a later browser session (closed and reopened before
+// actually signing up), still gets credited -- a plausible real gap
+// sessionStorage would silently drop. A 30-day age cap keeps a stale,
+// long-forgotten code from attaching itself to an unrelated signup
+// months later.
+(function(){
+  var REFERRAL_STORAGE_KEY = 'forgewell_referral_code';
+  var REFERRAL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+  var ref = new URLSearchParams(window.location.search).get('ref');
+  if (ref && ref.trim()) {
+    try {
+      localStorage.setItem(REFERRAL_STORAGE_KEY, JSON.stringify({ code: ref.trim(), capturedAt: Date.now() }));
+    } catch (e) {}
+  }
+
+  // Exposed on window rather than re-implemented in the separate IIFE
+  // below (Step 2: Log In / Sign Up) -- same file, same load, just kept
+  // as two script blocks per this page's existing structure.
+  window.getStoredReferralCode = function() {
+    try {
+      var raw = localStorage.getItem(REFERRAL_STORAGE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.code || !parsed.capturedAt) return null;
+      if (Date.now() - parsed.capturedAt > REFERRAL_MAX_AGE_MS) {
+        localStorage.removeItem(REFERRAL_STORAGE_KEY);
+        return null;
+      }
+      return parsed.code;
+    } catch (e) {
+      return null;
+    }
+  };
+  window.clearStoredReferralCode = function() {
+    try { localStorage.removeItem(REFERRAL_STORAGE_KEY); } catch (e) {}
+  };
+})();
+</script>
+
+<script>
 // ---- Step switching, age-gate consent, exit, and the page-load auth gate ----
 (function(){
   var KEY = 'forgewell_age_verified';
@@ -341,6 +394,15 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   // home.html instead of showing its own "you're logged in" panel.
   document.getElementById('gate-google-btn').addEventListener('click', function(){
     sessionStorage.setItem('forgewell_landing_auth_pending', '1');
+    // Appended right before navigation (not baked into the static href)
+    // so an existing Google account signing back in carries a code too --
+    // harmless, since routes/auth.js's GET /google/callback only ever
+    // reads it in the "creating a brand-new account" branch, never when
+    // signing an existing account back in.
+    var refCode = window.getStoredReferralCode && window.getStoredReferralCode();
+    if (refCode) {
+      this.href = this.href + (this.href.indexOf('?') === -1 ? '?' : '&') + 'ref=' + encodeURIComponent(refCode);
+    }
   });
 
   function proceedToSite(){
@@ -400,6 +462,10 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
         name: document.getElementById('signup-name').value,
         email: document.getElementById('signup-email').value,
         password: document.getElementById('signup-password').value,
+        // Only ever sent from THIS form -- loginForm's submit handler
+        // above deliberately never reads/sends it, so an existing account
+        // logging in can never acquire a referred_by this way.
+        referralCode: window.getStoredReferralCode ? window.getStoredReferralCode() : undefined,
       }),
     })
       .then(function(res){ return res.json().then(function(data){ return { ok: res.ok, data: data }; }); })
@@ -411,6 +477,11 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
           errorEl.classList.add('show');
           return;
         }
+        // Consumed (whether or not it actually resolved to a real
+        // referrer server-side -- an unknown/self code is a silent no-op
+        // there too) so it can't attach itself to some later, unrelated
+        // signup from the same browser.
+        if (window.clearStoredReferralCode) window.clearStoredReferralCode();
         proceedToSite();
       })
       .catch(function(){

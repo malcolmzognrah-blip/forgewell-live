@@ -233,6 +233,28 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .credit-txn-date{ color:var(--gray); font-size:0.75rem; }
 .credit-txn-amount.positive{ color:#1F7A34; font-weight:700; }
 .credit-txn-amount.negative{ color:#c0392b; font-weight:700; }
+
+/* ---- Refer & Earn ---- */
+.referral-link-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:20px; }
+.referral-link-label{ font-size:0.78rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px; }
+.referral-link-row{ display:flex; gap:8px; }
+.referral-link-row input{ flex:1; min-width:0; padding:10px 12px; border:1.5px solid var(--line); border-radius:6px; font-family:monospace; font-size:0.85rem; color:#333; background:#fff; }
+.referral-copy-btn{ padding:10px 16px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:0.82rem; cursor:pointer; white-space:nowrap; }
+.referral-copy-btn.copied{ background:var(--green); }
+.referral-note{ font-size:0.78rem; color:var(--gray); margin-top:10px; }
+.referral-stats-row{ display:flex; gap:16px; margin-bottom:24px; }
+.referral-stat{ flex:1; background:var(--navy); color:#fff; border-radius:12px; padding:20px; text-align:center; }
+.referral-stat-amount{ font-size:1.5rem; font-weight:700; }
+.referral-stat-label{ font-size:0.78rem; opacity:0.85; margin-top:4px; }
+.referral-txn-row{ display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding:12px 0; font-size:0.85rem; gap:10px; }
+.referral-txn-row:last-child{ border-bottom:none; }
+.referral-txn-main{ display:flex; flex-direction:column; gap:2px; }
+.referral-txn-order{ color:#333; font-family:monospace; font-size:0.8rem; }
+.referral-txn-date{ color:var(--gray); font-size:0.75rem; }
+.referral-txn-amount{ font-weight:700; color:var(--navy-dark); }
+.referral-txn-status{ font-size:0.7rem; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:12px; }
+.referral-txn-status.pending{ background:#FDECD2; color:#9A6B1E; }
+.referral-txn-status.paid{ background:#DCF3E0; color:#1F7A34; }
 </style>
 </head>
 <body>
@@ -256,6 +278,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
     <button type="button" class="account-tab" id="tab-orders">Orders</button>
     <button type="button" class="account-tab" id="tab-payments">Payments</button>
     <button type="button" class="account-tab" id="tab-credit">Store Credit</button>
+    <button type="button" class="account-tab" id="tab-referrals">Refer & Earn</button>
   </div>
 
   <!-- ==================== Addresses ==================== -->
@@ -344,6 +367,29 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
       <div class="credit-balance-label">Available store credit</div>
     </div>
     <div id="credit-history"><div class="tab-loading">Loading...</div></div>
+  </div>
+
+  <!-- ==================== Refer & Earn ==================== -->
+  <div class="account-view" id="view-referrals">
+    <div class="referral-link-card">
+      <div class="referral-link-label">Your Referral Link</div>
+      <div class="referral-link-row">
+        <input type="text" id="referral-link-input" readonly>
+        <button type="button" class="referral-copy-btn" id="referral-copy-btn">Copy</button>
+      </div>
+      <p class="referral-note">Share this link -- when someone signs up through it and places an order, you earn a commission.</p>
+    </div>
+    <div class="referral-stats-row">
+      <div class="referral-stat">
+        <div class="referral-stat-amount" id="referral-pending-amount">$0.00</div>
+        <div class="referral-stat-label">Pending</div>
+      </div>
+      <div class="referral-stat">
+        <div class="referral-stat-amount" id="referral-paid-amount">$0.00</div>
+        <div class="referral-stat-label">Paid Out</div>
+      </div>
+    </div>
+    <div id="referral-history"><div class="tab-loading">Loading...</div></div>
   </div>
 </div>
 
@@ -609,7 +655,7 @@ updateCartIcon();
 // Account page: tabs, auth gate, and all six tab panels.
 // ============================================================
 (function(){
-  var TAB_IDS = ['addresses', 'security', 'coupons', 'orders', 'payments', 'credit'];
+  var TAB_IDS = ['addresses', 'security', 'coupons', 'orders', 'payments', 'credit', 'referrals'];
 
   function showAccountTab(name) {
     TAB_IDS.forEach(function(t) {
@@ -1121,6 +1167,63 @@ updateCartIcon();
   }
 
   // ============================================================
+  // Refer & Earn
+  // ============================================================
+  function renderReferrals(data) {
+    document.getElementById('referral-link-input').value = window.location.origin + '/?ref=' + (data.referralCode || '');
+    document.getElementById('referral-pending-amount').textContent = formatCents(data.pendingCents);
+    document.getElementById('referral-paid-amount').textContent = formatCents(data.paidCents);
+
+    var historyEl = document.getElementById('referral-history');
+    var commissions = data.commissions || [];
+    if (!commissions.length) {
+      historyEl.innerHTML = '<div class="tab-empty">No referral orders yet. Share your link above to start earning.</div>';
+      return;
+    }
+    historyEl.innerHTML = commissions.map(function(c) {
+      return '<div class="referral-txn-row">' +
+        '<div class="referral-txn-main">' +
+          '<span class="referral-txn-order">Order ' + escapeHtml(c.orderNumber || c.orderId) + '</span>' +
+          '<span class="referral-txn-date">' + formatDate(c.createdAt) + '</span>' +
+        '</div>' +
+        '<span class="referral-txn-amount">' + formatCents(c.commissionCents) + '</span>' +
+        '<span class="referral-txn-status ' + c.status + '">' + (c.status === 'paid' ? 'Paid' : 'Pending') + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function loadReferrals() {
+    fetch('/api/referrals/mine', { credentials: 'include' })
+      .then(function(res) { return res.ok ? res.json() : { referralCode: '', commissions: [], pendingCents: 0, paidCents: 0 }; })
+      .then(renderReferrals)
+      .catch(function() {
+        document.getElementById('referral-history').innerHTML = '<div class="tab-error">Could not load your referral info right now.</div>';
+      });
+  }
+
+  document.getElementById('referral-copy-btn').addEventListener('click', function() {
+    var input = document.getElementById('referral-link-input');
+    var btn = this;
+    var originalLabel = btn.textContent;
+    function showCopied() {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = originalLabel; btn.classList.remove('copied'); }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(input.value).then(showCopied).catch(function() {
+        input.select();
+        document.execCommand('copy');
+        showCopied();
+      });
+    } else {
+      input.select();
+      document.execCommand('copy');
+      showCopied();
+    }
+  });
+
+  // ============================================================
   // Bootstrap: auth gate, then load every tab's data up front so
   // switching tabs is instant (same pattern checkout.html uses for
   // its own /api/auth/me-gated address section).
@@ -1153,6 +1256,7 @@ updateCartIcon();
       loadCoupons();
       loadOrdersAndPayments();
       loadStoreCredit();
+      loadReferrals();
     })
     .catch(function() {
       document.getElementById('account-email-display').textContent = '';
