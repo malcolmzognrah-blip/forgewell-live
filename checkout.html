@@ -499,7 +499,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <div class="checkout-store-credit-balance" id="checkout-store-credit-balance">Store Credit Available: $0.00</div>
           <div class="checkout-store-credit-amount-row">
             <span>$</span>
-            <input type="number" id="checkout-store-credit-amount" min="0" step="0.01" placeholder="0.00" inputmode="decimal">
+            <input type="text" id="checkout-store-credit-amount" value="0.00" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
           </div>
           <label class="checkout-store-credit-row">
             <input type="checkbox" id="checkout-store-credit-all-checkbox">
@@ -1245,6 +1245,50 @@ function calculatePreCreditTotal() {
   return Math.round((total + shippingMethod.cost) * 100) / 100;
 }
 
+// Calculator/ATM-style entry for #checkout-store-credit-amount -- every
+// digit typed enters at the rightmost (cents) position and shifts
+// existing digits left (1,6,1,5 -> $0.01 -> $0.16 -> $1.61 -> $16.15),
+// backspace removes the last-entered digit and shifts right, no "."
+// ever needed or accepted. Wired up via the field's 'beforeinput' handler
+// below rather than 'keydown' -- beforeinput's inputType
+// ('insertText'/'deleteContentBackward'/etc.) fires uniformly for a
+// physical keyboard AND a mobile numeric keypad (including IME-driven
+// virtual keyboards that don't reliably fire keydown with a usable `key`
+// value), so one code path covers both rather than needing a separate
+// mobile fallback.
+//
+// MAX_STORE_CREDIT_INPUT_CENTS is just a runaway-growth ceiling (a stuck
+// key, or a very long pasted string) -- it is NOT the real validation.
+// syncStoreCreditAmount()'s existing clamp to min(balance, preCreditTotal)
+// still runs on every keystroke exactly as before and is what actually
+// caps the value; this only stops the in-progress display from growing
+// to an ungainly number of digits before that clamp gets a chance to run.
+const MAX_STORE_CREDIT_INPUT_CENTS = 99999999; // $999,999.99
+
+function currentStoreCreditInputCents(input) {
+  const n = parseFloat(input.value);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+function setStoreCreditInputCents(input, cents) {
+  input.value = (cents / 100).toFixed(2);
+  // This is a calculator-style field -- every edit replaces the whole
+  // displayed value from scratch (never inserted at an arbitrary cursor
+  // position), so the cursor is kept pinned at the end rather than left
+  // wherever the browser's default caret placement would put it.
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function applyStoreCreditDigit(input, digit) {
+  const shifted = currentStoreCreditInputCents(input) * 10 + digit;
+  if (shifted > MAX_STORE_CREDIT_INPUT_CENTS) return;
+  setStoreCreditInputCents(input, shifted);
+}
+
+function removeStoreCreditDigit(input) {
+  setStoreCreditInputCents(input, Math.floor(currentStoreCreditInputCents(input) / 10));
+}
+
 // Reads the amount input, clamps it to [0, min(balance, preCreditTotal)],
 // writes any clamp back into the field with an explanatory message, and
 // syncs the "Apply all" checkbox to reflect whether the (possibly just-
@@ -1273,7 +1317,12 @@ function syncStoreCreditAmount(preCreditTotal) {
       : "You can't apply more than the order total ($" + preCreditTotal.toFixed(2) + ').';
     msgEl.classList.add('error');
     parsed = maxApplicable;
-    amountInput.value = parsed > 0 ? parsed.toFixed(2) : '';
+    // Always a formatted "0.00"-shape string, never blank -- the
+    // calculator-style input above (see applyStoreCreditDigit()/
+    // removeStoreCreditDigit()) keeps the field in this format on every
+    // keystroke, and this clamp branch is the one other place that writes
+    // to it, so it needs to keep the same invariant.
+    amountInput.value = parsed.toFixed(2);
   } else {
     msgEl.textContent = '';
     msgEl.classList.remove('error');
@@ -2120,14 +2169,41 @@ if (cart.length === 0) {
   // place that clamps/validates and keeps the two in sync -- see its own
   // comment. This handler's only job is deciding what to seed the amount
   // field with before that runs.
+  //
+  // 'beforeinput' (not 'keydown') intercepts every edit for the
+  // calculator-style digit-shift behavior -- see applyStoreCreditDigit()/
+  // removeStoreCreditDigit()'s own comment for why this event in
+  // particular. preventDefault() on every branch means the browser's own
+  // text-editing never runs; setStoreCreditInputCents() sets the field's
+  // value directly and dispatching a real 'input' event afterward is what
+  // actually triggers the existing 'input' listener just below (kept
+  // as-is, unchanged) rather than calling renderOrderSummary() a second
+  // way from two different places.
+  document.getElementById('checkout-store-credit-amount').addEventListener('beforeinput', function(e) {
+    const input = this;
+    if (e.inputType === 'insertText' || e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') {
+      e.preventDefault();
+      const digits = (e.data || '').replace(/\D/g, '');
+      for (const ch of digits) applyStoreCreditDigit(input, Number(ch));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+      e.preventDefault();
+      removeStoreCreditDigit(input);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (e.inputType) {
+      // Anything else (formatting commands, etc.) -- this field only ever
+      // supports digit-in/digit-out, never native rich-text editing.
+      e.preventDefault();
+    }
+  });
   document.getElementById('checkout-store-credit-amount').addEventListener('input', renderOrderSummary);
   document.getElementById('checkout-store-credit-all-checkbox').addEventListener('change', function() {
     const amountInput = document.getElementById('checkout-store-credit-amount');
     if (this.checked) {
       const maxApplicable = Math.round(Math.min(storeCreditBalanceCents / 100, calculatePreCreditTotal()) * 100) / 100;
-      amountInput.value = maxApplicable > 0 ? maxApplicable.toFixed(2) : '';
+      amountInput.value = maxApplicable.toFixed(2);
     } else {
-      amountInput.value = '';
+      amountInput.value = '0.00';
     }
     renderOrderSummary();
   });
