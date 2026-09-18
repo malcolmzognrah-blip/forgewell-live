@@ -1966,7 +1966,9 @@ function renderReferralCommissions() {
   document.getElementById('referral-tbody').innerHTML = filtered.map(function(c) {
     var isPending = c.status === 'pending';
     var row = '<tr>' +
-      '<td>' + escapeForHtml(c.referrer_name || c.referrer_email) + '</td>' +
+      '<td>' + escapeForHtml(c.referrer_name || c.referrer_email) +
+        (c.affiliate_joined_at ? '<br><span style="color:var(--gray);font-size:0.72rem;">Joined ' + formatDate(c.affiliate_joined_at) + '</span>' : '') +
+      '</td>' +
       '<td>' + escapeForHtml(c.referred_name || c.referred_email) + '</td>' +
       '<td><code>' + escapeForHtml(c.order_number || c.order_id.slice(0, 8) + '...') + '</code></td>' +
       '<td>' + formatDate(c.created_at) + '</td>' +
