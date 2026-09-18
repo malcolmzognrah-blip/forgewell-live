@@ -1068,6 +1068,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <button type="button" class="content-subtab" id="content-subtab-faq">FAQ</button>
       <button type="button" class="content-subtab" id="content-subtab-shipping-policy">Shipping Policy</button>
       <button type="button" class="content-subtab" id="content-subtab-disclaimer">Disclaimer</button>
+      <button type="button" class="content-subtab" id="content-subtab-affiliate-agreement">Affiliate Agreement</button>
       <button type="button" class="content-subtab" id="content-subtab-free-shipping">Free Shipping</button>
       <button type="button" class="content-subtab" id="content-subtab-contact-info">Contact Info</button>
       <button type="button" class="content-subtab" id="content-subtab-social-links">Social Links</button>
@@ -1123,6 +1124,13 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <textarea id="content-disclaimer-textarea" style="width:100%; box-sizing:border-box; min-height:110px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; resize:vertical;"></textarea>
       <button type="button" class="fulfillment-btn" id="content-disclaimer-save-btn">Save Disclaimer</button>
       <span class="product-save-status" id="content-disclaimer-status"></span>
+    </div>
+
+    <div class="content-subview" id="content-subview-affiliate-agreement">
+      <p class="fulfillment-section-note">Shown in the Refer &amp; Earn tab's affiliate application form (account.html), above the six acknowledgment checkboxes. Supports two tokens, substituted with the live Referral Program settings values when shown to applicants: <code>{{minimum_payout}}</code> and <code>{{payout_schedule}}</code>. Each submitted application permanently records the exact text (tokens already substituted) the applicant saw at signature time, so editing this later never changes what a past applicant appears to have agreed to.</p>
+      <textarea id="content-affiliate-agreement-textarea" style="width:100%; box-sizing:border-box; min-height:420px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.8rem; font-family:monospace; resize:vertical;"></textarea>
+      <button type="button" class="fulfillment-btn" id="content-affiliate-agreement-save-btn">Save Affiliate Agreement</button>
+      <span class="product-save-status" id="content-affiliate-agreement-status"></span>
     </div>
 
     <div class="content-subview" id="content-subview-free-shipping">
@@ -3246,6 +3254,9 @@ function loadContent() {
   fetch('/api/content/disclaimer', { credentials: 'include' }).then(function(r) { return r.json(); })
     .then(function(d) { document.getElementById('content-disclaimer-textarea').value = d.body || ''; })
     .catch(function() {});
+  fetch('/api/content/affiliate-agreement', { credentials: 'include' }).then(function(r) { return r.json(); })
+    .then(function(d) { document.getElementById('content-affiliate-agreement-textarea').value = d.body || ''; })
+    .catch(function() {});
   fetch('/api/content/free-shipping-threshold', { credentials: 'include' }).then(function(r) { return r.json(); })
     .then(function(d) { document.getElementById('content-free-shipping-input').value = d.threshold != null ? d.threshold : ''; })
     .catch(function() {});
@@ -3276,10 +3287,10 @@ function showContentTab() {
 // the smaller content-subtab/content-subview set instead of the top-level
 // tabs.
 function showContentSubtab(subtabId, subviewId) {
-  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer', 'content-subtab-free-shipping', 'content-subtab-contact-info', 'content-subtab-social-links'].forEach(function(id) {
+  ['content-subtab-about-us', 'content-subtab-faq', 'content-subtab-shipping-policy', 'content-subtab-disclaimer', 'content-subtab-affiliate-agreement', 'content-subtab-free-shipping', 'content-subtab-contact-info', 'content-subtab-social-links'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer', 'content-subview-free-shipping', 'content-subview-contact-info', 'content-subview-social-links'].forEach(function(id) {
+  ['content-subview-about-us', 'content-subview-faq', 'content-subview-shipping-policy', 'content-subview-disclaimer', 'content-subview-affiliate-agreement', 'content-subview-free-shipping', 'content-subview-contact-info', 'content-subview-social-links'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -5098,6 +5109,9 @@ document.getElementById('content-subtab-shipping-policy').addEventListener('clic
 document.getElementById('content-subtab-disclaimer').addEventListener('click', function() {
   showContentSubtab('content-subtab-disclaimer', 'content-subview-disclaimer');
 });
+document.getElementById('content-subtab-affiliate-agreement').addEventListener('click', function() {
+  showContentSubtab('content-subtab-affiliate-agreement', 'content-subview-affiliate-agreement');
+});
 document.getElementById('content-subtab-free-shipping').addEventListener('click', function() {
   showContentSubtab('content-subtab-free-shipping', 'content-subview-free-shipping');
 });
@@ -5869,6 +5883,29 @@ document.getElementById('content-disclaimer-save-btn').addEventListener('click',
   statusEl.textContent = '';
   statusEl.className = 'product-save-status';
   fetch('/api/admin/content/disclaimer', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+    .then(function(r) {
+      btn.disabled = false;
+      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
+      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not save.';
+      statusEl.className = 'product-save-status error';
+    });
+});
+
+document.getElementById('content-affiliate-agreement-save-btn').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('content-affiliate-agreement-status');
+  var body = { body: document.getElementById('content-affiliate-agreement-textarea').value };
+  btn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'product-save-status';
+  fetch('/api/admin/content/affiliate-agreement', {
     method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
