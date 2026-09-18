@@ -567,6 +567,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="content-subtab" id="payments-subtab-storecredit">Store Credit</button>
     <button type="button" class="content-subtab" id="payments-subtab-coupon">Coupon</button>
     <button type="button" class="content-subtab" id="payments-subtab-referrals">Referrals</button>
+    <button type="button" class="content-subtab" id="payments-subtab-applications">Applications</button>
   </div>
 
   <div class="content-subview active" id="payments-subview-payram">
@@ -705,51 +706,124 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
   </div>
 
-  <!-- Own endpoint (GET/PATCH /api/admin/referral-commissions), unlike
-       the three sub-tabs above -- referral_commissions is its own
-       domain object (referrer/referred/order/payout), not another view
-       of the orders table, so there was no existing paymentsOrdersCache
-       shape to reuse here. -->
+  <!-- Own endpoints (GET /api/admin/referral-commissions, GET/POST
+       /api/admin/referral-payouts/...), unlike the three sub-tabs
+       above -- referral_commissions is its own domain object (referrer/
+       referred/order/payout), not another view of the orders table, so
+       there was no existing paymentsOrdersCache shape to reuse here. -->
   <div class="content-subview" id="payments-subview-referrals">
   <!-- Visible, not just a code comment -- see lib/referrals.js's own
        REVENUE_BASIS_CENTS comment (backend repo) and this migration's
        header comment for the same statement kept next to the code that
-       actually computes/stores it. Anyone marking a commission paid from
+       actually computes/stores it. Anyone paying out an affiliate from
        this tab should see this, not just whoever reads the source later. -->
   <div style="background:#FDECD2; border:1px solid #F0D5A8; border-radius:8px; padding:12px 16px; margin-bottom:20px; font-size:0.82rem; color:#7A5416;">
     <strong>Temporary basis:</strong> Commission is currently calculated on <strong>revenue</strong>, not profit -- no per-product cost-basis data exists in the system yet. This will switch to profit-based once real cost data is available.
   </div>
   <div class="fulfillment-section" style="margin-bottom:20px;">
-    <label for="referral-rate-input" style="display:block; font-size:0.72rem; font-weight:700; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:5px;">Commission Rate (%)</label>
-    <input type="number" step="0.01" min="0" max="100" id="referral-rate-input" style="width:160px; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem;">
-    <button type="button" class="fulfillment-btn" id="referral-rate-save-btn" style="margin-left:10px;">Save</button>
-    <span class="product-save-status" id="referral-rate-status"></span>
-    <p class="fulfillment-section-note" style="margin-top:8px;">Applies only to commissions calculated after this change -- every existing commission keeps the rate it was actually calculated at.</p>
+    <h3>Program Settings</h3>
+    <div class="credit-issue-row">
+      <div>
+        <label>Commission Rate (%)</label>
+        <input type="number" step="0.01" min="0" max="100" id="referral-rate-input" style="width:110px;">
+      </div>
+      <div>
+        <label>Attribution Window (days)</label>
+        <input type="number" step="1" min="0" id="referral-attribution-window-input" style="width:110px;">
+      </div>
+      <div>
+        <label>Payout Hold (days)</label>
+        <input type="number" step="1" min="0" id="referral-payout-hold-input" style="width:110px;">
+      </div>
+      <div>
+        <label>Minimum Payout (USD)</label>
+        <input type="number" step="0.01" min="0" id="referral-minimum-payout-input" style="width:110px;">
+      </div>
+      <div>
+        <label>Payout Schedule (days)</label>
+        <input type="number" step="1" min="0" id="referral-payout-schedule-input" style="width:110px;">
+      </div>
+      <button type="button" id="referral-settings-save-btn">Save</button>
+    </div>
+    <p class="credit-issue-status" id="referral-rate-status"></p>
+    <p class="fulfillment-section-note">Applies only to commissions calculated after this change -- every existing commission keeps the rate/hold period it was actually calculated at.</p>
   </div>
 
+  <div class="fulfillment-section" style="margin-bottom:20px;">
+    <h3>Payouts</h3>
+    <p class="fulfillment-section-note">One row per affiliate. "Pay Out" pays every one of their eligible (past the hold period) pending commissions at once -- only enabled once their eligible balance meets the minimum payout and they haven't been paid within the schedule window.</p>
+    <div style="overflow-x:auto;">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Affiliate</th>
+          <th>Eligible Balance</th>
+          <th>Not Yet Eligible</th>
+          <th>Lifetime Paid</th>
+          <th>Last Paid</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="referral-payouts-tbody"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="fulfillment-section">
+    <h3>Commission History</h3>
+    <div class="filters">
+      <input type="text" id="referral-search" placeholder="Search by order number, referrer, or referred email...">
+      <select id="referral-status-filter">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="paid">Paid</option>
+      </select>
+    </div>
+    <p class="result-count" id="referral-result-count"></p>
+    <div style="overflow-x:auto;">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Referrer</th>
+          <th>Referred Customer</th>
+          <th>Order</th>
+          <th>Date</th>
+          <th>Commission</th>
+          <th>Eligible</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="referral-tbody"></tbody>
+    </table>
+    </div>
+  </div>
+  </div>
+
+  <!-- Own endpoints (GET /api/admin/referral-applications, POST
+       .../approve, POST .../reject). Full submitted detail is shown
+       expanded per row, same pattern as the Store Credit tab's
+       Correct/Remove expandable row. -->
+  <div class="content-subview" id="payments-subview-applications">
   <div class="filters">
-    <input type="text" id="referral-search" placeholder="Search by order number, referrer, or referred email...">
-    <select id="referral-status-filter">
-      <option value="">All statuses</option>
+    <select id="applications-status-filter">
       <option value="pending">Pending</option>
-      <option value="paid">Paid</option>
+      <option value="approved">Approved</option>
+      <option value="rejected">Rejected</option>
+      <option value="">All</option>
     </select>
   </div>
-  <p class="result-count" id="referral-result-count"></p>
+  <p class="result-count" id="applications-result-count"></p>
   <div style="overflow-x:auto;">
   <table class="orders-table">
     <thead>
       <tr>
-        <th>Referrer</th>
-        <th>Referred Customer</th>
-        <th>Order</th>
-        <th>Date</th>
-        <th>Commission</th>
+        <th>Applicant</th>
+        <th>Submitted</th>
         <th>Status</th>
         <th></th>
       </tr>
     </thead>
-    <tbody id="referral-tbody"></tbody>
+    <tbody id="applications-tbody"></tbody>
   </table>
   </div>
   </div>
@@ -1891,46 +1965,170 @@ function debouncedRenderCouponPayments() {
 // Payments > Referrals
 // ============================================================
 
-// Reads from the PUBLIC GET (same one account.html's "Refer & Earn" tab
-// and product-facing copy would read) rather than a separate admin-only
-// endpoint -- this setting isn't sensitive, and it means this input
-// always reflects exactly what's live, same convention as
-// content-free-shipping-input above.
-function loadReferralRate() {
-  fetch('/api/content/referral-commission-rate')
+// Reads from the PUBLIC GET (same one account.html's application form
+// reads) rather than a separate admin-only endpoint -- these settings
+// aren't sensitive, and it means these inputs always reflect exactly
+// what's live, same convention as content-free-shipping-input above.
+function loadReferralSettings() {
+  fetch('/api/content/referral-program-settings')
     .then(function(r) { return r.json(); })
-    .then(function(d) { document.getElementById('referral-rate-input').value = d.ratePercent != null ? d.ratePercent : ''; })
+    .then(function(s) {
+      document.getElementById('referral-rate-input').value = s.commissionRatePercent;
+      document.getElementById('referral-attribution-window-input').value = s.attributionWindowDays;
+      document.getElementById('referral-payout-hold-input').value = s.payoutHoldDays;
+      document.getElementById('referral-minimum-payout-input').value = (s.minimumPayoutCents / 100).toFixed(2);
+      document.getElementById('referral-payout-schedule-input').value = s.payoutScheduleDays;
+    })
     .catch(function() {});
 }
 
-document.getElementById('referral-rate-save-btn').addEventListener('click', function() {
+document.getElementById('referral-settings-save-btn').addEventListener('click', function() {
   var btn = this;
   var statusEl = document.getElementById('referral-rate-status');
-  var ratePercent = document.getElementById('referral-rate-input').value;
+  var payload = {
+    commissionRatePercent: document.getElementById('referral-rate-input').value,
+    attributionWindowDays: document.getElementById('referral-attribution-window-input').value,
+    payoutHoldDays: document.getElementById('referral-payout-hold-input').value,
+    minimumPayoutCents: Math.round(parseFloat(document.getElementById('referral-minimum-payout-input').value) * 100),
+    payoutScheduleDays: document.getElementById('referral-payout-schedule-input').value,
+  };
   btn.disabled = true;
   statusEl.textContent = '';
-  statusEl.className = 'product-save-status';
-  fetch('/api/admin/content/referral-commission-rate', {
-    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ratePercent: ratePercent }),
+  statusEl.className = 'credit-issue-status';
+  fetch('/api/admin/content/referral-program-settings', {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   })
     .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
     .then(function(r) {
       btn.disabled = false;
       statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
-      statusEl.className = 'product-save-status ' + (r.ok ? 'success' : 'error');
+      statusEl.className = 'credit-issue-status ' + (r.ok ? 'success' : 'error');
     })
     .catch(function() {
       btn.disabled = false;
       statusEl.textContent = 'Could not save.';
-      statusEl.className = 'product-save-status error';
+      statusEl.className = 'credit-issue-status error';
     });
 });
 
-// Fetched once into referralCommissionsCache; search/status filters below
-// re-filter that same array client-side -- same "fetch once, filter
-// client-side" spirit as paymentsOrdersCache, just its own cache since
-// this is a different endpoint/domain object (see this subview's own
-// markup comment).
+// ============================================================
+// Payouts (aggregate, per affiliate) -- replaces the old per-commission
+// "Mark Paid" action. See GET /api/admin/referral-payouts' own comment
+// (backend repo) for exactly what canPayOut means and why it's only a
+// display hint, re-checked server-side on the actual pay call.
+// ============================================================
+function loadReferralPayouts() {
+  fetch('/api/admin/referral-payouts', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data) return;
+      renderReferralPayouts(data.payouts || []);
+    })
+    .catch(function() {
+      document.getElementById('referral-payouts-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">Could not load payouts.</td></tr>';
+    });
+}
+
+function renderReferralPayouts(payouts) {
+  if (!payouts.length) {
+    document.getElementById('referral-payouts-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">No affiliates with commissions yet.</td></tr>';
+    return;
+  }
+  document.getElementById('referral-payouts-tbody').innerHTML = payouts.map(function(p) {
+    var row = '<tr>' +
+      '<td>' + escapeForHtml(p.name || p.email) + '</td>' +
+      '<td>' + formatCents(p.eligibleUnpaidCents) + '</td>' +
+      '<td>' + formatCents(p.pendingNotYetEligibleCents) + '</td>' +
+      '<td>' + formatCents(p.lifetimePaidCents) + '</td>' +
+      '<td>' + (p.lastPaidAt ? formatDate(p.lastPaidAt) : '—') + '</td>' +
+      '<td>' + (p.canPayOut
+        ? '<button type="button" class="product-edit-toggle-btn referral-payout-toggle-btn" data-customer-id="' + p.customerId + '">Pay Out</button>'
+        : '<span style="color:var(--gray);font-size:0.78rem;">Not yet eligible</span>') +
+      '</td>' +
+    '</tr>';
+    if (!p.canPayOut) return row;
+    row += '<tr class="product-detail-row" data-customer-id="' + p.customerId + '">' +
+      '<td colspan="6" class="product-detail-cell">' +
+        '<label>Payment Type</label>' +
+        '<select class="referral-payout-type">' +
+          '<option value="PayPal">PayPal</option>' +
+          '<option value="Venmo">Venmo</option>' +
+          '<option value="Zelle">Zelle</option>' +
+          '<option value="Check">Check</option>' +
+          '<option value="Bank Transfer">Bank Transfer</option>' +
+          '<option value="Cash">Cash</option>' +
+          '<option value="Other">Other</option>' +
+        '</select>' +
+        '<label>Reference / Note (optional)</label>' +
+        '<input type="text" class="referral-payout-reference" placeholder="Transaction ID, check #, etc.">' +
+        '<div style="margin-top:12px;">' +
+          '<button type="button" class="product-save-btn referral-payout-save-btn" data-customer-id="' + p.customerId + '">Confirm Payout of ' + formatCents(p.eligibleUnpaidCents) + '</button> ' +
+          '<button type="button" class="product-edit-toggle-btn referral-payout-cancel-btn" data-customer-id="' + p.customerId + '">Cancel</button>' +
+        '</div>' +
+        '<p class="credit-issue-status" id="referral-payout-status-' + p.customerId + '"></p>' +
+      '</td>' +
+    '</tr>';
+    return row;
+  }).join('');
+}
+
+document.getElementById('referral-payouts-tbody').addEventListener('click', function(e) {
+  var toggleBtn = e.target.closest('.referral-payout-toggle-btn');
+  if (toggleBtn) {
+    var toggleId = toggleBtn.getAttribute('data-customer-id');
+    var detailRow = document.querySelector('#referral-payouts-tbody .product-detail-row[data-customer-id="' + toggleId + '"]');
+    if (detailRow) detailRow.classList.toggle('show');
+    return;
+  }
+  var cancelBtn = e.target.closest('.referral-payout-cancel-btn');
+  if (cancelBtn) {
+    var cancelId = cancelBtn.getAttribute('data-customer-id');
+    var cancelRow = document.querySelector('#referral-payouts-tbody .product-detail-row[data-customer-id="' + cancelId + '"]');
+    if (cancelRow) cancelRow.classList.remove('show');
+    return;
+  }
+  var saveBtn = e.target.closest('.referral-payout-save-btn');
+  if (saveBtn) {
+    var saveId = saveBtn.getAttribute('data-customer-id');
+    var saveRow = document.querySelector('#referral-payouts-tbody .product-detail-row[data-customer-id="' + saveId + '"]');
+    var statusEl = document.getElementById('referral-payout-status-' + saveId);
+    var paymentType = saveRow.querySelector('.referral-payout-type').value;
+    var paymentReference = saveRow.querySelector('.referral-payout-reference').value.trim();
+    statusEl.className = 'credit-issue-status';
+    statusEl.textContent = '';
+    saveBtn.disabled = true;
+    fetch('/api/admin/referral-payouts/' + encodeURIComponent(saveId) + '/pay', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentType: paymentType, paymentReference: paymentReference }),
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        saveBtn.disabled = false;
+        if (!r.ok) {
+          statusEl.textContent = r.d.error || 'Could not pay out this affiliate.';
+          statusEl.className = 'credit-issue-status error';
+          return;
+        }
+        loadReferralPayouts();
+        loadReferralCommissions();
+      })
+      .catch(function() {
+        saveBtn.disabled = false;
+        statusEl.textContent = 'Could not pay out this affiliate.';
+        statusEl.className = 'credit-issue-status error';
+      });
+    return;
+  }
+});
+
+// ============================================================
+// Commission history -- read-only audit trail now (no per-row action --
+// see the Payouts section above for the actual pay action).
+// ============================================================
 var referralCommissionsCache = [];
 
 function loadReferralCommissions() {
@@ -1965,43 +2163,21 @@ function renderReferralCommissions() {
   document.getElementById('referral-result-count').textContent = filtered.length + ' commission' + (filtered.length === 1 ? '' : 's');
   document.getElementById('referral-tbody').innerHTML = filtered.map(function(c) {
     var isPending = c.status === 'pending';
-    var row = '<tr>' +
+    var isEligible = c.eligible_at && new Date(c.eligible_at) <= new Date();
+    return '<tr>' +
       '<td>' + escapeForHtml(c.referrer_name || c.referrer_email) +
-        (c.affiliate_joined_at ? '<br><span style="color:var(--gray);font-size:0.72rem;">Joined ' + formatDate(c.affiliate_joined_at) + '</span>' : '') +
+        (c.affiliate_approved_at ? '<br><span style="color:var(--gray);font-size:0.72rem;">Approved ' + formatDate(c.affiliate_approved_at) + '</span>' : '') +
       '</td>' +
       '<td>' + escapeForHtml(c.referred_name || c.referred_email) + '</td>' +
       '<td><code>' + escapeForHtml(c.order_number || c.order_id.slice(0, 8) + '...') + '</code></td>' +
       '<td>' + formatDate(c.created_at) + '</td>' +
       '<td>' + formatCents(c.commission_cents) + '</td>' +
-      '<td><span class="order-status-pill ' + (isPending ? 'pending_payment' : 'paid') + '">' + (isPending ? 'Pending' : 'Paid') + '</span></td>' +
+      '<td>' + (isPending ? (isEligible ? 'Yes' : ('Not until ' + formatDate(c.eligible_at))) : '—') + '</td>' +
       '<td>' + (isPending
-        ? '<button type="button" class="product-edit-toggle-btn referral-markpaid-toggle-btn" data-commission-id="' + c.id + '">Mark Paid</button>'
-        : (c.payment_type ? escapeForHtml(c.payment_type) + (c.payment_reference ? ' — ' + escapeForHtml(c.payment_reference) : '') : '—')) +
+        ? '<span class="order-status-pill pending_payment">Pending</span>'
+        : ('<span class="order-status-pill paid">Paid</span>' + (c.payment_type ? '<br><span style="color:var(--gray);font-size:0.72rem;">' + escapeForHtml(c.payment_type) + (c.payment_reference ? ' — ' + escapeForHtml(c.payment_reference) : '') + '</span>' : ''))) +
       '</td>' +
     '</tr>';
-    if (!isPending) return row;
-    row += '<tr class="product-detail-row" data-commission-id="' + c.id + '">' +
-      '<td colspan="7" class="product-detail-cell">' +
-        '<label>Payment Type</label>' +
-        '<select class="referral-markpaid-type">' +
-          '<option value="PayPal">PayPal</option>' +
-          '<option value="Venmo">Venmo</option>' +
-          '<option value="Zelle">Zelle</option>' +
-          '<option value="Check">Check</option>' +
-          '<option value="Bank Transfer">Bank Transfer</option>' +
-          '<option value="Cash">Cash</option>' +
-          '<option value="Other">Other</option>' +
-        '</select>' +
-        '<label>Reference / Note (optional)</label>' +
-        '<input type="text" class="referral-markpaid-reference" placeholder="Transaction ID, check #, etc.">' +
-        '<div style="margin-top:12px;">' +
-          '<button type="button" class="product-save-btn referral-markpaid-save-btn" data-commission-id="' + c.id + '">Confirm Paid</button> ' +
-          '<button type="button" class="product-edit-toggle-btn referral-markpaid-cancel-btn" data-commission-id="' + c.id + '">Cancel</button>' +
-        '</div>' +
-        '<p class="credit-issue-status" id="referral-markpaid-status-' + c.id + '"></p>' +
-      '</td>' +
-    '</tr>';
-    return row;
   }).join('');
 }
 
@@ -2011,55 +2187,161 @@ function debouncedRenderReferralCommissions() {
   referralSearchDebounceTimer = setTimeout(renderReferralCommissions, 200);
 }
 
-// Delegated -- #referral-tbody is fully rebuilt by every
-// renderReferralCommissions() call, same idiom as #credit-history-tbody's
-// own delegated Correct/Remove/Save handler.
-document.getElementById('referral-tbody').addEventListener('click', function(e) {
-  var toggleBtn = e.target.closest('.referral-markpaid-toggle-btn');
+// ============================================================
+// Affiliate applications (review queue)
+// ============================================================
+var referralApplicationsCache = [];
+
+function loadReferralApplications() {
+  var status = document.getElementById('applications-status-filter').value;
+  var qs = status ? ('?status=' + encodeURIComponent(status)) : '';
+  fetch('/api/admin/referral-applications' + qs, { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      return res.json();
+    })
+    .then(function(rows) {
+      if (!rows) return;
+      referralApplicationsCache = rows;
+      renderReferralApplications();
+    })
+    .catch(function() {
+      document.getElementById('applications-tbody').innerHTML = '<tr><td colspan="4" style="color:var(--gray);padding:20px;">Could not load applications.</td></tr>';
+    });
+}
+
+function affiliateStatusPillClass(status) {
+  if (status === 'approved') return 'paid';
+  if (status === 'rejected') return 'refunded';
+  return 'pending_payment';
+}
+
+function renderReferralApplications() {
+  document.getElementById('applications-result-count').textContent = referralApplicationsCache.length + ' application' + (referralApplicationsCache.length === 1 ? '' : 's');
+  if (!referralApplicationsCache.length) {
+    document.getElementById('applications-tbody').innerHTML = '<tr><td colspan="4" style="color:var(--gray);padding:20px;">No applications.</td></tr>';
+    return;
+  }
+  document.getElementById('applications-tbody').innerHTML = referralApplicationsCache.map(function(a) {
+    var channels = (a.promotion_channels || []).map(escapeForHtml).join(', ') || '—';
+    var socials = [
+      a.instagram ? 'Instagram: ' + escapeForHtml(a.instagram) : null,
+      a.tiktok ? 'TikTok: ' + escapeForHtml(a.tiktok) : null,
+      a.youtube ? 'YouTube: ' + escapeForHtml(a.youtube) : null,
+      a.facebook ? 'Facebook: ' + escapeForHtml(a.facebook) : null,
+      a.other_social ? 'Other: ' + escapeForHtml(a.other_social) : null,
+    ].filter(Boolean).join('<br>') || '—';
+
+    var row = '<tr>' +
+      '<td>' + escapeForHtml(a.full_legal_name) + '<br><span style="color:var(--gray);font-size:0.78rem;">' + escapeForHtml(a.customer_email) + '</span></td>' +
+      '<td>' + formatDate(a.submitted_at) + '</td>' +
+      '<td><span class="order-status-pill ' + affiliateStatusPillClass(a.status) + '">' + a.status.charAt(0).toUpperCase() + a.status.slice(1) + '</span></td>' +
+      '<td>' + (a.status === 'pending'
+        ? '<button type="button" class="product-edit-toggle-btn application-toggle-btn" data-application-id="' + a.id + '">Review</button>'
+        : '—') +
+      '</td>' +
+    '</tr>';
+    if (a.status !== 'pending') return row;
+    row += '<tr class="product-detail-row" data-application-id="' + a.id + '">' +
+      '<td colspan="4" class="product-detail-cell">' +
+        '<div class="product-detail-grid">' +
+          '<div>' +
+            '<p><strong>Business:</strong> ' + escapeForHtml(a.business_name || '—') + '</p>' +
+            '<p><strong>Phone:</strong> ' + escapeForHtml(a.phone) + '</p>' +
+            '<p><strong>Website:</strong> ' + escapeForHtml(a.website || '—') + '</p>' +
+            '<p><strong>Address:</strong> ' + escapeForHtml(a.mailing_address) + ', ' + escapeForHtml(a.city) + ', ' + escapeForHtml(a.state) + ' ' + escapeForHtml(a.zip) + '</p>' +
+            '<p><strong>Social:</strong><br>' + socials + '</p>' +
+          '</div>' +
+          '<div>' +
+            '<p><strong>Promotion channels:</strong> ' + channels + '</p>' +
+            '<p><strong>Promotion plan:</strong> ' + escapeForHtml(a.promotion_description || '—') + '</p>' +
+            '<p><strong>Audience size:</strong> ' + escapeForHtml(a.audience_size || '—') + '</p>' +
+            '<p><strong>E-signature:</strong> ' + escapeForHtml(a.esignature_name) + ' (' + formatDate(a.esignature_date) + ')</p>' +
+          '</div>' +
+        '</div>' +
+        '<label>Rejection Reason (required to reject)</label>' +
+        '<input type="text" class="application-reject-reason" placeholder="Reason shown to the applicant">' +
+        '<div style="margin-top:12px;">' +
+          '<button type="button" class="product-save-btn application-approve-btn" data-application-id="' + a.id + '">Approve</button> ' +
+          '<button type="button" class="coa-delete-btn application-reject-btn" data-application-id="' + a.id + '">Reject</button>' +
+        '</div>' +
+        '<p class="credit-issue-status" id="application-status-' + a.id + '"></p>' +
+      '</td>' +
+    '</tr>';
+    return row;
+  }).join('');
+}
+
+document.getElementById('applications-tbody').addEventListener('click', function(e) {
+  var toggleBtn = e.target.closest('.application-toggle-btn');
   if (toggleBtn) {
-    var toggleId = toggleBtn.getAttribute('data-commission-id');
-    var detailRow = document.querySelector('.product-detail-row[data-commission-id="' + toggleId + '"]');
+    var toggleId = toggleBtn.getAttribute('data-application-id');
+    var detailRow = document.querySelector('.product-detail-row[data-application-id="' + toggleId + '"]');
     if (detailRow) detailRow.classList.toggle('show');
     return;
   }
 
-  var cancelBtn = e.target.closest('.referral-markpaid-cancel-btn');
-  if (cancelBtn) {
-    var cancelId = cancelBtn.getAttribute('data-commission-id');
-    var cancelRow = document.querySelector('.product-detail-row[data-commission-id="' + cancelId + '"]');
-    if (cancelRow) cancelRow.classList.remove('show');
-    return;
-  }
-
-  var saveBtn = e.target.closest('.referral-markpaid-save-btn');
-  if (saveBtn) {
-    var saveId = saveBtn.getAttribute('data-commission-id');
-    var saveRow = document.querySelector('.product-detail-row[data-commission-id="' + saveId + '"]');
-    var statusEl = document.getElementById('referral-markpaid-status-' + saveId);
-    var paymentType = saveRow.querySelector('.referral-markpaid-type').value;
-    var paymentReference = saveRow.querySelector('.referral-markpaid-reference').value.trim();
+  var approveBtn = e.target.closest('.application-approve-btn');
+  if (approveBtn) {
+    var approveId = approveBtn.getAttribute('data-application-id');
+    var statusEl = document.getElementById('application-status-' + approveId);
     statusEl.className = 'credit-issue-status';
     statusEl.textContent = '';
-    saveBtn.disabled = true;
-    fetch('/api/admin/referral-commissions/' + encodeURIComponent(saveId), {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentType: paymentType, paymentReference: paymentReference }),
+    approveBtn.disabled = true;
+    fetch('/api/admin/referral-applications/' + encodeURIComponent(approveId) + '/approve', {
+      method: 'POST', credentials: 'include',
     })
       .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
       .then(function(r) {
-        saveBtn.disabled = false;
+        approveBtn.disabled = false;
         if (!r.ok) {
-          statusEl.textContent = r.d.error || 'Could not mark this commission paid.';
+          statusEl.textContent = r.d.error || 'Could not approve this application.';
           statusEl.className = 'credit-issue-status error';
           return;
         }
-        loadReferralCommissions();
+        loadReferralApplications();
       })
       .catch(function() {
-        saveBtn.disabled = false;
-        statusEl.textContent = 'Could not mark this commission paid.';
+        approveBtn.disabled = false;
+        statusEl.textContent = 'Could not approve this application.';
         statusEl.className = 'credit-issue-status error';
+      });
+    return;
+  }
+
+  var rejectBtn = e.target.closest('.application-reject-btn');
+  if (rejectBtn) {
+    var rejectId = rejectBtn.getAttribute('data-application-id');
+    var rejectRow = document.querySelector('.product-detail-row[data-application-id="' + rejectId + '"]');
+    var rejectStatusEl = document.getElementById('application-status-' + rejectId);
+    var reason = rejectRow.querySelector('.application-reject-reason').value.trim();
+    rejectStatusEl.className = 'credit-issue-status';
+    rejectStatusEl.textContent = '';
+    if (!reason) {
+      rejectStatusEl.textContent = 'A rejection reason is required.';
+      rejectStatusEl.className = 'credit-issue-status error';
+      return;
+    }
+    rejectBtn.disabled = true;
+    fetch('/api/admin/referral-applications/' + encodeURIComponent(rejectId) + '/reject', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason }),
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        rejectBtn.disabled = false;
+        if (!r.ok) {
+          rejectStatusEl.textContent = r.d.error || 'Could not reject this application.';
+          rejectStatusEl.className = 'credit-issue-status error';
+          return;
+        }
+        loadReferralApplications();
+      })
+      .catch(function() {
+        rejectBtn.disabled = false;
+        rejectStatusEl.textContent = 'Could not reject this application.';
+        rejectStatusEl.className = 'credit-issue-status error';
       });
     return;
   }
@@ -2118,8 +2400,10 @@ function showPaymentsTab() {
   loadPayments();
   loadQuickBooksStatus();
   loadQuickBooksTransactions();
-  loadReferralRate();
+  loadReferralSettings();
   loadReferralCommissions();
+  loadReferralPayouts();
+  loadReferralApplications();
 }
 
 // Sub-navigation within the Payments tab -- PayRam (the order/payment
@@ -2137,10 +2421,10 @@ function showPaymentsTab() {
 // and admin-gated, so eager-loading all of them up front was chosen for
 // simplicity over matching that lazier pattern).
 function showPaymentsSubtab(subtabId, subviewId) {
-  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon', 'payments-subtab-referrals'].forEach(function(id) {
+  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon', 'payments-subtab-referrals', 'payments-subtab-applications'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon', 'payments-subview-referrals'].forEach(function(id) {
+  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon', 'payments-subview-referrals', 'payments-subview-applications'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -4744,6 +5028,9 @@ document.getElementById('payments-subtab-coupon').addEventListener('click', func
 document.getElementById('payments-subtab-referrals').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-referrals', 'payments-subview-referrals');
 });
+document.getElementById('payments-subtab-applications').addEventListener('click', function() {
+  showPaymentsSubtab('payments-subtab-applications', 'payments-subview-applications');
+});
 document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
 document.getElementById('payments-date-from').addEventListener('change', renderPayments);
 document.getElementById('payments-date-to').addEventListener('change', renderPayments);
@@ -4755,6 +5042,7 @@ document.getElementById('coupon-date-from').addEventListener('change', renderCou
 document.getElementById('coupon-date-to').addEventListener('change', renderCouponPayments);
 document.getElementById('referral-search').addEventListener('input', debouncedRenderReferralCommissions);
 document.getElementById('referral-status-filter').addEventListener('change', renderReferralCommissions);
+document.getElementById('applications-status-filter').addEventListener('change', loadReferralApplications);
 document.getElementById('tab-coas').addEventListener('click', showCoaTab);
 document.getElementById('tab-promo').addEventListener('click', showPromoTab);
 document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
