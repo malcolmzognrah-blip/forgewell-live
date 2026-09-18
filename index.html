@@ -233,12 +233,23 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 // localStorage (not sessionStorage) so a referral link that's clicked,
 // then acted on in a later browser session (closed and reopened before
 // actually signing up), still gets credited -- a plausible real gap
-// sessionStorage would silently drop. A 30-day age cap keeps a stale,
-// long-forgotten code from attaching itself to an unrelated signup
-// months later.
+// sessionStorage would silently drop. The age cap keeps a stale,
+// long-forgotten code from attaching itself to an unrelated signup much
+// later -- its length is the real, admin-configured
+// referral_attribution_window_days setting (fetched below), NOT a
+// hardcoded number anymore. 30 is only the fallback used if that fetch
+// hasn't resolved yet (or fails) by the time getStoredReferralCode() is
+// actually called -- in practice that fetch fires immediately on page
+// load and getStoredReferralCode() is never called until a form submit
+// or button click much later, so this fallback is a defensive floor, not
+// the expected path.
 (function(){
   var REFERRAL_STORAGE_KEY = 'forgewell_referral_code';
-  var REFERRAL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  var attributionWindowDays = 30;
+  fetch('/api/content/referral-program-settings')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d && typeof d.attributionWindowDays === 'number') attributionWindowDays = d.attributionWindowDays; })
+    .catch(function() {});
 
   var ref = new URLSearchParams(window.location.search).get('ref');
   if (ref && ref.trim()) {
@@ -256,7 +267,8 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
       if (!raw) return null;
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.code || !parsed.capturedAt) return null;
-      if (Date.now() - parsed.capturedAt > REFERRAL_MAX_AGE_MS) {
+      var maxAgeMs = attributionWindowDays * 24 * 60 * 60 * 1000;
+      if (Date.now() - parsed.capturedAt > maxAgeMs) {
         localStorage.removeItem(REFERRAL_STORAGE_KEY);
         return null;
       }

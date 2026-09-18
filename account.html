@@ -255,14 +255,39 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .referral-txn-status{ font-size:0.7rem; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:12px; }
 .referral-txn-status.pending{ background:#FDECD2; color:#9A6B1E; }
 .referral-txn-status.paid{ background:#DCF3E0; color:#1F7A34; }
-.referral-join-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; }
-.referral-join-title{ font-size:1.05rem; color:var(--navy-dark); margin:0 0 8px; }
-.referral-join-terms-row{ display:flex; align-items:flex-start; gap:10px; margin:18px 0; font-size:0.85rem; color:#333; cursor:pointer; }
-.referral-join-terms-row input{ width:16px; height:16px; margin-top:2px; accent-color:var(--navy); flex-shrink:0; }
-.referral-join-terms-row a{ color:var(--navy); font-weight:700; text-decoration:none; }
-.referral-join-terms-row a:hover{ text-decoration:underline; }
 .referral-copy-btn:disabled{ background:var(--line); color:var(--gray); cursor:not-allowed; }
-.referral-join-status{ font-size:0.8rem; color:#c0392b; margin-top:10px; min-height:1em; }
+
+/* ---- Affiliate application form ---- */
+.affiliate-app-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; }
+.affiliate-app-title{ font-size:1.1rem; color:var(--navy-dark); margin:0 0 8px; }
+.affiliate-program-info{ display:flex; gap:14px; margin:16px 0 20px; flex-wrap:wrap; }
+.affiliate-program-info-stat{ flex:1; min-width:120px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px 14px; text-align:center; }
+.affiliate-program-info-value{ font-size:1.1rem; font-weight:700; color:var(--navy-dark); }
+.affiliate-program-info-label{ font-size:0.7rem; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-top:2px; }
+.affiliate-agreement-box{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px 18px; margin:16px 0; max-height:320px; overflow-y:auto; font-size:0.8rem; line-height:1.55; color:#333; }
+.affiliate-agreement-box h4{ font-size:0.85rem; color:var(--navy-dark); margin:16px 0 6px; }
+.affiliate-agreement-box h4:first-child{ margin-top:0; }
+.affiliate-agreement-box p{ margin:0 0 10px; }
+.affiliate-agreement-box ul{ margin:0 0 10px; padding-left:20px; }
+.affiliate-form-section{ margin:22px 0; }
+.affiliate-form-section h4{ font-size:0.85rem; color:var(--navy-dark); margin:0 0 12px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+.affiliate-form-row{ display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
+.affiliate-form label{ display:block; font-size:0.72rem; font-weight:700; color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.03em; margin:12px 0 4px; }
+.affiliate-form label:first-of-type{ margin-top:0; }
+.affiliate-form input[type=text], .affiliate-form input[type=tel], .affiliate-form input[type=url], .affiliate-form input[type=date], .affiliate-form textarea{
+  width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:'Quicksand',sans-serif;
+}
+.affiliate-form textarea{ min-height:70px; resize:vertical; }
+.affiliate-channel-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:8px; }
+.affiliate-channel-option{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#333; cursor:pointer; }
+.affiliate-channel-option input{ width:16px; height:16px; accent-color:var(--navy); flex-shrink:0; }
+.affiliate-ack-row{ display:flex; align-items:flex-start; gap:10px; margin:14px 0; font-size:0.83rem; color:#333; cursor:pointer; }
+.affiliate-ack-row input{ width:16px; height:16px; margin-top:2px; accent-color:var(--navy); flex-shrink:0; }
+.affiliate-app-status{ font-size:0.8rem; color:#c0392b; margin-top:12px; min-height:1em; }
+.affiliate-status-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:28px; text-align:center; }
+.affiliate-status-card h3{ font-size:1.05rem; color:var(--navy-dark); margin:0 0 8px; }
+.affiliate-status-card.rejected h3{ color:#c0392b; }
+.affiliate-status-card p{ font-size:0.85rem; color:#444; margin:0 0 16px; }
 </style>
 </head>
 <body>
@@ -379,27 +404,276 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
   <!-- ==================== Refer & Earn ==================== -->
   <div class="account-view" id="view-referrals">
-    <!-- Not-yet-joined state -- shown until GET /api/referrals/mine
-         reports joined:true. Terms checkbox links to the site's existing
-         Terms of Service (/terms.html, same page index.html's own
-         research-use consent step already references) -- there is no
-         separate affiliate-program-specific terms page/legal text yet
-         (deliberately out of scope for this round), so this checkbox is
-         only ever "I agree to the (existing, general) Terms of Service,"
-         not a stand-in for real affiliate-specific terms. -->
-    <div class="referral-join-card" id="referral-join-card">
-      <h3 class="referral-join-title">Join the Affiliate Program</h3>
-      <p class="referral-note">Share your own referral link with friends -- when someone signs up through it and places an order, you earn a commission. Join once to get your link.</p>
-      <label class="referral-join-terms-row">
-        <input type="checkbox" id="referral-join-terms-checkbox">
-        <span>I have read and agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a> for participating in the Forgewell Affiliate Program.</span>
-      </label>
-      <button type="button" class="referral-copy-btn" id="referral-join-btn" disabled>Join the Affiliate Program</button>
-      <p class="referral-join-status" id="referral-join-status"></p>
+    <!-- Application form -- shown when GET /api/referrals/mine reports
+         applicationStatus 'none' or 'rejected' (reapplying is allowed --
+         see affiliate-application-migration.sql's own comment on why a
+         rejected row doesn't block a new one). Every field/section below
+         follows docs/affiliate-agreement.md verbatim (backend repo) --
+         do not rewrite the agreement text or the six acknowledgment
+         checkboxes' wording. The three program-info stats and the
+         agreement's own Commission Rate/Cookie Duration/Minimum Payout
+         lines are populated from GET /api/content/referral-program-
+         settings at render time -- never hardcoded, never left as a
+         literal bracket. -->
+    <div class="affiliate-app-card" id="affiliate-app-card">
+      <h3 class="affiliate-app-title">Partner With Forgewell</h3>
+      <p class="referral-note">Share Forgewell with your audience and earn commissions on qualifying purchases made through your unique affiliate link or promotional code. Affiliate applications are subject to approval -- submitting an application does not automatically activate an affiliate account.</p>
+      <div class="affiliate-program-info">
+        <div class="affiliate-program-info-stat">
+          <div class="affiliate-program-info-value" id="affiliate-info-commission-rate">--</div>
+          <div class="affiliate-program-info-label">Commission Rate</div>
+        </div>
+        <div class="affiliate-program-info-stat">
+          <div class="affiliate-program-info-value" id="affiliate-info-attribution-window">--</div>
+          <div class="affiliate-program-info-label">Cookie Duration</div>
+        </div>
+        <div class="affiliate-program-info-stat">
+          <div class="affiliate-program-info-value" id="affiliate-info-minimum-payout">--</div>
+          <div class="affiliate-program-info-label">Minimum Payout</div>
+        </div>
+      </div>
+
+      <form id="affiliate-app-form">
+        <div class="affiliate-form-section affiliate-form">
+          <h4>Personal Information</h4>
+          <label for="affiliate-full-legal-name">Full Legal Name *</label>
+          <input type="text" id="affiliate-full-legal-name" required>
+          <label for="affiliate-business-name">Business / Company Name</label>
+          <input type="text" id="affiliate-business-name">
+          <div class="affiliate-form-row">
+            <div>
+              <label for="affiliate-phone">Phone Number *</label>
+              <input type="tel" id="affiliate-phone" required>
+            </div>
+            <div>
+              <label for="affiliate-website">Website</label>
+              <input type="url" id="affiliate-website" placeholder="https://">
+            </div>
+          </div>
+          <label for="affiliate-mailing-address">Mailing Address *</label>
+          <input type="text" id="affiliate-mailing-address" required>
+          <div class="affiliate-form-row">
+            <div>
+              <label for="affiliate-city">City *</label>
+              <input type="text" id="affiliate-city" required>
+            </div>
+            <div>
+              <label for="affiliate-state">State *</label>
+              <input type="text" id="affiliate-state" required>
+            </div>
+          </div>
+          <label for="affiliate-zip">ZIP Code *</label>
+          <input type="text" id="affiliate-zip" required>
+        </div>
+
+        <div class="affiliate-form-section affiliate-form">
+          <h4>Social Media</h4>
+          <div class="affiliate-form-row">
+            <div>
+              <label for="affiliate-instagram">Instagram</label>
+              <input type="text" id="affiliate-instagram" placeholder="@username">
+            </div>
+            <div>
+              <label for="affiliate-tiktok">TikTok</label>
+              <input type="text" id="affiliate-tiktok" placeholder="@username">
+            </div>
+          </div>
+          <div class="affiliate-form-row">
+            <div>
+              <label for="affiliate-youtube">YouTube</label>
+              <input type="text" id="affiliate-youtube" placeholder="Channel URL">
+            </div>
+            <div>
+              <label for="affiliate-facebook">Facebook</label>
+              <input type="text" id="affiliate-facebook" placeholder="Profile/Page URL">
+            </div>
+          </div>
+          <label for="affiliate-other-social">Other Social Media</label>
+          <input type="text" id="affiliate-other-social" placeholder="Enter URL">
+        </div>
+
+        <div class="affiliate-form-section affiliate-form">
+          <h4>Promotional Information</h4>
+          <label>How do you plan to promote Forgewell? *</label>
+          <div class="affiliate-channel-grid" id="affiliate-channel-grid">
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="Instagram"> Instagram</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="TikTok"> TikTok</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="YouTube"> YouTube</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="Facebook"> Facebook</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="Website / Blog"> Website / Blog</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="Email Marketing"> Email Marketing</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="Podcast"> Podcast</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="In Person"> In Person</label>
+            <label class="affiliate-channel-option"><input type="checkbox" class="affiliate-channel-checkbox" value="Other"> Other</label>
+          </div>
+          <label for="affiliate-promotion-description">Please describe how you plan to promote Forgewell:</label>
+          <textarea id="affiliate-promotion-description"></textarea>
+          <label for="affiliate-audience-size">Approximate Audience / Follower Count:</label>
+          <input type="text" id="affiliate-audience-size">
+        </div>
+
+        <div class="affiliate-form-section">
+          <h4>Forgewell Affiliate Program Agreement</h4>
+          <p class="referral-note">Please read the agreement below before signing. Last Updated: September 17, 2026.</p>
+          <div class="affiliate-agreement-box" id="affiliate-agreement-box">
+            <p>Forgewell LLC ("Forgewell," "Company," "we," "us," or "our") operates an affiliate program that allows approved affiliates ("Affiliate," "you," or "your") to promote eligible Forgewell products through unique affiliate links, promotional codes, or other approved tracking methods.</p>
+            <h4>1. Affiliate Program</h4>
+            <p>Forgewell reserves the right to approve or reject any affiliate application.</p>
+            <p>Participation in the Forgewell Affiliate Program does not create an employment relationship, partnership, joint venture, agency relationship, franchise relationship, or other legal relationship between Forgewell and the Affiliate.</p>
+            <h4>2. Commissions</h4>
+            <p>Approved Affiliates may earn commissions on qualifying purchases generated through their assigned affiliate links or promotional codes.</p>
+            <p>The applicable commission rate will be displayed in the Affiliate's account or otherwise communicated by Forgewell.</p>
+            <p>Commissions are calculated on qualifying sales after applicable exclusions, including refunds, returns, cancellations, chargebacks, discounts, taxes, shipping charges, fraudulent transactions, and other amounts excluded by Forgewell.</p>
+            <p>Forgewell reserves the right to change commission rates, eligible products, or program terms.</p>
+            <h4>3. Commission Payments</h4>
+            <p>Commissions are subject to verification and may be held for a reasonable period to account for refunds, returns, cancellations, and chargebacks.</p>
+            <p>Minimum payout threshold: <span id="affiliate-agreement-minimum-payout">--</span></p>
+            <p>Payment method: as determined by Forgewell at the time of payout.</p>
+            <p>Payment schedule: <span id="affiliate-agreement-payout-schedule">--</span></p>
+            <p>Forgewell may require applicable tax documentation before commissions are paid.</p>
+            <p>Forgewell may withhold or reverse commissions associated with refunded, canceled, fraudulent, or otherwise invalid transactions.</p>
+            <h4>4. Affiliate Disclosure</h4>
+            <p>Affiliates must clearly and conspicuously disclose their relationship with Forgewell whenever promoting Forgewell products.</p>
+            <p>Examples of acceptable disclosures include:</p>
+            <p>"I may earn a commission if you purchase through my link."</p>
+            <p>"This post contains affiliate links. I may receive a commission from qualifying purchases."</p>
+            <p>Affiliate disclosures must be easy for consumers to notice and understand.</p>
+            <p>Affiliates are responsible for complying with applicable advertising and endorsement requirements, including applicable Federal Trade Commission (FTC) requirements.</p>
+            <h4>5. Product Claims and Representations</h4>
+            <p>Affiliates may only make truthful, accurate, and non-misleading statements about Forgewell and its products.</p>
+            <p>Affiliates may not make unauthorized claims that a Forgewell product:</p>
+            <ul>
+              <li>Diagnoses, treats, cures, or prevents a disease or medical condition;</li>
+              <li>Replaces prescription medication or medical treatment;</li>
+              <li>Produces guaranteed medical or therapeutic results;</li>
+              <li>Guarantees weight loss, muscle gain, fat loss, anti-aging effects, or other specific outcomes; or</li>
+              <li>Is approved, cleared, or authorized by the FDA unless Forgewell has expressly authorized the statement and the statement is accurate.</li>
+            </ul>
+            <p>Affiliates may not create or publish misleading testimonials, reviews, before-and-after claims, or guaranteed-result claims.</p>
+            <p>Affiliates may only use product claims and promotional language provided or approved by Forgewell where Forgewell requires such approval.</p>
+            <h4>6. Prohibited Marketing Practices</h4>
+            <p>Affiliates may not promote Forgewell through:</p>
+            <ul>
+              <li>Spam or unsolicited bulk communications;</li>
+              <li>Fraudulent or artificially generated traffic;</li>
+              <li>Bots or automated traffic;</li>
+              <li>Cookie stuffing;</li>
+              <li>Fake clicks or impressions;</li>
+              <li>Malware, spyware, or adware;</li>
+              <li>Fake Forgewell accounts;</li>
+              <li>Misleading advertisements;</li>
+              <li>Fake reviews or testimonials;</li>
+              <li>Deceptive promotions;</li>
+              <li>Trademark infringement;</li>
+              <li>Impersonation of Forgewell; or</li>
+              <li>Any other unlawful, deceptive, or fraudulent marketing practice.</li>
+            </ul>
+            <p>Affiliates may not represent themselves as Forgewell employees, representatives, medical professionals, or authorized agents unless expressly authorized by Forgewell in writing.</p>
+            <h4>7. Social Media</h4>
+            <p>Affiliates may promote Forgewell on social-media platforms provided that their content complies with this Agreement, applicable laws, FTC disclosure requirements, and the rules of the applicable social-media platform.</p>
+            <p>Affiliates may not create social-media accounts that could reasonably be mistaken for official Forgewell accounts.</p>
+            <h4>8. Paid Advertising</h4>
+            <p>Affiliates must obtain written approval from Forgewell before using Forgewell trademarks, brand names, or branded keywords in paid advertising campaigns where required by Forgewell.</p>
+            <p>Affiliates may not represent paid advertisements as official Forgewell advertisements unless expressly authorized.</p>
+            <p>Affiliates are responsible for complying with all applicable advertising platform policies.</p>
+            <h4>9. Intellectual Property</h4>
+            <p>Forgewell grants approved Affiliates a limited, non-exclusive, non-transferable, revocable license to use Forgewell-approved logos, trademarks, product images, videos, descriptions, and other promotional materials solely for the purpose of promoting Forgewell through the Affiliate Program.</p>
+            <p>All Forgewell trademarks, logos, content, and intellectual property remain the property of Forgewell LLC.</p>
+            <p>Upon termination of the Affiliate relationship, the Affiliate must immediately stop using Forgewell trademarks and promotional materials.</p>
+            <h4>10. Customer Relationship</h4>
+            <p>Customers who purchase through an Affiliate's link or promotional code remain customers of Forgewell.</p>
+            <p>Forgewell is responsible for order processing, payment processing, fulfillment, customer service, returns, refunds, and determining whether a transaction qualifies for an affiliate commission.</p>
+            <p>Affiliates may not collect customer payment information or represent that they can process orders on behalf of Forgewell unless expressly authorized.</p>
+            <h4>11. Compliance With Laws</h4>
+            <p>Affiliate agrees to comply with all applicable federal, state, and local laws and regulations relating to its promotional activities.</p>
+            <p>This includes applicable laws and requirements relating to advertising, consumer protection, endorsements, testimonials, privacy, email marketing, intellectual property, and data protection.</p>
+            <h4>12. Confidentiality</h4>
+            <p>Affiliate may receive confidential information relating to Forgewell, its customers, pricing, commissions, marketing strategies, products, or business operations.</p>
+            <p>Affiliate agrees not to disclose, distribute, or misuse confidential information except as necessary to participate in the Affiliate Program.</p>
+            <h4>13. Privacy and Customer Information</h4>
+            <p>Affiliate must not collect, use, sell, or disclose customer information obtained through the Affiliate Program except as permitted by law and expressly authorized by Forgewell.</p>
+            <p>Affiliate is responsible for maintaining reasonable security measures for any personal information it lawfully collects.</p>
+            <h4>14. Termination</h4>
+            <p>Either Forgewell or the Affiliate may terminate participation in the Affiliate Program.</p>
+            <p>Forgewell may immediately suspend or terminate an Affiliate account if Forgewell reasonably believes the Affiliate has:</p>
+            <ul>
+              <li>Violated this Agreement;</li>
+              <li>Engaged in fraudulent activity;</li>
+              <li>Made unauthorized product or medical claims;</li>
+              <li>Used deceptive marketing;</li>
+              <li>Violated applicable law;</li>
+              <li>Misused Forgewell intellectual property; or</li>
+              <li>Engaged in conduct that could materially harm Forgewell or its customers.</li>
+            </ul>
+            <p>Upon termination, the Affiliate must immediately stop using Forgewell affiliate links, trademarks, logos, promotional materials, and other Forgewell intellectual property.</p>
+            <h4>15. Outstanding Commissions</h4>
+            <p>Eligible commissions earned before termination may be paid according to Forgewell's normal payment schedule, subject to applicable verification procedures.</p>
+            <p>Forgewell may withhold commissions associated with transactions that are refunded, canceled, charged back, fraudulent, or otherwise invalid.</p>
+            <h4>16. No Guarantee of Income</h4>
+            <p>Forgewell does not guarantee any specific level of sales, traffic, commissions, or income through participation in the Affiliate Program.</p>
+            <p>Affiliate acknowledges that affiliate marketing performance depends on factors outside Forgewell's control.</p>
+            <h4>17. Independent Contractor</h4>
+            <p>Affiliate is an independent contractor.</p>
+            <p>Nothing in this Agreement creates an employment relationship, partnership, joint venture, agency relationship, or franchise between Forgewell and Affiliate.</p>
+            <p>Affiliate does not have authority to bind Forgewell or make commitments on Forgewell's behalf.</p>
+            <h4>18. Changes to This Agreement</h4>
+            <p>Forgewell may modify this Agreement from time to time.</p>
+            <p>Material changes may be communicated through the Affiliate Program platform, email, or other reasonable means.</p>
+            <p>Continued participation in the Affiliate Program after the effective date of an updated Agreement constitutes acceptance of the revised terms.</p>
+            <h4>19. Governing Law</h4>
+            <p>This Agreement shall be governed by and interpreted in accordance with the laws of the State of Kansas, without regard to its conflict-of-law principles.</p>
+            <h4>20. Entire Agreement</h4>
+            <p>This Agreement constitutes the entire agreement between Forgewell and the Affiliate concerning participation in the Forgewell Affiliate Program and supersedes prior agreements or understandings relating to the subject matter.</p>
+            <p>If any provision of this Agreement is determined to be unenforceable, the remaining provisions will remain in effect.</p>
+          </div>
+        </div>
+
+        <div class="affiliate-form-section">
+          <h4>Affiliate Acknowledgment</h4>
+          <p class="referral-note">Please confirm each statement below before submitting your application.</p>
+          <label class="affiliate-ack-row"><input type="checkbox" id="affiliate-ack-agreement"> <span>I have read and agree to the Forgewell Affiliate Program Agreement.</span></label>
+          <label class="affiliate-ack-row"><input type="checkbox" id="affiliate-ack-disclosure"> <span>I agree to clearly disclose my affiliate relationship with Forgewell when promoting Forgewell products.</span></label>
+          <label class="affiliate-ack-row"><input type="checkbox" id="affiliate-ack-no-medical-claims"> <span>I agree not to make unauthorized medical, therapeutic, disease-treatment, cure, prevention, or guaranteed-result claims about Forgewell products.</span></label>
+          <label class="affiliate-ack-row"><input type="checkbox" id="affiliate-ack-compliance"> <span>I agree to comply with applicable advertising, endorsement, consumer-protection, privacy, and other applicable laws.</span></label>
+          <label class="affiliate-ack-row"><input type="checkbox" id="affiliate-ack-suspension-understanding"> <span>I understand that Forgewell may suspend or terminate my affiliate account if I violate this Agreement or applicable law.</span></label>
+          <label class="affiliate-ack-row"><input type="checkbox" id="affiliate-ack-information-accurate"> <span>I confirm that the information provided in this application is accurate and complete.</span></label>
+        </div>
+
+        <div class="affiliate-form-section affiliate-form">
+          <h4>Electronic Signature</h4>
+          <p class="referral-note">By entering my name below, I acknowledge that I have read, understood, and agree to the Forgewell Affiliate Program Agreement.</p>
+          <div class="affiliate-form-row">
+            <div>
+              <label for="affiliate-esignature-name">Full Legal Name / Electronic Signature *</label>
+              <input type="text" id="affiliate-esignature-name" required>
+            </div>
+            <div>
+              <label for="affiliate-esignature-date">Date *</label>
+              <input type="date" id="affiliate-esignature-date" required>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="referral-copy-btn" id="affiliate-app-submit-btn">Agree &amp; Apply</button>
+        <p class="affiliate-app-status" id="affiliate-app-status"></p>
+      </form>
     </div>
 
-    <!-- Joined state -- unchanged from before, just now gated on
-         joined:true instead of always shown. -->
+    <!-- Pending state -->
+    <div class="affiliate-status-card" id="affiliate-pending-view" style="display:none;">
+      <h3>Application Under Review</h3>
+      <p>Your application has been received and is under review. We'll notify you by email once a decision has been made.</p>
+    </div>
+
+    <!-- Rejected state -- reapplying is allowed, per this program's own
+         scope decision (see affiliate-application-migration.sql). -->
+    <div class="affiliate-status-card rejected" id="affiliate-rejected-view" style="display:none;">
+      <h3>Application Not Approved</h3>
+      <p id="affiliate-rejection-reason"></p>
+      <button type="button" class="referral-copy-btn" id="affiliate-reapply-btn">Apply Again</button>
+    </div>
+
+    <!-- Approved state -- unchanged from before. -->
     <div id="referral-joined-view" style="display:none;">
       <div class="referral-link-card">
         <div class="referral-link-label">Your Referral Link</div>
@@ -1198,20 +1472,51 @@ updateCartIcon();
   }
 
   // ============================================================
-  // Refer & Earn
+  // Refer & Earn -- affiliate application/approval flow
   // ============================================================
-  function renderReferrals(data) {
-    var joinCard = document.getElementById('referral-join-card');
-    var joinedView = document.getElementById('referral-joined-view');
 
-    if (!data.joined) {
-      joinCard.style.display = '';
-      joinedView.style.display = 'none';
+  // Populates the program-info stats and the agreement text's own
+  // Minimum Payout/Payment Schedule lines from real settings -- never
+  // hardcoded, never left as a literal [XX] bracket (see
+  // docs/affiliate-agreement.md's own header comment, backend repo).
+  // Cookie Duration is deliberately not shown as a bracket at all here --
+  // it's the real attribution window number.
+  function loadAffiliateProgramInfo() {
+    fetch('/api/content/referral-program-settings')
+      .then(function(r) { return r.json(); })
+      .then(function(s) {
+        document.getElementById('affiliate-info-commission-rate').textContent = s.commissionRatePercent + '%';
+        document.getElementById('affiliate-info-attribution-window').textContent = s.attributionWindowDays + ' Days';
+        document.getElementById('affiliate-info-minimum-payout').textContent = formatCents(s.minimumPayoutCents);
+        document.getElementById('affiliate-agreement-minimum-payout').textContent = formatCents(s.minimumPayoutCents);
+        document.getElementById('affiliate-agreement-payout-schedule').textContent = 'Every ' + s.payoutScheduleDays + ' days';
+      })
+      .catch(function() {});
+  }
+
+  function showAffiliateView(name) {
+    var views = { form: 'affiliate-app-card', pending: 'affiliate-pending-view', rejected: 'affiliate-rejected-view', approved: 'referral-joined-view' };
+    Object.keys(views).forEach(function(key) {
+      document.getElementById(views[key]).style.display = (key === name) ? '' : 'none';
+    });
+  }
+
+  function renderReferrals(data) {
+    if (data.applicationStatus === 'pending') {
+      showAffiliateView('pending');
       return;
     }
-    joinCard.style.display = 'none';
-    joinedView.style.display = '';
+    if (data.applicationStatus === 'rejected') {
+      document.getElementById('affiliate-rejection-reason').textContent = data.rejectionReason || 'Your application was not approved.';
+      showAffiliateView('rejected');
+      return;
+    }
+    if (data.applicationStatus !== 'approved') {
+      showAffiliateView('form');
+      return;
+    }
 
+    showAffiliateView('approved');
     document.getElementById('referral-link-input').value = window.location.origin + '/?ref=' + (data.referralCode || '');
     document.getElementById('referral-pending-amount').textContent = formatCents(data.pendingCents);
     document.getElementById('referral-paid-amount').textContent = formatCents(data.paidCents);
@@ -1236,42 +1541,80 @@ updateCartIcon();
 
   function loadReferrals() {
     fetch('/api/referrals/mine', { credentials: 'include' })
-      .then(function(res) { return res.ok ? res.json() : { joined: false, referralCode: '', commissions: [], pendingCents: 0, paidCents: 0 }; })
+      .then(function(res) { return res.ok ? res.json() : { applicationStatus: 'none', referralCode: '', commissions: [], pendingCents: 0, paidCents: 0 }; })
       .then(renderReferrals)
-      .catch(function() {
-        document.getElementById('referral-join-card').style.display = 'none';
-        document.getElementById('referral-joined-view').style.display = 'none';
-      });
+      .catch(function() { showAffiliateView('form'); });
   }
 
-  document.getElementById('referral-join-terms-checkbox').addEventListener('change', function() {
-    document.getElementById('referral-join-btn').disabled = !this.checked;
+  document.getElementById('affiliate-reapply-btn').addEventListener('click', function() {
+    showAffiliateView('form');
   });
 
-  document.getElementById('referral-join-btn').addEventListener('click', function() {
-    var btn = this;
-    var statusEl = document.getElementById('referral-join-status');
-    var checkbox = document.getElementById('referral-join-terms-checkbox');
+  document.getElementById('affiliate-app-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = document.getElementById('affiliate-app-submit-btn');
+    var statusEl = document.getElementById('affiliate-app-status');
     statusEl.textContent = '';
-    if (!checkbox.checked) return; // button is disabled in this state anyway -- defensive only
+
+    var channels = Array.prototype.map.call(
+      document.querySelectorAll('.affiliate-channel-checkbox:checked'),
+      function(el) { return el.value; }
+    );
+
+    var payload = {
+      fullLegalName: document.getElementById('affiliate-full-legal-name').value,
+      businessName: document.getElementById('affiliate-business-name').value,
+      phone: document.getElementById('affiliate-phone').value,
+      website: document.getElementById('affiliate-website').value,
+      mailingAddress: document.getElementById('affiliate-mailing-address').value,
+      city: document.getElementById('affiliate-city').value,
+      state: document.getElementById('affiliate-state').value,
+      zip: document.getElementById('affiliate-zip').value,
+      instagram: document.getElementById('affiliate-instagram').value,
+      tiktok: document.getElementById('affiliate-tiktok').value,
+      youtube: document.getElementById('affiliate-youtube').value,
+      facebook: document.getElementById('affiliate-facebook').value,
+      otherSocial: document.getElementById('affiliate-other-social').value,
+      promotionChannels: channels,
+      promotionDescription: document.getElementById('affiliate-promotion-description').value,
+      audienceSize: document.getElementById('affiliate-audience-size').value,
+      ackAgreement: document.getElementById('affiliate-ack-agreement').checked,
+      ackDisclosure: document.getElementById('affiliate-ack-disclosure').checked,
+      ackNoMedicalClaims: document.getElementById('affiliate-ack-no-medical-claims').checked,
+      ackCompliance: document.getElementById('affiliate-ack-compliance').checked,
+      ackSuspensionUnderstanding: document.getElementById('affiliate-ack-suspension-understanding').checked,
+      ackInformationAccurate: document.getElementById('affiliate-ack-information-accurate').checked,
+      esignatureName: document.getElementById('affiliate-esignature-name').value,
+      esignatureDate: document.getElementById('affiliate-esignature-date').value,
+    };
+
+    if (channels.length === 0) {
+      statusEl.textContent = 'Select at least one way you plan to promote Forgewell.';
+      return;
+    }
+    if (![payload.ackAgreement, payload.ackDisclosure, payload.ackNoMedicalClaims, payload.ackCompliance, payload.ackSuspensionUnderstanding, payload.ackInformationAccurate].every(Boolean)) {
+      statusEl.textContent = 'You must check all six acknowledgments to submit an application.';
+      return;
+    }
+
     btn.disabled = true;
-    fetch('/api/referrals/join', {
+    fetch('/api/referrals/apply', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ termsAccepted: true }),
+      body: JSON.stringify(payload),
     })
       .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
       .then(function(r) {
         if (!r.ok) {
           btn.disabled = false;
-          statusEl.textContent = r.d.error || 'Could not join the affiliate program right now.';
+          statusEl.textContent = r.d.error || 'Could not submit your application right now.';
           return;
         }
         loadReferrals();
       })
       .catch(function() {
         btn.disabled = false;
-        statusEl.textContent = 'Could not join the affiliate program right now.';
+        statusEl.textContent = 'Could not submit your application right now.';
       });
   });
 
@@ -1330,6 +1673,7 @@ updateCartIcon();
       loadCoupons();
       loadOrdersAndPayments();
       loadStoreCredit();
+      loadAffiliateProgramInfo();
       loadReferrals();
     })
     .catch(function() {
