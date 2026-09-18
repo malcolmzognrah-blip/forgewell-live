@@ -255,6 +255,14 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .referral-txn-status{ font-size:0.7rem; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:12px; }
 .referral-txn-status.pending{ background:#FDECD2; color:#9A6B1E; }
 .referral-txn-status.paid{ background:#DCF3E0; color:#1F7A34; }
+.referral-join-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; }
+.referral-join-title{ font-size:1.05rem; color:var(--navy-dark); margin:0 0 8px; }
+.referral-join-terms-row{ display:flex; align-items:flex-start; gap:10px; margin:18px 0; font-size:0.85rem; color:#333; cursor:pointer; }
+.referral-join-terms-row input{ width:16px; height:16px; margin-top:2px; accent-color:var(--navy); flex-shrink:0; }
+.referral-join-terms-row a{ color:var(--navy); font-weight:700; text-decoration:none; }
+.referral-join-terms-row a:hover{ text-decoration:underline; }
+.referral-copy-btn:disabled{ background:var(--line); color:var(--gray); cursor:not-allowed; }
+.referral-join-status{ font-size:0.8rem; color:#c0392b; margin-top:10px; min-height:1em; }
 </style>
 </head>
 <body>
@@ -371,25 +379,48 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
   <!-- ==================== Refer & Earn ==================== -->
   <div class="account-view" id="view-referrals">
-    <div class="referral-link-card">
-      <div class="referral-link-label">Your Referral Link</div>
-      <div class="referral-link-row">
-        <input type="text" id="referral-link-input" readonly>
-        <button type="button" class="referral-copy-btn" id="referral-copy-btn">Copy</button>
-      </div>
-      <p class="referral-note">Share this link -- when someone signs up through it and places an order, you earn a commission.</p>
+    <!-- Not-yet-joined state -- shown until GET /api/referrals/mine
+         reports joined:true. Terms checkbox links to the site's existing
+         Terms of Service (/terms.html, same page index.html's own
+         research-use consent step already references) -- there is no
+         separate affiliate-program-specific terms page/legal text yet
+         (deliberately out of scope for this round), so this checkbox is
+         only ever "I agree to the (existing, general) Terms of Service,"
+         not a stand-in for real affiliate-specific terms. -->
+    <div class="referral-join-card" id="referral-join-card">
+      <h3 class="referral-join-title">Join the Affiliate Program</h3>
+      <p class="referral-note">Share your own referral link with friends -- when someone signs up through it and places an order, you earn a commission. Join once to get your link.</p>
+      <label class="referral-join-terms-row">
+        <input type="checkbox" id="referral-join-terms-checkbox">
+        <span>I have read and agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a> for participating in the Forgewell Affiliate Program.</span>
+      </label>
+      <button type="button" class="referral-copy-btn" id="referral-join-btn" disabled>Join the Affiliate Program</button>
+      <p class="referral-join-status" id="referral-join-status"></p>
     </div>
-    <div class="referral-stats-row">
-      <div class="referral-stat">
-        <div class="referral-stat-amount" id="referral-pending-amount">$0.00</div>
-        <div class="referral-stat-label">Pending</div>
+
+    <!-- Joined state -- unchanged from before, just now gated on
+         joined:true instead of always shown. -->
+    <div id="referral-joined-view" style="display:none;">
+      <div class="referral-link-card">
+        <div class="referral-link-label">Your Referral Link</div>
+        <div class="referral-link-row">
+          <input type="text" id="referral-link-input" readonly>
+          <button type="button" class="referral-copy-btn" id="referral-copy-btn">Copy</button>
+        </div>
+        <p class="referral-note">Share this link -- when someone signs up through it and places an order, you earn a commission.</p>
       </div>
-      <div class="referral-stat">
-        <div class="referral-stat-amount" id="referral-paid-amount">$0.00</div>
-        <div class="referral-stat-label">Paid Out</div>
+      <div class="referral-stats-row">
+        <div class="referral-stat">
+          <div class="referral-stat-amount" id="referral-pending-amount">$0.00</div>
+          <div class="referral-stat-label">Pending</div>
+        </div>
+        <div class="referral-stat">
+          <div class="referral-stat-amount" id="referral-paid-amount">$0.00</div>
+          <div class="referral-stat-label">Paid Out</div>
+        </div>
       </div>
+      <div id="referral-history"><div class="tab-loading">Loading...</div></div>
     </div>
-    <div id="referral-history"><div class="tab-loading">Loading...</div></div>
   </div>
 </div>
 
@@ -1170,6 +1201,17 @@ updateCartIcon();
   // Refer & Earn
   // ============================================================
   function renderReferrals(data) {
+    var joinCard = document.getElementById('referral-join-card');
+    var joinedView = document.getElementById('referral-joined-view');
+
+    if (!data.joined) {
+      joinCard.style.display = '';
+      joinedView.style.display = 'none';
+      return;
+    }
+    joinCard.style.display = 'none';
+    joinedView.style.display = '';
+
     document.getElementById('referral-link-input').value = window.location.origin + '/?ref=' + (data.referralCode || '');
     document.getElementById('referral-pending-amount').textContent = formatCents(data.pendingCents);
     document.getElementById('referral-paid-amount').textContent = formatCents(data.paidCents);
@@ -1194,12 +1236,44 @@ updateCartIcon();
 
   function loadReferrals() {
     fetch('/api/referrals/mine', { credentials: 'include' })
-      .then(function(res) { return res.ok ? res.json() : { referralCode: '', commissions: [], pendingCents: 0, paidCents: 0 }; })
+      .then(function(res) { return res.ok ? res.json() : { joined: false, referralCode: '', commissions: [], pendingCents: 0, paidCents: 0 }; })
       .then(renderReferrals)
       .catch(function() {
-        document.getElementById('referral-history').innerHTML = '<div class="tab-error">Could not load your referral info right now.</div>';
+        document.getElementById('referral-join-card').style.display = 'none';
+        document.getElementById('referral-joined-view').style.display = 'none';
       });
   }
+
+  document.getElementById('referral-join-terms-checkbox').addEventListener('change', function() {
+    document.getElementById('referral-join-btn').disabled = !this.checked;
+  });
+
+  document.getElementById('referral-join-btn').addEventListener('click', function() {
+    var btn = this;
+    var statusEl = document.getElementById('referral-join-status');
+    var checkbox = document.getElementById('referral-join-terms-checkbox');
+    statusEl.textContent = '';
+    if (!checkbox.checked) return; // button is disabled in this state anyway -- defensive only
+    btn.disabled = true;
+    fetch('/api/referrals/join', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ termsAccepted: true }),
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        if (!r.ok) {
+          btn.disabled = false;
+          statusEl.textContent = r.d.error || 'Could not join the affiliate program right now.';
+          return;
+        }
+        loadReferrals();
+      })
+      .catch(function() {
+        btn.disabled = false;
+        statusEl.textContent = 'Could not join the affiliate program right now.';
+      });
+  });
 
   document.getElementById('referral-copy-btn').addEventListener('click', function() {
     var input = document.getElementById('referral-link-input');
