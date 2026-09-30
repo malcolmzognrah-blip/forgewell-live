@@ -211,16 +211,22 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .fulfillment-status.shipped{ background:#E7E0FA; color:#5B3FA3; }
 .fulfillment-status.delivered{ background:#DCF3E0; color:#1F7A34; }
 .order-tracking{ font-size:0.8rem; color:var(--gray); margin-bottom:10px; }
+.order-payment-line{ font-size:0.8rem; color:var(--gray); margin-bottom:10px; }
 .order-items{ font-size:0.85rem; line-height:1.7; margin-bottom:10px; }
 .order-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:0.9rem; border-top:1px solid var(--line); padding-top:10px; }
 
-/* ---- Payments (fallback: status only, see account.html's own comment) ---- */
+/* ---- Payments ---- */
 .payments-note{ font-size:0.78rem; color:var(--gray); margin-bottom:18px; padding:12px 14px; background:var(--panel); border-radius:8px; border:1px solid var(--line); line-height:1.5; }
 .payment-row{ display:flex; justify-content:space-between; align-items:center; border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin-bottom:10px; background:var(--panel); flex-wrap:wrap; gap:10px; }
 .payment-row-main{ display:flex; flex-direction:column; gap:2px; }
 .payment-row-id{ font-family:monospace; font-size:0.78rem; color:var(--gray); }
 .payment-row-date{ font-size:0.78rem; color:var(--gray); }
+.payment-row-method{ font-size:0.82rem; color:var(--navy-dark); font-weight:700; margin-top:2px; }
 .payment-row-total{ font-weight:700; color:var(--navy-dark); font-size:0.9rem; }
+.payment-row-ref{ display:flex; align-items:center; gap:8px; width:100%; border-top:1px solid var(--line); padding-top:10px; margin-top:2px; }
+.payment-row-ref-link{ font-family:monospace; font-size:0.78rem; color:var(--navy); text-decoration:underline; word-break:break-all; }
+.payment-copy-btn{ padding:4px 10px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; font-size:0.72rem; cursor:pointer; white-space:nowrap; }
+.payment-copy-btn.copied{ background:var(--green); }
 
 /* ---- Store Credit ---- */
 .credit-balance-card{ background:var(--navy); color:#fff; border-radius:12px; padding:26px; text-align:center; margin-bottom:24px; }
@@ -389,7 +395,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
   <!-- ==================== Payments ==================== -->
   <div class="account-view" id="view-payments">
-    <p class="payments-note">This shows the payment status of each order. Forgewell's payment provider doesn't currently give us a masked reference (like a card's last 4 digits) to display here.</p>
+    <p class="payments-note">This shows the payment method, status, and reference for each order. For a crypto payment, the reference links to the transaction on its public block explorer.</p>
     <div id="payments-list"><div class="tab-loading">Loading...</div></div>
   </div>
 
@@ -1263,7 +1269,83 @@ updateCartIcon();
   function statusLabel(status) {
     if (status === 'paid') return 'Paid';
     if (status === 'pending_payment') return 'Pending Payment';
+    if (status === 'partially_paid') return 'Partially Paid';
+    if (status === 'refunded') return 'Refunded';
+    if (status === 'cancelled') return 'Cancelled';
     return status;
+  }
+
+  // Payment method/reference helpers -- shared by renderOrders()'s
+  // one-line summary and renderPayments()'s full row. order.payment_method/
+  // card_brand/card_last4/crypto_currency/crypto_network/
+  // crypto_explorer_url all come back null together for any order the
+  // backend didn't consider paid/partially_paid/refunded enough to
+  // describe (see routes/orders.js's own PAYMENT_DETAIL_STATUSES) -- so
+  // these key off payment_method being present, never off status
+  // directly, and never need to duplicate that gating rule here.
+  function hasPaymentDetails(order) {
+    return !!order.payment_method;
+  }
+
+  // QuickBooks' card.cardType comes back as its own PascalCase-ish
+  // provider vocabulary (confirmed empirically: "AmericanExpress",
+  // "MasterCard", ...), not the casing/spacing a customer would actually
+  // write -- mapped to a clean label here, on the frontend, rather than
+  // at capture time, so a future correction to this list doesn't need a
+  // backend redeploy or a re-run of the backfill script against
+  // already-stored card_brand values. Unrecognized values (Visa,
+  // Discover, and anything not in this list already read fine as-is)
+  // fall back to the raw value rather than showing nothing.
+  var CARD_BRAND_LABELS = {
+    'AmericanExpress': 'Amex',
+    'MasterCard': 'Mastercard',
+  };
+  function cardBrandLabel(brand) {
+    return CARD_BRAND_LABELS[brand] || brand;
+  }
+
+  // One line, e.g. "Crypto (USDC · Base)" or "Card · Visa ····4986" --
+  // falls back to just the method label when coin/network or brand/last4
+  // aren't on file (e.g. an order whose post-charge detail lookup failed
+  // at the time -- best-effort, same as routes/checkout.js's own comment
+  // on that capture). This IS the customer-facing "reference" for a card
+  // payment -- there's no separate card reference shown anywhere else.
+  function paymentSummaryLine(order) {
+    if (!hasPaymentDetails(order)) return null;
+    if (order.payment_method === 'crypto') {
+      return (order.crypto_currency && order.crypto_network)
+        ? 'Crypto (' + order.crypto_currency + ' · ' + order.crypto_network + ')'
+        : 'Crypto';
+    }
+    if (order.payment_method === 'card') {
+      return (order.card_brand && order.card_last4)
+        ? 'Card · ' + cardBrandLabel(order.card_brand) + ' ····' + order.card_last4
+        : 'Card';
+    }
+    return null;
+  }
+
+  // Derives a displayable tx hash from PayRam's own explorer URL -- there
+  // is no separate tx-hash column (see payment-reference-migration.sql),
+  // this is the only source, on purpose (see that migration's own
+  // comment on why explorer_url alone is enough). Handles both a plain
+  // path-based explorer (.../tx/0xHASH -- the Etherscan-family sites) and
+  // a hash-fragment-routed one (.../#/transaction/HASH -- Tronscan),
+  // since a URL's "#..." portion is a fragment, not part of its
+  // pathname, and PayRam's supported chains use one or the other.
+  function txHashFromExplorerUrl(url) {
+    try {
+      var parsed = new URL(url);
+      var raw = (parsed.hash && parsed.hash.length > 1) ? parsed.hash : parsed.pathname;
+      var segments = raw.split('/').filter(function(s) { return s; });
+      return segments[segments.length - 1] || '';
+    } catch (e) {
+      return '';
+    }
+  }
+  function shortenTxHash(hash) {
+    if (hash.length <= 14) return hash;
+    return hash.slice(0, 8) + '...' + hash.slice(-6);
   }
   var FULFILLMENT_LABELS = { pending: 'Pending', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered' };
 
@@ -1286,6 +1368,9 @@ updateCartIcon();
         ? '<div class="order-tracking">Tracking: ' + escapeHtml(order.tracking_number) + '</div>'
         : '';
 
+      var paymentLine = paymentSummaryLine(order);
+      var paymentRow = paymentLine ? '<div class="order-payment-line">' + escapeHtml(paymentLine) + '</div>' : '';
+
       var storeCreditRow = (order.store_credit_applied_cents > 0)
         ? '<div class="order-total-row"><span>Store credit applied</span><span>-' + formatCents(order.store_credit_applied_cents) + '</span></div>'
         : '';
@@ -1299,6 +1384,7 @@ updateCartIcon();
           '</div>' +
         '</div>' +
         trackingRow +
+        paymentRow +
         '<div class="order-items">' + items + '</div>' +
         storeCreditRow +
         '<div class="order-total-row"><span>Total</span><span>$' + Number(order.total).toFixed(2) + '</span></div>' +
@@ -1313,16 +1399,74 @@ updateCartIcon();
       return;
     }
     listEl.innerHTML = orders.map(function(order) {
+      var methodLine = paymentSummaryLine(order);
+      // Card's "reference" IS the masked-card summary line above -- no
+      // separate reference block for card (see this feature's own
+      // investigation: a QuickBooks charge id isn't independently
+      // checkable by a customer the way a block-explorer link is, so it's
+      // never shown at all -- see routes/orders.js, which never even
+      // selects reference_id). Crypto gets a real one: the tx hash,
+      // shortened, linking straight to PayRam's own explorer URL, plus a
+      // copy button for the full hash. crypto_explorer_url was already
+      // validated against a known-explorer-host allowlist before it was
+      // ever stored (see lib/payments/orderFulfillment.js's
+      // safeExplorerUrl()), so this link only ever points at a real
+      // block explorer, never an arbitrary URL.
+      var referenceHtml = '';
+      if (order.payment_method === 'crypto' && order.crypto_explorer_url) {
+        var hash = txHashFromExplorerUrl(order.crypto_explorer_url);
+        referenceHtml = '<div class="payment-row-ref">' +
+          '<a href="' + escapeHtml(order.crypto_explorer_url) + '" target="_blank" rel="noopener noreferrer" class="payment-row-ref-link">' + escapeHtml(shortenTxHash(hash)) + '</a>' +
+          '<button type="button" class="payment-copy-btn" data-copy-value="' + escapeHtml(hash) + '">Copy</button>' +
+        '</div>';
+      }
       return '<div class="payment-row">' +
         '<div class="payment-row-main">' +
           '<span class="payment-row-id">Order ' + escapeHtml(order.order_number || order.id) + '</span>' +
           '<span class="payment-row-date">' + formatDate(order.created_at) + '</span>' +
+          (methodLine ? '<span class="payment-row-method">' + escapeHtml(methodLine) + '</span>' : '') +
         '</div>' +
         '<span class="payment-row-total">$' + Number(order.total).toFixed(2) + '</span>' +
         '<span class="order-status ' + statusClass(order.status) + '">' + statusLabel(order.status) + '</span>' +
+        referenceHtml +
       '</div>';
     }).join('');
   }
+
+  // Delegated since #payments-list is fully rebuilt by every
+  // renderPayments() call -- same reasoning as every other delegated
+  // listener in this codebase over a re-rendered list. Copies the full
+  // tx hash (data-copy-value), not the shortened display text.
+  document.getElementById('payments-list').addEventListener('click', function(e) {
+    var btn = e.target.closest('.payment-copy-btn');
+    if (!btn) return;
+    var value = btn.getAttribute('data-copy-value');
+    var originalLabel = btn.textContent;
+    function showCopied() {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = originalLabel; btn.classList.remove('copied'); }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(showCopied).catch(function() {
+        var tmp = document.createElement('textarea');
+        tmp.value = value;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+        showCopied();
+      });
+    } else {
+      var tmp = document.createElement('textarea');
+      tmp.value = value;
+      document.body.appendChild(tmp);
+      tmp.select();
+      document.execCommand('copy');
+      document.body.removeChild(tmp);
+      showCopied();
+    }
+  });
 
   function loadOrdersAndPayments() {
     fetch('/api/orders/mine', { credentials: 'include' })
