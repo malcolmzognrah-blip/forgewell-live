@@ -88,6 +88,32 @@ needed) and navigate to `/checkout.html` instead. `calculateCartDiscount` is dup
 `cart.html` and `checkout.html` since each renders its own order-total preview independently — see
 Checkout flow below.
 
+### Live chat widget — shared files, not inlined
+
+The customer live chat widget is the other exception to the no-shared-JS rule. Its code lives in
+`/js/chat-widget.js` and `/css/chat-widget.css`, and the JS **injects its own markup** (launcher bubble
++ panel) into `<body>` — pages carry no chat HTML. These 19 pages include it at the very end of
+`<body>`: `about-us`, `account`, `cart`, `checkout`, `coa`, `contact`, `faqs`, `home`, `index`,
+`login`, `order-confirmation`, `privacy`, `product`, `reset-password`, `ruo-agreement`, `shipping`,
+`shop`, `terms`, `why-us` (note: not `orders.html`, not `admin.html`):
+```html
+<link rel="stylesheet" href="/css/chat-widget.css?v=20260930">
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script src="/js/chat-widget.js?v=20260930"></script>
+```
+The socket.io client is version-pinned to the backend's installed `socket.io` (4.8.3) and must load
+synchronously right before the widget script. If it fails to load, the widget bails out and injects
+nothing. The stylesheet sits at the end of `<body>` (not `<head>`) on purpose, so it comes after each
+page's own `<style>` in the cascade, the same position the old inline block had.
+
+`data-wait-for-auth` on the widget `<script>` tag is for pages behind the mandatory login gate
+(`home.html`, `shop.html`): it holds off `io()` until `gw-auth-ok` appears, so a visitor the gate is
+about to redirect never opens a socket (which would create a real `chat_conversations` row
+server-side). Ungated pages omit it and connect eagerly.
+
+**Any change to `chat-widget.js` or `chat-widget.css` must bump `?v=` on both includes in all 19
+pages in the same commit**. Otherwise returning visitors keep a stale cached copy.
+
 ### Product pages are rendered dynamically
 
 `shop.html` fetches the live catalog from `GET /api/products` and renders cards into `#grid`
