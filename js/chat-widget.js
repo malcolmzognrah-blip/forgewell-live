@@ -14,12 +14,16 @@
 // window.location.replace() doesn't halt script execution -- without the
 // wait, io({auth:{guestId}}) would fire the moment this script parses,
 // regardless of whether the gate is about to redirect the visitor away for
-// having no session at all, silently creating a real chat_conversations row
-// server-side for an anonymous visitor who was never actually let onto the
-// page. Guest connections aren't rejected server-side (lib/chat.js accepts
-// a bare guestId with no session), so the only prevention is to not call
-// io() until gw-auth-ok appears -- it's only ever added after a real 200
-// from /api/auth/me. Ungated pages omit the attribute and connect eagerly.
+// having no session at all. The backend no longer creates a
+// chat_conversations row on connect (rows are created lazily on first
+// engagement), so this now just avoids opening a guest socket for a
+// visitor who is about to be bounced off the page. io() isn't called until
+// gw-auth-ok appears -- it's only ever added after a real 200 from
+// /api/auth/me.
+//
+// Ungated pages omit the attribute and connect eagerly on page load. Keep
+// that: the launcher's unread badge needs the socket connected while the
+// panel is closed, and connecting creates no row.
 (function(){
   // Failed CDN load (network block, ad blocker, CDN outage) means no `io`
   // global -- bail out entirely so the rest of the page is completely
@@ -34,12 +38,21 @@
   var CHAT_WIDGET_MARKUP = [
     '<button type="button" id="chat-widget-bubble" aria-label="Open chat">',
     '  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+    '  <span id="chat-widget-unread" aria-hidden="true" hidden></span>',
     '</button>',
     '',
     '<div id="chat-widget-panel">',
     '  <div class="chat-widget-header">',
-    '    <span>Chat with us</span>',
-    '    <button type="button" id="chat-widget-close-btn">Close</button>',
+    '    <button type="button" id="chat-widget-minimize-btn" aria-label="Minimize chat">',
+    '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
+    '    </button>',
+    '    <span class="chat-widget-title">Chat</span>',
+    '    <button type="button" id="chat-widget-end-btn" aria-label="End chat" hidden>End Chat</button>',
+    '  </div>',
+    '  <div id="chat-widget-end-confirm" role="group" aria-label="Confirm ending this chat" hidden>',
+    '    <span class="chat-widget-end-confirm-text">End this chat?</span>',
+    '    <button type="button" id="chat-widget-end-confirm-yes">End</button>',
+    '    <button type="button" id="chat-widget-end-confirm-no">Cancel</button>',
     '  </div>',
     '  <div id="chat-widget-live">',
     '    <div id="chat-widget-closed-banner">This conversation has ended.</div>',
@@ -117,8 +130,31 @@
     var input = document.getElementById('chat-widget-input');
     var sendBtn = document.getElementById('chat-widget-send-btn');
     var errorClearTimer = null;
-    var closeBtn = document.getElementById('chat-widget-close-btn');
     var closedBannerEl = document.getElementById('chat-widget-closed-banner');
+
+    var minimizeBtn = document.getElementById('chat-widget-minimize-btn');
+    var endBtn = document.getElementById('chat-widget-end-btn');
+    var endConfirmEl = document.getElementById('chat-widget-end-confirm');
+    var endConfirmYesBtn = document.getElementById('chat-widget-end-confirm-yes');
+    var endConfirmNoBtn = document.getElementById('chat-widget-end-confirm-no');
+    var unreadEl = document.getElementById('chat-widget-unread');
+
+    // True while there's a real conversation the customer could end: a row
+    // exists server-side (chat:init's conversationId -- null until first
+    // engagement since the backend creates rows lazily), a message has gone
+    // through, or the name/email step was just submitted (which creates
+    // the row). False after any close. Drives End Chat's visibility along
+    // with widgetMode -- see updateEndBtn().
+    var hasActiveConversation = false;
+    // True from confirming End Chat until the panel is next opened. The
+    // panel keeps showing the "Chat ended" line meanwhile; the fresh
+    // connection's chat:init is held in heldInit and only applied on that
+    // next open, so the reset doesn't visibly wipe the thread mid-read.
+    var chatEnded = false;
+    var heldInit = null;
+    // Admin messages received while the panel is hidden -- shown on the
+    // launcher, cleared on open and when a chat is ended.
+    var unreadCount = 0;
     var typingIndicatorEl = document.getElementById('chat-widget-typing-indicator');
     var typingHideTimer = null;
     var lastTypingEmitAt = 0;
@@ -210,7 +246,7 @@
       hideFaqPanel();
       messagesEl.style.display = 'flex';
       inputRowEl.style.display = 'flex';
-      closeBtn.style.display = 'inline-block';
+      updateEndBtn();
       // Appends the deferred "Thank you..." bubble the first real moment
       // the thread is actually visible -- immediately if support was
       // online at submit time, or later (here) if an offline-form detour
@@ -230,7 +266,7 @@
       guestinfoFormEl.style.display = 'none';
       guestinfoErrorEl.textContent = '';
       hideFaqPanel();
-      closeBtn.style.display = 'none';
+      updateEndBtn();
     }
 
     function setOfflineConfirmationMode() {
@@ -242,7 +278,7 @@
       guestinfoFormEl.style.display = 'none';
       guestinfoErrorEl.textContent = '';
       hideFaqPanel();
-      closeBtn.style.display = 'none';
+      updateEndBtn();
     }
 
     // Thread stays visible (unlike the offline modes, which hide liveEl
@@ -256,7 +292,7 @@
       inputRowEl.style.display = 'none';
       guestinfoFormEl.style.display = 'flex';
       hideFaqPanel();
-      closeBtn.style.display = 'none';
+      updateEndBtn();
       // Folds B3's greeting into this same bubble rather than showing a
       // separate one -- see the transition back to live mode in
       // submitGuestInfo() below, which sets greetingShown = true so
@@ -277,6 +313,9 @@
     // regardless of hasConversationHistory now being true from that send.
     function decideMode() {
       if (supportOnline === undefined) return;
+      // Ended view stays put until the panel is next opened -- see
+      // resetAfterEnd().
+      if (chatEnded) return;
       // needsGuestInfo now gates unconditionally -- a guest with no
       // name/email on file resolves that first regardless of support's
       // online status, before ever reaching either the live thread or the
@@ -329,18 +368,126 @@
       }
     });
 
+    // End Chat only makes sense in the live thread with a real
+    // conversation behind it -- hidden during the name/email step, the
+    // offline form/confirmation, after any close, and while the inline
+    // confirm is up (which replaces it).
+    function updateEndBtn() {
+      endBtn.hidden = !(widgetMode === 'live' && hasActiveConversation && !chatEnded && endConfirmEl.hidden);
+    }
+
+    function renderUnread() {
+      if (unreadCount > 0) {
+        unreadEl.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+        unreadEl.hidden = false;
+        bubble.setAttribute('aria-label', 'Open chat (' + unreadCount + ' unread)');
+      } else {
+        unreadEl.hidden = true;
+        bubble.setAttribute('aria-label', 'Open chat');
+      }
+    }
+
+    function isPanelOpen() {
+      return panel.classList.contains('chat-widget-open');
+    }
+
+    function openPanel() {
+      if (chatEnded) resetAfterEnd();
+      panel.classList.add('chat-widget-open');
+      unreadCount = 0;
+      renderUnread();
+    }
+
+    // Collapses back to the launcher only -- the socket, conversation and
+    // thread are untouched, so reopening shows the same conversation.
+    function minimizePanel() {
+      hideEndConfirm();
+      panel.classList.remove('chat-widget-open');
+      bubble.focus();
+    }
+
     bubble.addEventListener('click', function(){
-      panel.classList.toggle('chat-widget-open');
+      if (isPanelOpen()) minimizePanel(); else openPanel();
+    });
+    minimizeBtn.addEventListener('click', minimizePanel);
+
+    function showEndConfirm() {
+      endConfirmEl.hidden = false;
+      updateEndBtn();
+      endConfirmNoBtn.focus();
+    }
+
+    function hideEndConfirm() {
+      if (endConfirmEl.hidden) return;
+      endConfirmEl.hidden = true;
+      updateEndBtn();
+    }
+
+    endBtn.addEventListener('click', showEndConfirm);
+    endConfirmNoBtn.addEventListener('click', function(){
+      hideEndConfirm();
+      if (!endBtn.hidden) endBtn.focus();
     });
 
-    closeBtn.addEventListener('click', function(){
+    // Closes the conversation server-side (chat:customerClose -- scoped to
+    // this socket's own conversation by the server, nothing taken from
+    // this payload), shows "Chat ended", then reconnects so the next open
+    // is a brand-new session: the backend creates no row until the next
+    // engagement, and a guest gets the name/email step again.
+    endConfirmYesBtn.addEventListener('click', function(){
+      endConfirmEl.hidden = true;
+      chatEnded = true;
+      hasActiveConversation = false;
+      heldInit = null;
+      updateEndBtn();
+      closedBannerEl.style.display = 'none';
+      inputRowEl.style.display = 'none';
+      guestinfoFormEl.style.display = 'none';
+      hideFaqPanel();
+      typingIndicatorEl.style.display = 'none';
+      appendMessage({ senderType: 'system', body: 'Chat ended' });
+      unreadCount = 0;
+      renderUnread();
+
+      var reconnected = false;
+      function reconnect() {
+        if (reconnected) return;
+        reconnected = true;
+        socket.off('chat:closed', reconnect);
+        socket.disconnect();
+        socket.connect();
+      }
+      // Wait for the server's chat:closed before disconnecting so the
+      // close is certain to have been processed; fall back after 3s.
+      socket.on('chat:closed', reconnect);
+      setTimeout(reconnect, 3000);
       socket.emit('chat:customerClose');
-      // Shows the banner immediately rather than waiting on the chat:closed
-      // round trip -- same reasoning as the admin presence toggle: this is
-      // the customer's own action, nothing a round trip would protect
-      // against here.
-      closedBannerEl.style.display = 'block';
+      minimizeBtn.focus();
     });
+
+    // Runs on the first open after End Chat: clears the old thread and all
+    // per-conversation client state, then applies the fresh connection's
+    // chat:init (if it has arrived; otherwise its handler applies it).
+    function resetAfterEnd() {
+      chatEnded = false;
+      messagesEl.innerHTML = '';
+      hasConversationHistory = false;
+      greetingShown = false;
+      guestInfoGreetingShown = false;
+      guestInfoAwaitingResult = false;
+      guestInfoThankYouEl = null;
+      guestInfoThankYouPending = false;
+      guestinfoSubmitBtn.disabled = false;
+      guestinfoNameInput.value = '';
+      guestinfoEmailInput.value = '';
+      guestinfoErrorEl.textContent = '';
+      input.value = '';
+      if (heldInit) {
+        var data = heldInit;
+        heldInit = null;
+        applyInit(data);
+      }
+    }
 
     function scrollToBottom() {
       messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -348,7 +495,9 @@
 
     function appendMessage(msg) {
       var div = document.createElement('div');
-      div.className = 'chat-widget-msg chat-widget-msg-' + (msg.senderType === 'admin' ? 'admin' : 'customer');
+      // 'system' is a centred status line (e.g. "Chat ended"), not a bubble.
+      var kind = msg.senderType === 'admin' || msg.senderType === 'system' ? msg.senderType : 'customer';
+      div.className = 'chat-widget-msg chat-widget-msg-' + kind;
       div.textContent = msg.body;
       messagesEl.appendChild(div);
       scrollToBottom();
@@ -398,14 +547,25 @@
       faqFeedbackEl.style.display = 'flex';
     }
 
-    socket.on('chat:init', function(data){
+    function applyInit(data) {
       messagesEl.innerHTML = '';
       (data.messages || []).forEach(appendMessage);
       hasConversationHistory = (data.messages || []).length > 0;
+      hasActiveConversation = !!(data && data.conversationId);
       needsGuestInfo = !!(data && data.needsGuestInfo);
       guestInfoAwaitingResult = false;
       guestinfoErrorEl.textContent = '';
+      closedBannerEl.style.display = 'none';
       decideMode();
+      updateEndBtn();
+    }
+
+    socket.on('chat:init', function(data){
+      // After End Chat the fresh connection's init waits for the next open
+      // (resetAfterEnd()), so the "Chat ended" view isn't wiped under the
+      // customer.
+      if (chatEnded) { heldInit = data; return; }
+      applyInit(data);
     });
 
     socket.on('chat:supportStatus', function(data){
@@ -417,11 +577,18 @@
     // -- the thread and input/send stay fully usable underneath the banner,
     // since sending a new message is exactly how the conversation reopens.
     socket.on('chat:closed', function(){
+      hasActiveConversation = false;
+      updateEndBtn();
+      // End Chat shows its own "Chat ended" line instead of the banner.
+      if (chatEnded) return;
+      hideEndConfirm();
       closedBannerEl.style.display = 'block';
     });
 
     socket.on('chat:reopened', function(){
+      hasActiveConversation = true;
       closedBannerEl.style.display = 'none';
+      updateEndBtn();
     });
 
     // Resets the auto-hide timer on every event rather than firing one
@@ -429,6 +596,7 @@
     // continuously should keep the indicator up the whole time, not have
     // it disappear mid-sentence at the 3s mark.
     socket.on('chat:typing', function(){
+      if (chatEnded) return;
       typingIndicatorEl.style.display = 'block';
       clearTimeout(typingHideTimer);
       typingHideTimer = setTimeout(function(){ typingIndicatorEl.style.display = 'none'; }, 3000);
@@ -437,8 +605,16 @@
     // Covers both the sender's own echoed message (delivery confirmation)
     // and, once Phase 3 exists, an admin's reply -- same event either way.
     socket.on('chat:message', function(msg){
+      // A late message for the conversation that was just ended.
+      if (chatEnded) return;
       hasConversationHistory = true;
+      hasActiveConversation = true;
+      updateEndBtn();
       appendMessage(msg);
+      if (msg && msg.senderType === 'admin' && !isPanelOpen()) {
+        unreadCount++;
+        renderUnread();
+      }
     });
 
     // Only ever arrives in reply to the customer's own first send in this
@@ -476,6 +652,7 @@
         }
         guestinfoErrorEl.textContent = (data && data.error) || 'Something went wrong. Please try again.';
         guestinfoSubmitBtn.disabled = false;
+        hasActiveConversation = false;
         decideMode();
         return;
       }
@@ -522,6 +699,9 @@
       // a specific thank-you bubble instead of no message at all.
       greetingShown = true;
       guestInfoThankYouPending = true;
+      // Submitting name/email is what creates the conversation row
+      // server-side, so End Chat becomes available from here.
+      hasActiveConversation = true;
       decideMode();
     }
 

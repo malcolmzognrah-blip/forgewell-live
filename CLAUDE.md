@@ -97,9 +97,9 @@ The customer live chat widget is the other exception to the no-shared-JS rule. I
 `login`, `order-confirmation`, `privacy`, `product`, `reset-password`, `ruo-agreement`, `shipping`,
 `shop`, `terms`, `why-us` (note: not `orders.html`, not `admin.html`):
 ```html
-<link rel="stylesheet" href="/css/chat-widget.css?v=20260930">
+<link rel="stylesheet" href="/css/chat-widget.css?v=20260930-2">
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-<script src="/js/chat-widget.js?v=20260930"></script>
+<script src="/js/chat-widget.js?v=20260930-2"></script>
 ```
 The socket.io client is version-pinned to the backend's installed `socket.io` (4.8.3) and must load
 synchronously right before the widget script. If it fails to load, the widget bails out and injects
@@ -108,8 +108,18 @@ page's own `<style>` in the cascade, the same position the old inline block had.
 
 `data-wait-for-auth` on the widget `<script>` tag is for pages behind the mandatory login gate
 (`home.html`, `shop.html`): it holds off `io()` until `gw-auth-ok` appears, so a visitor the gate is
-about to redirect never opens a socket (which would create a real `chat_conversations` row
-server-side). Ungated pages omit it and connect eagerly.
+about to redirect never opens a socket. Ungated pages omit it and connect eagerly on page load, and
+that should stay: the launcher's unread badge needs the socket connected while the panel is closed.
+Connecting no longer creates anything server-side. Since backend `6b6f19c`, a `chat_conversations`
+row is created lazily, on a guest's name/email submit or the first persisted message.
+
+Widget header: a chevron that only minimizes (the socket, conversation and thread are kept), a
+centred "Chat" title, and an "End Chat" button with an inline confirm. Confirming sends
+`chat:customerClose`, shows a widget-only "Chat ended" line, then does `socket.disconnect()` followed by
+`socket.connect()` so the next open is a fresh session (guests get the name/email step again). End
+Chat is hidden whenever there's no active conversation: no row yet, the name/email step, the offline
+form, or already closed. A red unread count on the launcher tracks admin messages that arrive while
+the panel is hidden, capped at "9+", and clears on open and on End Chat.
 
 **Any change to `chat-widget.js` or `chat-widget.css` must bump `?v=` on both includes in all 19
 pages in the same commit**. Otherwise returning visitors keep a stale cached copy.
