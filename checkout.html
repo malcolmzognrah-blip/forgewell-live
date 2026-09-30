@@ -994,6 +994,25 @@ const BULK_QTY_DISCOUNT = 0.10;
 const CART_TOTAL_THRESHOLD = 300;
 const CART_TOTAL_DISCOUNT = 0.10;
 
+// Sale savings -- how much of the subtotal below is already sale-priced,
+// broken out as its own summary line so it reads as distinct from a
+// coupon or the bulk discount (which can still stack on top of a sale
+// price, unlike each other -- see applyBulkDiscount()'s own comment on
+// bulk vs. coupon). item.price is already the sale-aware price stored at
+// add-to-cart time; this compares it against the live product's current
+// regular price (allProducts, fetched above) purely to show the savings,
+// not to recompute what's actually charged.
+function calculateSaleSavings(cartItems, products) {
+  let savings = 0;
+  cartItems.forEach(item => {
+    const product = products.find(p => p.id === item.productId);
+    if (product && product.onSaleNow && item.price < product.price) {
+      savings += (product.price - item.price) * item.qty;
+    }
+  });
+  return savings;
+}
+
 function calculateCartDiscount(cartItems) {
   let rawTotal = 0;
   let perItemTotal = 0;
@@ -1395,7 +1414,11 @@ function renderOrderSummary() {
   const grandTotal = Math.max(0, preCreditTotal - creditToApply);
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
+  const saleSavings = calculateSaleSavings(cart, allProducts);
   let html = '<div class="checkout-summary-line"><span>Subtotal (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')</span><span>$' + subtotal.toFixed(2) + '</span></div>';
+  if (saleSavings > 0) {
+    html += '<div class="checkout-summary-line checkout-summary-discount"><span>Sale Savings</span><span>-$' + saleSavings.toFixed(2) + '</span></div>';
+  }
   if (couponWon) {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Coupon ' + matchedCoupon.code + ' applied</span><span>-$' + couponSavings.toFixed(2) + '</span></div>';
   } else if (bulkDiscountApplied) {
@@ -2749,7 +2772,12 @@ if (cart.length === 0) {
   });
 }
 
-let productsReady = loadProducts();
+// Re-render once products are in (Sale Savings above reads allProducts,
+// which is still [] the first time renderOrderSummary() runs above --
+// this just makes that line appear without waiting on some other
+// unrelated re-render, e.g. the customer touching the shipping-method
+// radios).
+let productsReady = loadProducts().then(renderOrderSummary);
 updateCartIcon();
 
 

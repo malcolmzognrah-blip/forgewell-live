@@ -3043,6 +3043,26 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
+// Live preview text for the Sale % Off field, shared by the initial render
+// and the delegated 'input' listener below -- same rounding
+// (Math.round(cents)/100) as lib/pricing.js's roundToCent() on the backend
+// so this preview never shows a different sale price than what actually
+// gets charged. legacySalePrice is only surfaced as a note (never
+// auto-converted to a percent) for a product that already had the old
+// dollar-amount sale_price set before this field existed -- entering a %
+// here is what actually retires it (see routes/admin.js's PATCH handler).
+function salePreviewText(price, pct, legacySalePrice) {
+  var numPct = Number(pct);
+  if (pct !== '' && pct != null && Number.isFinite(numPct) && numPct >= 1 && numPct <= 90) {
+    var salePrice = Math.round(Number(price) * (1 - numPct / 100) * 100) / 100;
+    return 'Sale price: $' + salePrice.toFixed(2) + ' (' + numPct + '% off $' + Number(price).toFixed(2) + ')';
+  }
+  if (legacySalePrice != null && legacySalePrice !== '') {
+    return 'Legacy sale price on file: $' + Number(legacySalePrice).toFixed(2) + ' -- enter a % above to replace it.';
+  }
+  return 'Enter a whole number 1-90 to put this product on sale.';
+}
+
 function renderProductsCategoryOptions() {
   var categories = [];
   productsAllProducts.forEach(function(p) {
@@ -3103,8 +3123,9 @@ function renderProductsRows() {
           '</p>' +
           '<div class="product-detail-grid">' +
             '<div>' +
-              '<label>Sale Price</label>' +
-              '<input type="number" step="0.01" min="0" class="product-detail-sale-price" value="' + (p.sale_price != null ? p.sale_price : '') + '">' +
+              '<label>Sale % Off</label>' +
+              '<input type="number" step="1" min="1" max="90" class="product-detail-sale-percent" data-price="' + p.price + '" data-legacy-sale-price="' + (p.sale_price != null ? p.sale_price : '') + '" value="' + (p.sale_percent != null ? p.sale_percent : '') + '">' +
+              '<p class="fulfillment-section-note product-detail-sale-preview" style="margin:4px 0 0;">' + escapeHtml(salePreviewText(p.price, p.sale_percent, p.sale_price)) + '</p>' +
               '<label>Sale Start</label>' +
               '<input type="date" class="product-detail-sale-start" value="' + (p.sale_start || '') + '">' +
               '<label>Sale End</label>' +
@@ -5155,7 +5176,7 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
     price: mainRow.querySelector('.product-row-price-input').value,
     stock_status: mainRow.querySelector('.product-row-stock-select').value,
     on_sale: mainRow.querySelector('.product-row-onsale-checkbox').checked,
-    sale_price: detailRow2.querySelector('.product-detail-sale-price').value || null,
+    sale_percent: detailRow2.querySelector('.product-detail-sale-percent').value || null,
     sale_start: detailRow2.querySelector('.product-detail-sale-start').value || null,
     sale_end: detailRow2.querySelector('.product-detail-sale-end').value || null,
     bullets: detailRow2.querySelector('.product-detail-bullets').value,
@@ -5208,6 +5229,21 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
       statusEl.textContent = 'Could not save.';
       statusEl.className = 'product-save-status error';
     });
+});
+
+// Live sale-price preview as the admin types into Sale % Off -- delegated
+// since #products-tbody is fully rebuilt by every renderProductsRows()
+// call, same reasoning as the click/change listeners here. Reads price/
+// legacy sale_price back off the input's own data-* attributes (set at
+// render time) rather than re-finding the row's price input, since the
+// price input lives in the sibling main row, not this detail row.
+document.getElementById('products-tbody').addEventListener('input', function(e) {
+  var input = e.target.closest('.product-detail-sale-percent');
+  if (!input) return;
+  var preview = input.parentElement.querySelector('.product-detail-sale-preview');
+  if (!preview) return;
+  var legacySalePrice = input.getAttribute('data-legacy-sale-price');
+  preview.textContent = salePreviewText(input.getAttribute('data-price'), input.value, legacySalePrice === '' ? null : legacySalePrice);
 });
 
 // Quick stock/on-sale toggle directly from the list row -- no need to open

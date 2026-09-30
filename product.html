@@ -172,6 +172,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .product-price{font-size:1.9rem; color:var(--navy); font-weight:700; margin-bottom:16px;}
 .product-price .now{ color:#c0392b; }
 .product-price .was{font-size:1rem; color:var(--gray); text-decoration:line-through; font-weight:500; margin-left:8px;}
+.product-price .sale-pct-badge{display:inline-block; background:#c0392b; color:#fff; font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; margin-left:8px; vertical-align:middle;}
 
 .size-selector{margin-bottom:18px;}
 .size-selector label{display:block; font-size:0.7rem; font-weight:500; color:var(--gray); margin-bottom:8px;}
@@ -919,7 +920,7 @@ function buildEssentialCardHtml(p) {
   var imgUrl = resolveImagePath(p.image_path);
   var priceLabel = buildCompactPriceLabel(p);
   return '<div class="essential-card" data-product-id="' + p.id + '">' +
-    (p.onSaleNow ? '<div class="sale-badge">Sale</div>' : '') +
+    (p.onSaleNow ? '<div class="sale-badge">' + (p.sale_percent != null ? p.sale_percent + '% OFF' : 'Sale') + '</div>' : '') +
     '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
     '<h3>' + p.name + '</h3>' +
     '<div class="price-row">' +
@@ -979,7 +980,7 @@ function buildKitCardHtml(p) {
   var imgUrl = resolveKitImagePath(p);
   var priceLabel = buildCompactPriceLabel(p);
   return '<div class="essential-card" data-product-id="' + p.id + '">' +
-    (p.onSaleNow ? '<div class="sale-badge">Sale</div>' : '') +
+    (p.onSaleNow ? '<div class="sale-badge">' + (p.sale_percent != null ? p.sale_percent + '% OFF' : 'Sale') + '</div>' : '') +
     '<div class="vial"><img src="' + imgUrl + '" alt="' + p.name + '" loading="lazy" onerror="this.closest(\'.essential-card\').remove()"></div>' +
     '<h3>' + p.name + '</h3>' +
     '<div class="price-row">' +
@@ -1234,7 +1235,8 @@ function renderProduct(product, siblings) {
   var priceHtml;
   if (product.price > 0) {
     priceHtml = product.onSaleNow
-      ? '<span class="now">$' + Number(product.effectivePrice).toFixed(2) + '</span><span class="was">$' + Number(product.price).toFixed(2) + '</span>'
+      ? '<span class="now">$' + Number(product.effectivePrice).toFixed(2) + '</span><span class="was">$' + Number(product.price).toFixed(2) + '</span>' +
+        (product.sale_percent != null ? '<span class="sale-pct-badge">' + product.sale_percent + '% OFF</span>' : '')
       : '$' + Number(product.price).toFixed(2);
   } else {
     priceHtml = 'Price coming soon';

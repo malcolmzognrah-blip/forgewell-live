@@ -142,6 +142,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-item-name{ display:block; color:var(--navy-dark); font-weight:700; font-size:0.95rem; text-decoration:none; margin-bottom:4px; overflow-wrap:break-word; }
 .cart-item-name:hover{ color:var(--navy); text-decoration:underline; }
 .cart-item-unit-price{ color:var(--gray); font-size:0.8rem; margin-bottom:10px; }
+.cart-item-was{ text-decoration:line-through; color:var(--gray); margin-left:6px; }
+.cart-item-sale-badge{ display:inline-block; background:#c0392b; color:#fff; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:8px; letter-spacing:0.03em; text-transform:uppercase; margin-left:6px; vertical-align:middle; }
 .cart-item-controls{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
 .qty-stepper{ display:flex; align-items:center; border:1.5px solid var(--line); border-radius:6px; overflow:hidden; }
 .qty-stepper button{ width:32px; height:32px; background:#fff; border:none; cursor:pointer; font-size:1rem; color:var(--navy); font-family:'Quicksand',sans-serif; }
@@ -769,6 +771,15 @@ function renderCartPage() {
     const imgUrl = product ? resolveKitImagePath(product) : null;
     const lineTotal = item.price * item.qty;
     const productLink = '/product.html?id=' + encodeURIComponent(item.productId);
+    // item.price is already the sale-aware price stored at add-to-cart
+    // time (see addToCart's own comment on effectivePrice) -- this is
+    // purely a display cue that it was a sale price, not a second price
+    // calculation, so it only shows when the live product still reports
+    // the sale as active and still cheaper than its own regular price.
+    const saleBadgeHtml = (product && product.onSaleNow && item.price < product.price)
+      ? ' <span class="cart-item-was">$' + Number(product.price).toFixed(2) + '</span>' +
+        '<span class="cart-item-sale-badge">' + (product.sale_percent != null ? product.sale_percent + '% OFF' : 'SALE') + '</span>'
+      : '';
 
     const row = document.createElement('div');
     row.className = 'cart-item-row';
@@ -780,7 +791,7 @@ function renderCartPage() {
       '</a>' +
       '<div class="cart-item-info">' +
         '<a href="' + productLink + '" class="cart-item-name">' + item.name + '</a>' +
-        '<div class="cart-item-unit-price">$' + item.price.toFixed(2) + ' each</div>' +
+        '<div class="cart-item-unit-price">$' + item.price.toFixed(2) + ' each' + saleBadgeHtml + '</div>' +
         '<div class="cart-item-controls">' +
           '<div class="qty-stepper">' +
             '<button type="button" class="cart-qty-minus" data-product-id="' + item.productId + '">-</button>' +
