@@ -211,7 +211,6 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .fulfillment-status.shipped{ background:#E7E0FA; color:#5B3FA3; }
 .fulfillment-status.delivered{ background:#DCF3E0; color:#1F7A34; }
 .order-tracking{ font-size:0.8rem; color:var(--gray); margin-bottom:10px; }
-.order-payment-line{ font-size:0.8rem; color:var(--gray); margin-bottom:10px; }
 .order-items{ font-size:0.85rem; line-height:1.7; margin-bottom:10px; }
 .order-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:0.9rem; border-top:1px solid var(--line); padding-top:10px; }
 
@@ -1325,6 +1324,42 @@ updateCartIcon();
     return null;
   }
 
+  // { label, amount } for renderOrders()'s "Paid by X: $Y" totals-block
+  // line, styled/positioned exactly like the store-credit-applied line
+  // above/below it -- returns null when there's nothing correct to show.
+  //
+  // order.total is already NET of store credit: routes/checkout.js
+  // computes totalAfterCredit (subtotal + shipping − store credit) and
+  // stores THAT as orders.total, and hands that exact same value to
+  // provider.createCharge() -- confirmed against real orders (e.g.
+  // FW-2026-00104: 9.00 + 8.15 − 16.15 = 1.00, its stored total). So
+  // order.total already IS the amount charged to the payment method; no
+  // further subtraction against store_credit_applied_cents is correct
+  // or needed. A $0.00 total (order fully covered by store credit, never
+  // reaching a real provider charge) hides this line entirely rather
+  // than showing "$0.00", which would misleadingly suggest a real charge
+  // happened.
+  //
+  // partially_paid is the one case with nothing real to show: PayRam's
+  // webhook handler for PARTIALLY_FILLED only ever writes `status` (see
+  // routes/webhook.js), never an actual received amount, and
+  // capturePayramDetails() never runs for a partial fill either (it's
+  // called from inside markOrderPaidAndFulfill(), which a partial fill
+  // never reaches) -- so order.total here is still the FULL amount that
+  // was expected, not what actually arrived. Showing it would be a wrong
+  // number, not a stale-but-honest one, so this shows the method with no
+  // amount instead.
+  function paymentChargedParts(order) {
+    var methodLabel = paymentSummaryLine(order);
+    if (!methodLabel) return null;
+    if (order.status === 'partially_paid') {
+      return { label: 'Paid by ' + methodLabel, amount: 'Partially paid' };
+    }
+    var charged = Number(order.total);
+    if (!(charged > 0)) return null;
+    return { label: 'Paid by ' + methodLabel, amount: '$' + charged.toFixed(2) };
+  }
+
   // Derives a displayable tx hash from PayRam's own explorer URL -- there
   // is no separate tx-hash column (see payment-reference-migration.sql),
   // this is the only source, on purpose (see that migration's own
@@ -1368,11 +1403,13 @@ updateCartIcon();
         ? '<div class="order-tracking">Tracking: ' + escapeHtml(order.tracking_number) + '</div>'
         : '';
 
-      var paymentLine = paymentSummaryLine(order);
-      var paymentRow = paymentLine ? '<div class="order-payment-line">' + escapeHtml(paymentLine) + '</div>' : '';
-
       var storeCreditRow = (order.store_credit_applied_cents > 0)
         ? '<div class="order-total-row"><span>Store credit applied</span><span>-' + formatCents(order.store_credit_applied_cents) + '</span></div>'
+        : '';
+
+      var paymentCharged = paymentChargedParts(order);
+      var paymentChargedRow = paymentCharged
+        ? '<div class="order-total-row"><span>' + escapeHtml(paymentCharged.label) + '</span><span>' + escapeHtml(paymentCharged.amount) + '</span></div>'
         : '';
 
       return '<div class="order-card">' +
@@ -1384,9 +1421,9 @@ updateCartIcon();
           '</div>' +
         '</div>' +
         trackingRow +
-        paymentRow +
         '<div class="order-items">' + items + '</div>' +
         storeCreditRow +
+        paymentChargedRow +
         '<div class="order-total-row"><span>Total</span><span>$' + Number(order.total).toFixed(2) + '</span></div>' +
       '</div>';
     }).join('');
