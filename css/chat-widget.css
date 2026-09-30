@@ -7,14 +7,16 @@
 #chat-widget-bubble svg{ width:26px; height:26px; stroke:#fff; }
 #chat-widget-panel{ position:fixed; right:20px; bottom:88px; width:320px; max-width:calc(100vw - 40px); height:420px; max-height:calc(100vh - 140px); background:#F7F8F6; border:1px solid #E4E4E0; border-radius:12px; box-shadow:0 4px 18px rgba(0,0,0,0.2); z-index:999; display:none; flex-direction:column; overflow:hidden; font-family:'Quicksand',-apple-system,sans-serif; }
 #chat-widget-panel.chat-widget-open{ display:flex; }
-.chat-widget-header{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; height:48px; box-sizing:border-box; padding:0 6px; background:#fff; border-radius:12px 12px 0 0; box-shadow:0 2px 6px rgba(0,0,0,0.08); position:relative; z-index:1; flex-shrink:0; }
-.chat-widget-title{ grid-column:2; font-weight:700; font-size:1rem; color:#4a4a4a; }
-#chat-widget-minimize-btn{ grid-column:1; justify-self:start; display:flex; align-items:center; justify-content:center; padding:6px; background:none; border:none; border-radius:6px; color:#1B4B8C; cursor:pointer; }
+.chat-widget-header{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; height:48px; box-sizing:border-box; padding:0 6px; background:#1B4B8C; border-radius:12px 12px 0 0; position:relative; z-index:1; flex-shrink:0; }
+.chat-widget-title{ grid-column:2; font-weight:700; font-size:1rem; color:#fff; }
+#chat-widget-minimize-btn{ grid-column:1; justify-self:start; display:flex; align-items:center; justify-content:center; padding:6px; background:none; border:none; border-radius:6px; color:#fff; cursor:pointer; }
 #chat-widget-minimize-btn svg{ width:22px; height:22px; }
-#chat-widget-end-btn{ grid-column:3; justify-self:end; padding:6px 8px; background:none; border:none; border-radius:6px; color:#1B4B8C; font-family:'Quicksand',sans-serif; font-size:0.85rem; font-weight:400; cursor:pointer; }
+#chat-widget-end-btn{ grid-column:3; justify-self:end; padding:6px 8px; background:none; border:none; border-radius:6px; color:#fff; font-family:'Quicksand',sans-serif; font-size:0.85rem; font-weight:400; cursor:pointer; }
 #chat-widget-end-btn:hover{ text-decoration:underline; }
 #chat-widget-end-btn[hidden]{ display:none; }
-#chat-widget-minimize-btn:focus-visible, #chat-widget-end-btn:focus-visible, #chat-widget-end-confirm button:focus-visible, #chat-widget-bubble:focus-visible{ outline:2px solid #1B4B8C; outline-offset:2px; }
+/* Header controls sit on the blue header, so their focus ring is white; the confirm bar and launcher keep the blue ring. */
+#chat-widget-minimize-btn:focus-visible, #chat-widget-end-btn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+#chat-widget-end-confirm button:focus-visible, #chat-widget-bubble:focus-visible{ outline:2px solid #1B4B8C; outline-offset:2px; }
 #chat-widget-bubble:focus-visible{ outline-offset:3px; }
 #chat-widget-end-confirm{ display:flex; align-items:center; gap:8px; padding:8px 12px; background:#fff; border-bottom:1px solid #E4E4E0; font-size:0.82rem; color:#333; flex-shrink:0; }
 #chat-widget-end-confirm[hidden]{ display:none; }

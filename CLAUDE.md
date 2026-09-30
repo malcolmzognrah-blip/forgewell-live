@@ -97,9 +97,9 @@ The customer live chat widget is the other exception to the no-shared-JS rule. I
 `login`, `order-confirmation`, `privacy`, `product`, `reset-password`, `ruo-agreement`, `shipping`,
 `shop`, `terms`, `why-us` (note: not `orders.html`, not `admin.html`):
 ```html
-<link rel="stylesheet" href="/css/chat-widget.css?v=20260930-2">
+<link rel="stylesheet" href="/css/chat-widget.css?v=20260930-3">
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-<script src="/js/chat-widget.js?v=20260930-2"></script>
+<script src="/js/chat-widget.js?v=20260930-3"></script>
 ```
 The socket.io client is version-pinned to the backend's installed `socket.io` (4.8.3) and must load
 synchronously right before the widget script. If it fails to load, the widget bails out and injects
