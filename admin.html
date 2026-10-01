@@ -312,6 +312,58 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .chat-input-row input{ flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; }
 .chat-input-row button{ padding:9px 18px; background:var(--navy); color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:0.85rem; }
 .turnstile-widget{ margin:14px 0; }
+/* ---- Costs tab (commission cost basis) ---- */
+.costs-panel{ max-width:1100px; }
+.costs-sub{ display:none; }
+.costs-sub.active{ display:block; }
+.costs-fieldset{ border:1.5px solid var(--line); border-radius:8px; padding:12px 14px 14px; margin:0 0 16px; }
+.costs-fieldset legend{ font-size:0.78rem; font-weight:700; color:var(--navy-dark); padding:0 6px; }
+.costs-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px 16px; }
+.costs-grid label, .costs-label{ display:flex; flex-direction:column; gap:5px; font-size:0.78rem; font-weight:700; color:var(--gray); }
+.costs-label{ margin-bottom:6px; }
+.costs-grid input, #costs-product-select, #costs-order-query, #costs-review-filter, .costs-select{ padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:0.85rem; font-family:inherit; min-width:0; }
+#costs-product-select{ width:100%; max-width:520px; margin-bottom:14px; }
+.costs-radio{ display:flex; align-items:flex-start; gap:8px; font-size:0.85rem; margin:0 0 8px; }
+.costs-radio input{ margin-top:3px; }
+.costs-btn-secondary{ margin-top:16px; margin-left:8px; padding:10px 16px; background:#fff; color:var(--navy); border:1.5px solid var(--navy); border-radius:6px; font-weight:700; cursor:pointer; font-size:0.82rem; }
+#costs-upload-template{ margin:0 0 12px; }
+.costs-status{ font-size:0.82rem; margin:0 0 12px; min-height:1px; }
+.costs-status.error{ color:#c0392b; }
+.costs-status.success{ color:#1F7A34; }
+.costs-confirm{ margin-top:16px; border:1.5px solid #9A6B1E; background:#FFF8EC; border-radius:8px; padding:12px 14px; font-size:0.85rem; }
+.costs-confirm p{ margin:6px 0; }
+.costs-missing{ color:#c0392b; font-weight:700; }
+.costs-warn{ color:#9A6B1E; }
+.costs-table-wrap{ width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:12px; }
+.costs-table{ min-width:640px; }
+.costs-table td .costs-select{ width:100%; max-width:240px; }
+.costs-h4{ margin:18px 0 8px; font-size:0.85rem; color:var(--navy-dark); }
+.costs-upload-row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+.costs-upload-row .fulfillment-btn, .costs-upload-row .costs-btn-secondary{ margin:0; }
+.costs-counts{ font-size:0.82rem; margin:6px 0 10px; color:var(--navy-dark); }
+.costs-chip{ display:inline-block; font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; border-radius:100px; padding:2px 8px; white-space:nowrap; }
+.costs-chip.good{ color:#1F7A34; background:#eafaf0; }
+.costs-chip.warn{ color:#9A6B1E; background:#FDECD2; }
+.costs-chip.bad{ color:#c0392b; background:#fdecea; }
+.costs-chip.muted{ color:var(--gray); background:var(--panel); }
+.costs-list{ margin:4px 0 0; padding-left:18px; font-size:0.78rem; }
+.costs-list.bad{ color:#c0392b; }
+.costs-list.warn{ color:#9A6B1E; }
+.costs-summary{ display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; margin:10px 0 14px; }
+.costs-card{ border:1.5px solid var(--line); border-radius:8px; padding:10px 12px; font-size:0.82rem; background:#fff; }
+.costs-card h5{ margin:0 0 6px; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.03em; color:var(--gray); }
+.costs-card .row{ display:flex; justify-content:space-between; gap:10px; padding:2px 0; }
+.costs-card .row.total{ border-top:1px solid var(--line); margin-top:4px; padding-top:4px; font-weight:700; }
+.costs-review-item{ border:1.5px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:10px; font-size:0.82rem; }
+.costs-review-head{ display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; font-size:0.82rem; }
+.costs-review-actions{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; margin-top:8px; }
+.costs-review-actions textarea{ flex:1 1 260px; min-height:38px; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font:inherit; font-size:0.8rem; }
+.costs-review-actions .fulfillment-btn, .costs-review-actions .costs-btn-secondary{ margin:0; padding:8px 12px; font-size:0.78rem; }
+.costs-link{ background:none; border:none; padding:0; color:var(--navy); text-decoration:underline; cursor:pointer; font:inherit; }
+@media (max-width: 700px) {
+  .admin-tabs, .costs-subtabs{ flex-wrap:wrap; }
+  .costs-btn-secondary{ margin-left:0; }
+}
 </style>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
@@ -443,6 +495,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-audit">Audit Log</button>
     <button type="button" class="admin-tab" id="tab-jobs">Jobs</button>
     <button type="button" class="admin-tab" id="tab-livechat">Live Chat</button>
+    <button type="button" class="admin-tab" id="tab-costs">Costs</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -1482,6 +1535,134 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </div>
     </div>
   </div>
+
+  <!-- Costs: commission cost basis (backend lib/orderCosts.js, routes/
+       adminCosts.js) -- settings, product costs & batches, wholesaler
+       upload, per-order cost breakdowns, and held/flagged commission
+       review. Every request goes through costsApi() below (401 -> login
+       screen; other failures shown with their reason). -->
+  <div class="admin-view costs-panel" id="view-costs">
+    <div class="content-subtabs costs-subtabs" id="costs-subtabs">
+      <button type="button" class="content-subtab active" data-costs-sub="settings">Settings</button>
+      <button type="button" class="content-subtab" data-costs-sub="batches">Products &amp; Batches</button>
+      <button type="button" class="content-subtab" data-costs-sub="upload">Wholesaler Upload</button>
+      <button type="button" class="content-subtab" data-costs-sub="order">Order Costs</button>
+      <button type="button" class="content-subtab" data-costs-sub="review">Commission Review</button>
+    </div>
+
+    <div class="costs-sub active" id="costs-sub-settings">
+      <p class="fulfillment-section-note">Applies to orders paid from now on. Each order's cost breakdown keeps a snapshot of the values it used. Leave a field empty to unset it.</p>
+      <div class="costs-status" id="costs-settings-status"></div>
+      <fieldset class="costs-fieldset">
+        <legend>Commission basis</legend>
+        <label class="costs-radio"><input type="radio" name="costs-method" value="revenue"> Revenue (subtotal minus discount; the original method)</label>
+        <label class="costs-radio"><input type="radio" name="costs-method" value="profit_v1"> Profit (revenue minus product, lab, label, packaging, shipping and processing costs)</label>
+        <div class="costs-grid">
+          <label>Profit commission rate (%)<input type="text" inputmode="decimal" id="costs-profit-rate" placeholder="e.g. 5"></label>
+        </div>
+      </fieldset>
+      <fieldset class="costs-fieldset">
+        <legend>Per-vial costs</legend>
+        <div class="costs-grid">
+          <label>Label cost per vial ($)<input type="text" inputmode="decimal" id="costs-label" placeholder="e.g. 0.20"></label>
+          <label>Packaging cost per vial ($)<input type="text" inputmode="decimal" id="costs-packaging" placeholder="e.g. 0.50"></label>
+        </div>
+      </fieldset>
+      <fieldset class="costs-fieldset">
+        <legend>Processing fees (on the amount charged)</legend>
+        <div class="costs-grid">
+          <label>Card fee (%)<input type="text" inputmode="decimal" id="costs-fee-card-pct" placeholder="e.g. 2.9"></label>
+          <label>Card fixed fee ($, optional)<input type="text" inputmode="decimal" id="costs-fee-card-fixed" placeholder="e.g. 0.30"></label>
+          <label>PayRam fee (%)<input type="text" inputmode="decimal" id="costs-fee-payram-pct" placeholder="e.g. 1"></label>
+          <label>PayRam fixed fee ($, optional)<input type="text" inputmode="decimal" id="costs-fee-payram-fixed" placeholder="e.g. 0"></label>
+        </div>
+      </fieldset>
+      <button type="button" class="fulfillment-btn" id="costs-settings-save">Save Settings</button>
+      <div class="costs-confirm" id="costs-profit-confirm" hidden>
+        <strong>Switch commissions to the profit basis?</strong>
+        <p>New commissions will be calculated on profit at the profit commission rate. Commissions already recorded keep the basis they were calculated with.</p>
+        <div id="costs-profit-confirm-missing"></div>
+        <button type="button" class="fulfillment-btn" id="costs-profit-confirm-yes">Switch to Profit</button>
+        <button type="button" class="costs-btn-secondary" id="costs-profit-confirm-no">Cancel</button>
+      </div>
+    </div>
+
+    <div class="costs-sub" id="costs-sub-batches">
+      <div class="costs-status" id="costs-batches-status"></div>
+      <label for="costs-product-select" class="costs-label">Product (base products only -- pack sizes and kits share their base product's batches)</label>
+      <select id="costs-product-select"><option value="">Loading products…</option></select>
+      <div id="costs-product-detail" hidden>
+        <fieldset class="costs-fieldset">
+          <legend>Product cost fields</legend>
+          <div class="costs-grid">
+            <label>Current wholesale cost per vial ($)<input type="text" inputmode="decimal" id="costs-pf-cost"></label>
+            <label>Vials per unit<input type="text" inputmode="numeric" id="costs-pf-vials" placeholder="empty = 1 (kits must be set)"></label>
+            <label>Wholesaler SKU<input type="text" id="costs-pf-sku"></label>
+          </div>
+          <button type="button" class="fulfillment-btn" id="costs-pf-save">Save Cost Fields</button>
+        </fieldset>
+        <h4 class="costs-h4">Batches</h4>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-batches-table"><thead><tr><th>Lot</th><th>Received</th><th>Vials purchased</th><th>Cost / vial</th><th>Lab cost</th><th>Lab / vial</th><th>Current</th><th></th></tr></thead><tbody></tbody></table></div>
+        <fieldset class="costs-fieldset" id="costs-batch-form">
+          <legend id="costs-batch-form-title">Add a batch</legend>
+          <div class="costs-grid">
+            <label>Lot<input type="text" id="costs-bf-lot"></label>
+            <label>Received (YYYY-MM-DD)<input type="date" id="costs-bf-received"></label>
+            <label>Vials purchased<input type="text" inputmode="numeric" id="costs-bf-vials"></label>
+            <label>Cost per vial ($)<input type="text" inputmode="decimal" id="costs-bf-cost" placeholder="empty = product's current cost"></label>
+            <label>Lab analysis cost ($)<input type="text" inputmode="decimal" id="costs-bf-lab" placeholder="0.00"></label>
+            <label>Notes<input type="text" id="costs-bf-notes"></label>
+          </div>
+          <label class="costs-radio"><input type="checkbox" id="costs-bf-current" checked> Make this the current batch (new orders are assigned to it)</label>
+          <button type="button" class="fulfillment-btn" id="costs-bf-save">Add Batch</button>
+          <button type="button" class="costs-btn-secondary" id="costs-bf-cancel" hidden>Cancel Edit</button>
+        </fieldset>
+      </div>
+    </div>
+
+    <div class="costs-sub" id="costs-sub-upload">
+      <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit, the wholesaler SKU mapping and new batches -- never retail prices, names, descriptions or stock, and never creates products.</p>
+      <button type="button" class="costs-btn-secondary" id="costs-upload-template">Download CSV Template</button>
+      <div class="costs-upload-row">
+        <input type="file" id="costs-upload-file" accept=".csv,text/csv">
+        <button type="button" class="fulfillment-btn" id="costs-upload-preview">Preview</button>
+      </div>
+      <div class="costs-status" id="costs-upload-status"></div>
+      <div id="costs-upload-preview-area" hidden>
+        <div class="costs-counts" id="costs-upload-counts"></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Batch</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
+        <button type="button" class="fulfillment-btn" id="costs-upload-apply">Apply Selected Rows</button>
+      </div>
+      <div id="costs-upload-results" hidden>
+        <h4 class="costs-h4">Results</h4>
+        <div class="costs-counts" id="costs-upload-results-counts"></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-results-table"><thead><tr><th>Row</th><th>SKU</th><th>Result</th><th>Product</th><th>Details</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="costs-sub" id="costs-sub-order">
+      <div class="costs-upload-row">
+        <input type="text" id="costs-order-query" placeholder="Order number or ID">
+        <button type="button" class="fulfillment-btn" id="costs-order-load">Load Breakdown</button>
+      </div>
+      <div class="costs-status" id="costs-order-status"></div>
+      <div id="costs-order-result" hidden></div>
+    </div>
+
+    <div class="costs-sub" id="costs-sub-review">
+      <div class="costs-upload-row">
+        <select id="costs-review-filter">
+          <option value="attention">Needs attention (held or flagged)</option>
+          <option value="held">Held</option>
+          <option value="flagged">Flagged (paid)</option>
+          <option value="all">All commissions</option>
+        </select>
+        <button type="button" class="costs-btn-secondary" id="costs-review-refresh">Refresh</button>
+      </div>
+      <div class="costs-status" id="costs-review-status"></div>
+      <div id="costs-review-list"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Version-pinned to match the server's exact installed socket.io
@@ -2385,10 +2566,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat', 'tab-costs'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat', 'view-costs'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -5112,6 +5293,639 @@ document.getElementById('filter-email').addEventListener('keydown', function(e) 
 document.getElementById('filter-date-apply-btn').addEventListener('click', loadOrders);
 document.getElementById('filter-time-from').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
 document.getElementById('filter-time-to').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrders(); });
+
+// ============================================================
+// Costs tab -- commission cost basis admin (backend routes/adminCosts.js).
+// ============================================================
+
+// Every Costs request goes through here. 401 -> login screen (and the
+// promise rejects with err.loggedOut so callers show nothing further);
+// any other non-2xx -> Error carrying the server's own message (or the
+// HTTP status); a network failure -> a plain "network error" Error.
+// body: a plain object (sent as JSON) or FormData (sent as multipart).
+function costsApi(method, path, body) {
+  var opts = { method: method, credentials: 'include' };
+  if (body instanceof FormData) opts.body = body;
+  else if (body !== undefined) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+  return fetch('/api/admin' + path, opts)
+    .catch(function() { throw new Error('Network error -- check your connection and try again.'); })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); var e = new Error('Session expired.'); e.loggedOut = true; throw e; }
+      return res.json().catch(function() { return null; }).then(function(data) {
+        if (!res.ok) {
+          var err = new Error((data && data.error) || ('Request failed (HTTP ' + res.status + ').'));
+          err.data = data;
+          throw err;
+        }
+        return data;
+      });
+    });
+}
+
+function costsSetStatus(id, message, kind) {
+  var el = document.getElementById(id);
+  el.textContent = message || '';
+  el.className = 'costs-status' + (kind ? ' ' + kind : '');
+}
+function costsShowError(id, err) {
+  if (err && err.loggedOut) { costsSetStatus(id, ''); return; }
+  costsSetStatus(id, (err && err.message) || 'Something went wrong.', 'error');
+}
+
+function costsMoney(cents) {
+  if (cents === null || cents === undefined) return '--';
+  var neg = cents < 0;
+  return (neg ? '-$' : '$') + (Math.abs(cents) / 100).toFixed(2);
+}
+// '' -> '' (unset); '1.5' / '$1.50' -> 150; anything else -> null (invalid).
+function costsDollarsToCents(value) {
+  var s = String(value || '').trim().replace(/^\$/, '');
+  if (s === '') return '';
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  return Math.round(Number(s) * 100);
+}
+function costsCentsToInput(cents) {
+  return cents === null || cents === undefined ? '' : (cents / 100).toFixed(2);
+}
+function costsChip(text, kind) {
+  return '<span class="costs-chip ' + kind + '">' + escapeHtml(text) + '</span>';
+}
+
+var costsActiveSub = 'settings';
+function showCostsSub(name) {
+  costsActiveSub = name;
+  document.querySelectorAll('#costs-subtabs .content-subtab').forEach(function(b) { b.classList.toggle('active', b.getAttribute('data-costs-sub') === name); });
+  document.querySelectorAll('#view-costs .costs-sub').forEach(function(v) { v.classList.toggle('active', v.id === 'costs-sub-' + name); });
+  if (name === 'settings') loadCostSettings();
+  if (name === 'batches') loadCostsProducts();
+  if (name === 'review') loadCommissionReview();
+}
+
+function showCostsTab() {
+  showAdminTab('tab-costs', 'view-costs');
+  showCostsSub(costsActiveSub);
+}
+
+// ---------- Settings ----------
+var costsSettings = null;
+
+function renderCostSettings(s) {
+  costsSettings = s;
+  document.querySelectorAll('input[name="costs-method"]').forEach(function(r) { r.checked = r.value === s.method; });
+  document.getElementById('costs-profit-rate').value = s.profitRatePercent == null ? '' : s.profitRatePercent;
+  document.getElementById('costs-label').value = costsCentsToInput(s.labelPerVialCents);
+  document.getElementById('costs-packaging').value = costsCentsToInput(s.packagingPerVialCents);
+  document.getElementById('costs-fee-card-pct').value = s.fees.card.percent == null ? '' : s.fees.card.percent;
+  document.getElementById('costs-fee-card-fixed').value = costsCentsToInput(s.fees.card.fixedCents);
+  document.getElementById('costs-fee-payram-pct').value = s.fees.payram.percent == null ? '' : s.fees.payram.percent;
+  document.getElementById('costs-fee-payram-fixed').value = costsCentsToInput(s.fees.payram.fixedCents);
+}
+
+function loadCostSettings() {
+  costsSetStatus('costs-settings-status', 'Loading…');
+  costsApi('GET', '/cost-settings')
+    .then(function(s) {
+      renderCostSettings(s);
+      var note = s.method === 'profit_v1' ? 'Commissions are on the PROFIT basis.' : 'Commissions are on the REVENUE basis.';
+      if (s.missingForProfit && s.missingForProfit.length) note += ' Not set yet: ' + s.missingForProfit.join(', ') + '.';
+      costsSetStatus('costs-settings-status', note);
+    })
+    .catch(function(err) { costsShowError('costs-settings-status', err); });
+}
+
+// Reads the form into the PUT body. Returns { body } or { error }.
+function readCostSettingsForm() {
+  var methodEl = document.querySelector('input[name="costs-method"]:checked');
+  var body = { method: methodEl ? methodEl.value : 'revenue' };
+  var pct = function(id) { var v = document.getElementById(id).value.trim(); return v === '' ? '' : v; };
+  body.profitRatePercent = pct('costs-profit-rate');
+  body.feeCardPercent = pct('costs-fee-card-pct');
+  body.feePayramPercent = pct('costs-fee-payram-pct');
+  var money = { labelPerVialCents: 'costs-label', packagingPerVialCents: 'costs-packaging', feeCardFixedCents: 'costs-fee-card-fixed', feePayramFixedCents: 'costs-fee-payram-fixed' };
+  for (var field in money) {
+    var cents = costsDollarsToCents(document.getElementById(money[field]).value);
+    if (cents === null) return { error: 'Enter dollar amounts like 0.50 (at most 2 decimals), or leave the field empty.' };
+    body[field] = cents;
+  }
+  var pctFields = ['profitRatePercent', 'feeCardPercent', 'feePayramPercent'];
+  for (var i = 0; i < pctFields.length; i++) {
+    var v = body[pctFields[i]];
+    if (v !== '' && !(isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100)) return { error: 'Percentages must be numbers between 0 and 100, or empty.' };
+  }
+  return { body: body };
+}
+
+// Same rule the server enforces (routes/adminCosts.js missingForProfit).
+function missingForProfitFromForm(body) {
+  var missing = [];
+  if (body.profitRatePercent === '') missing.push('Profit commission rate');
+  if (body.packagingPerVialCents === '') missing.push('Packaging cost per vial');
+  if (body.feeCardPercent === '') missing.push('Card processing fee %');
+  if (body.feePayramPercent === '') missing.push('PayRam processing fee %');
+  return missing;
+}
+
+function saveCostSettings(body) {
+  costsSetStatus('costs-settings-status', 'Saving…');
+  return costsApi('PUT', '/cost-settings', body)
+    .then(function(s) {
+      renderCostSettings(s);
+      document.getElementById('costs-profit-confirm').hidden = true;
+      costsSetStatus('costs-settings-status', 'Saved. Commissions are on the ' + (s.method === 'profit_v1' ? 'PROFIT' : 'REVENUE') + ' basis.', 'success');
+    })
+    .catch(function(err) { costsShowError('costs-settings-status', err); });
+}
+
+document.getElementById('costs-settings-save').addEventListener('click', function() {
+  var read = readCostSettingsForm();
+  if (read.error) { costsSetStatus('costs-settings-status', read.error, 'error'); return; }
+  var switchingToProfit = read.body.method === 'profit_v1' && (!costsSettings || costsSettings.method !== 'profit_v1');
+  if (!switchingToProfit) { saveCostSettings(read.body); return; }
+  // Switching to profit: confirm first, listing anything still empty.
+  var missing = missingForProfitFromForm(read.body);
+  var warnings = [];
+  if (read.body.labelPerVialCents === '') warnings.push('Label cost per vial');
+  if (read.body.feeCardFixedCents === '') warnings.push('Card fixed fee (counts as $0)');
+  if (read.body.feePayramFixedCents === '') warnings.push('PayRam fixed fee (counts as $0)');
+  var html = '';
+  if (missing.length) html += '<p class="costs-missing">Can\'t switch yet. Set these first: ' + missing.map(escapeHtml).join(', ') + '.</p>';
+  if (warnings.length) html += '<p class="costs-warn">Also empty: ' + warnings.map(escapeHtml).join(', ') + '.</p>';
+  if (!missing.length && !warnings.length) html += '<p>All cost settings are set.</p>';
+  document.getElementById('costs-profit-confirm-missing').innerHTML = html;
+  document.getElementById('costs-profit-confirm-yes').disabled = missing.length > 0;
+  var box = document.getElementById('costs-profit-confirm');
+  box.hidden = false;
+  box.dataset.pendingBody = JSON.stringify(read.body);
+});
+document.getElementById('costs-profit-confirm-yes').addEventListener('click', function() {
+  var box = document.getElementById('costs-profit-confirm');
+  saveCostSettings(JSON.parse(box.dataset.pendingBody || '{}'));
+});
+document.getElementById('costs-profit-confirm-no').addEventListener('click', function() {
+  document.getElementById('costs-profit-confirm').hidden = true;
+  if (costsSettings) renderCostSettings(costsSettings);
+  costsSetStatus('costs-settings-status', 'Not switched.');
+});
+
+// ---------- Products & Batches ----------
+var costsProducts = null;      // full admin product rows
+var costsBatchEditing = null;  // batch id being edited, or null
+
+function costsBaseProducts() {
+  return (costsProducts || []).filter(function(p) { return !p.base_product_id; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+}
+function costsProductLabel(p) {
+  return p.name + (p.dosage && p.name.indexOf(p.dosage) === -1 ? ' ' + p.dosage : '') + ' (' + p.id + ')';
+}
+
+function loadCostsProducts(force) {
+  if (costsProducts && !force) { renderCostsProductOptions(); return Promise.resolve(costsProducts); }
+  costsSetStatus('costs-batches-status', 'Loading products…');
+  return fetchAdminProducts()
+    .then(function(products) {
+      if (!products) return null;
+      costsProducts = products;
+      costsSetStatus('costs-batches-status', '');
+      renderCostsProductOptions();
+      return products;
+    })
+    .catch(function(err) {
+      costsSetStatus('costs-batches-status', 'Could not load products (' + (err && err.message ? err.message : 'network error') + ').', 'error');
+      document.getElementById('costs-product-select').innerHTML = '<option value="">Could not load products</option>';
+      return null;
+    });
+}
+
+function renderCostsProductOptions() {
+  var select = document.getElementById('costs-product-select');
+  var current = select.value;
+  select.innerHTML = '<option value="">Select a product…</option>' + costsBaseProducts().map(function(p) {
+    return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(costsProductLabel(p)) + (p.wholesale_cost_cents == null ? ' -- no cost set' : '') + '</option>';
+  }).join('');
+  if (current) select.value = current;
+}
+
+function costsSelectedProduct() {
+  var id = document.getElementById('costs-product-select').value;
+  return (costsProducts || []).filter(function(p) { return p.id === id; })[0] || null;
+}
+
+function renderCostsProductDetail() {
+  var p = costsSelectedProduct();
+  document.getElementById('costs-product-detail').hidden = !p;
+  if (!p) return;
+  document.getElementById('costs-pf-cost').value = costsCentsToInput(p.wholesale_cost_cents);
+  document.getElementById('costs-pf-vials').value = p.vials_per_unit == null ? '' : p.vials_per_unit;
+  document.getElementById('costs-pf-sku').value = p.wholesaler_sku || '';
+  resetBatchForm();
+  loadCostsBatches();
+}
+
+var costsBatches = [];
+function loadCostsBatches() {
+  var p = costsSelectedProduct();
+  if (!p) return;
+  var tbody = document.querySelector('#costs-batches-table tbody');
+  tbody.innerHTML = '<tr><td colspan="8">Loading batches…</td></tr>';
+  costsApi('GET', '/products/' + encodeURIComponent(p.id) + '/batches')
+    .then(function(data) {
+      costsBatches = data.batches;
+      if (!data.batches.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--gray);">No batches yet. Orders for this product use its current wholesale cost and record "lab cost missing (no batch)".</td></tr>'; return; }
+      tbody.innerHTML = data.batches.map(function(b) {
+        var share = b.vials_purchased ? Math.round(b.lab_analysis_cost_cents / b.vials_purchased) : null;
+        return '<tr>' +
+          '<td>' + escapeHtml(b.lot) + (b.notes ? '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(b.notes) + '</div>' : '') + '</td>' +
+          '<td>' + (b.received_at ? escapeHtml(String(b.received_at).slice(0, 10)) : '--') + '</td>' +
+          '<td>' + b.vials_purchased + '</td>' +
+          '<td>' + costsMoney(b.wholesale_cost_cents_per_vial) + '</td>' +
+          '<td>' + costsMoney(b.lab_analysis_cost_cents) + '</td>' +
+          '<td>' + costsMoney(share) + '</td>' +
+          '<td>' + (b.is_current ? costsChip('Current', 'good') : '') + '</td>' +
+          '<td style="white-space:nowrap;">' +
+            '<button type="button" class="costs-link" data-batch-edit="' + escapeHtml(b.id) + '">Edit</button>' +
+            (b.is_current ? '' : ' · <button type="button" class="costs-link" data-batch-current="' + escapeHtml(b.id) + '">Make current</button>') +
+          '</td></tr>';
+      }).join('');
+    })
+    .catch(function(err) {
+      if (err.loggedOut) return;
+      tbody.innerHTML = '<tr><td colspan="8" style="color:#c0392b;">Could not load batches: ' + escapeHtml(err.message) + '</td></tr>';
+    });
+}
+
+function resetBatchForm() {
+  costsBatchEditing = null;
+  ['costs-bf-lot', 'costs-bf-received', 'costs-bf-vials', 'costs-bf-cost', 'costs-bf-lab', 'costs-bf-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('costs-bf-current').checked = true;
+  document.getElementById('costs-batch-form-title').textContent = 'Add a batch';
+  document.getElementById('costs-bf-save').textContent = 'Add Batch';
+  document.getElementById('costs-bf-cancel').hidden = true;
+}
+
+document.getElementById('costs-product-select').addEventListener('change', renderCostsProductDetail);
+
+document.getElementById('costs-pf-save').addEventListener('click', function() {
+  var p = costsSelectedProduct();
+  if (!p) return;
+  var cost = costsDollarsToCents(document.getElementById('costs-pf-cost').value);
+  var vialsRaw = document.getElementById('costs-pf-vials').value.trim();
+  if (cost === null) { costsSetStatus('costs-batches-status', 'Wholesale cost must be a dollar amount like 3.50, or empty.', 'error'); return; }
+  if (vialsRaw !== '' && !/^\d+$/.test(vialsRaw)) { costsSetStatus('costs-batches-status', 'Vials per unit must be a whole number, or empty.', 'error'); return; }
+  var body = {
+    wholesaleCostCents: cost === '' ? null : cost,
+    vialsPerUnit: vialsRaw === '' ? null : Number(vialsRaw),
+    wholesalerSku: document.getElementById('costs-pf-sku').value.trim() || null,
+  };
+  costsSetStatus('costs-batches-status', 'Saving…');
+  costsApi('PATCH', '/products/' + encodeURIComponent(p.id) + '/cost-fields', body)
+    .then(function(row) {
+      p.wholesale_cost_cents = row.wholesale_cost_cents; p.vials_per_unit = row.vials_per_unit; p.wholesaler_sku = row.wholesaler_sku;
+      renderCostsProductOptions();
+      costsSetStatus('costs-batches-status', 'Cost fields saved for ' + p.id + '.', 'success');
+    })
+    .catch(function(err) { costsShowError('costs-batches-status', err); });
+});
+
+document.querySelector('#costs-batches-table tbody').addEventListener('click', function(e) {
+  var editId = e.target.getAttribute('data-batch-edit');
+  var currentId = e.target.getAttribute('data-batch-current');
+  if (editId) {
+    var b = costsBatches.filter(function(x) { return x.id === editId; })[0];
+    if (!b) return;
+    costsBatchEditing = b.id;
+    document.getElementById('costs-bf-lot').value = b.lot;
+    document.getElementById('costs-bf-received').value = b.received_at ? String(b.received_at).slice(0, 10) : '';
+    document.getElementById('costs-bf-vials').value = b.vials_purchased;
+    document.getElementById('costs-bf-cost').value = costsCentsToInput(b.wholesale_cost_cents_per_vial);
+    document.getElementById('costs-bf-lab').value = costsCentsToInput(b.lab_analysis_cost_cents);
+    document.getElementById('costs-bf-notes').value = b.notes || '';
+    document.getElementById('costs-bf-current').checked = b.is_current;
+    document.getElementById('costs-batch-form-title').textContent = 'Edit batch ' + b.lot + ' (orders already costed keep the values they were costed with)';
+    document.getElementById('costs-bf-save').textContent = 'Save Batch';
+    document.getElementById('costs-bf-cancel').hidden = false;
+    document.getElementById('costs-batch-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (currentId) {
+    costsSetStatus('costs-batches-status', 'Updating…');
+    costsApi('PATCH', '/batches/' + encodeURIComponent(currentId), { makeCurrent: true })
+      .then(function() { costsSetStatus('costs-batches-status', 'Current batch changed. New orders are assigned to it.', 'success'); loadCostsBatches(); })
+      .catch(function(err) { costsShowError('costs-batches-status', err); });
+  }
+});
+
+document.getElementById('costs-bf-cancel').addEventListener('click', resetBatchForm);
+
+document.getElementById('costs-bf-save').addEventListener('click', function() {
+  var p = costsSelectedProduct();
+  if (!p) return;
+  var lot = document.getElementById('costs-bf-lot').value.trim();
+  var vialsRaw = document.getElementById('costs-bf-vials').value.trim();
+  var cost = costsDollarsToCents(document.getElementById('costs-bf-cost').value);
+  var lab = costsDollarsToCents(document.getElementById('costs-bf-lab').value);
+  if (!lot) { costsSetStatus('costs-batches-status', 'Lot is required.', 'error'); return; }
+  if (!/^\d+$/.test(vialsRaw) || Number(vialsRaw) < 1) { costsSetStatus('costs-batches-status', 'Vials purchased must be a whole number of at least 1.', 'error'); return; }
+  if (cost === null || lab === null) { costsSetStatus('costs-batches-status', 'Costs must be dollar amounts like 3.50, or empty.', 'error'); return; }
+  var body = { lot: lot, vialsPurchased: Number(vialsRaw), labAnalysisCostCents: lab === '' ? 0 : lab, receivedAt: document.getElementById('costs-bf-received').value || null, notes: document.getElementById('costs-bf-notes').value.trim() || null };
+  if (cost !== '') body.wholesaleCostCentsPerVial = cost;
+  var request;
+  if (costsBatchEditing) {
+    body.makeCurrent = document.getElementById('costs-bf-current').checked;
+    request = costsApi('PATCH', '/batches/' + encodeURIComponent(costsBatchEditing), body);
+  } else {
+    body.makeCurrent = document.getElementById('costs-bf-current').checked;
+    request = costsApi('POST', '/products/' + encodeURIComponent(p.id) + '/batches', body);
+  }
+  costsSetStatus('costs-batches-status', 'Saving…');
+  request
+    .then(function(b) { costsSetStatus('costs-batches-status', 'Batch ' + b.lot + ' saved.', 'success'); resetBatchForm(); loadCostsBatches(); })
+    .catch(function(err) { costsShowError('costs-batches-status', err); });
+});
+
+// ---------- Wholesaler upload ----------
+var costsUploadFile = null;
+var costsUploadRows = [];
+
+document.getElementById('costs-upload-template').addEventListener('click', function() {
+  fetch('/api/admin/wholesaler-import/template', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      if (!res.ok) throw new Error('Could not download the template (HTTP ' + res.status + ').');
+      return res.blob();
+    })
+    .then(function(blob) {
+      if (!blob) return;
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'forgewell-wholesaler-upload-template.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    })
+    .catch(function(err) { costsSetStatus('costs-upload-status', err.message && err.message !== 'Failed to fetch' ? err.message : 'Network error -- could not download the template.', 'error'); });
+});
+
+function uploadStatusChip(status) {
+  return {
+    ready: costsChip('Ready', 'good'),
+    no_change: costsChip('No change', 'muted'),
+    needs_confirmation: costsChip('Confirm match', 'warn'),
+    needs_mapping: costsChip('No match', 'warn'),
+    error: costsChip('Error', 'bad'),
+  }[status] || escapeHtml(status);
+}
+
+function describeUploadChange(c) {
+  var fmt = function(v) { return c.field === 'wholesale_cost_cents' ? costsMoney(v) : (v === null || v === undefined ? '--' : escapeHtml(String(v))); };
+  var label = { wholesale_cost_cents: 'Cost / vial', vials_per_unit: 'Vials per unit', wholesaler_sku: 'Wholesaler SKU' }[c.field] || c.field;
+  return label + ': ' + fmt(c.from) + ' → ' + fmt(c.to);
+}
+
+function costsMappableProductOptions(selectedId) {
+  return '<option value="">Map to an existing product…</option>' + costsBaseProducts().filter(function(p) { return !p.wholesaler_sku; }).map(function(p) {
+    return '<option value="' + escapeHtml(p.id) + '"' + (p.id === selectedId ? ' selected' : '') + '>' + escapeHtml(costsProductLabel(p)) + '</option>';
+  }).join('');
+}
+
+function renderUploadPreview(data) {
+  costsUploadRows = data.rows;
+  var c = data.counts || {};
+  document.getElementById('costs-upload-counts').innerHTML = [
+    ['Ready', c.ready], ['Confirm match', c.needs_confirmation], ['No match', c.needs_mapping], ['No change', c.no_change], ['Errors', c.error],
+  ].filter(function(x) { return x[1]; }).map(function(x) { return x[0] + ': <strong>' + x[1] + '</strong>'; }).join(' · ');
+  document.querySelector('#costs-upload-table tbody').innerHTML = data.rows.map(function(r) {
+    var product = r.product ? escapeHtml(r.product.id) : r.suggestion ? 'Suggested: <strong>' + escapeHtml(r.suggestion.id) + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(r.suggestion.name + ' / ' + (r.suggestion.dosage || '')) + '</div>' : '--';
+    var changes = (r.changes || []).map(describeUploadChange).join('<br>') || (r.status === 'error' ? '' : '--');
+    var batch = !r.batch ? (r.batchInput ? '' : '--') : r.batch.action === 'create'
+      ? 'New lot <strong>' + escapeHtml(r.batch.lot) + '</strong> (' + r.batch.vialsPurchased + ' vials, lab ' + costsMoney(r.batch.labCents) + ')' + (r.batch.replacesCurrentLot ? '<br>replaces current lot ' + escapeHtml(r.batch.replacesCurrentLot) : '')
+      : 'Lot ' + escapeHtml(r.batch.lot) + ' already recorded';
+    var notes = (r.errors && r.errors.length ? '<ul class="costs-list bad">' + r.errors.map(function(e) { return '<li>' + escapeHtml(e) + '</li>'; }).join('') + '</ul>' : '') +
+      (r.warnings && r.warnings.length ? '<ul class="costs-list warn">' + r.warnings.map(function(w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '');
+    var decision;
+    if (r.status === 'ready') decision = '<label class="costs-radio"><input type="checkbox" class="costs-up-apply" data-row="' + r.rowNumber + '" checked> Apply</label>';
+    else if (r.status === 'needs_confirmation') decision = '<label class="costs-radio"><input type="checkbox" class="costs-up-confirm" data-row="' + r.rowNumber + '"> Confirm ' + escapeHtml(r.suggestion.id) + '</label><select class="costs-select costs-up-map" data-row="' + r.rowNumber + '">' + costsMappableProductOptions('') + '</select>';
+    else if (r.status === 'needs_mapping') decision = '<select class="costs-select costs-up-map" data-row="' + r.rowNumber + '">' + costsMappableProductOptions('') + '</select><div style="color:var(--gray);font-size:0.72rem;margin-top:4px;">Otherwise skipped -- create the product in the Products tab first, then re-upload.</div>';
+    else decision = '--';
+    return '<tr><td>' + r.rowNumber + '</td>' +
+      '<td><strong>' + escapeHtml(r.sku || '(none)') + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml((r.name || '') + ' / ' + (r.dosage || '')) + '</div></td>' +
+      '<td>' + uploadStatusChip(r.status) + '</td><td>' + product + '</td><td>' + changes + notes + '</td><td>' + batch + '</td><td>' + decision + '</td></tr>';
+  }).join('');
+  document.getElementById('costs-upload-preview-area').hidden = false;
+}
+
+document.getElementById('costs-upload-preview').addEventListener('click', function() {
+  var input = document.getElementById('costs-upload-file');
+  if (!input.files || !input.files[0]) { costsSetStatus('costs-upload-status', 'Choose a CSV file first.', 'error'); return; }
+  costsUploadFile = input.files[0];
+  document.getElementById('costs-upload-preview-area').hidden = true;
+  document.getElementById('costs-upload-results').hidden = true;
+  costsSetStatus('costs-upload-status', 'Checking the file…');
+  var fd = new FormData();
+  fd.append('file', costsUploadFile);
+  Promise.all([loadCostsProducts(), costsApi('POST', '/wholesaler-import/preview', fd)])
+    .then(function(results) {
+      renderUploadPreview(results[1]);
+      costsSetStatus('costs-upload-status', 'Preview only -- nothing has been changed. Review each row, then Apply.');
+    })
+    .catch(function(err) { costsShowError('costs-upload-status', err); });
+});
+
+function collectUploadDecisions() {
+  return costsUploadRows.map(function(r) {
+    var d = { rowNumber: r.rowNumber, sku: r.sku, action: 'skip' };
+    var q = function(cls) { return document.querySelector('.' + cls + '[data-row="' + r.rowNumber + '"]'); };
+    if (r.status === 'ready' && q('costs-up-apply') && q('costs-up-apply').checked) d.action = 'apply';
+    if (r.status === 'needs_confirmation') {
+      var mapped = q('costs-up-map') && q('costs-up-map').value;
+      if (mapped) { d.action = 'apply'; d.productId = mapped; }
+      else if (q('costs-up-confirm') && q('costs-up-confirm').checked) { d.action = 'apply'; d.productId = r.suggestion.id; }
+    }
+    if (r.status === 'needs_mapping') {
+      // With no product chosen this is still sent as 'apply' (no
+      // productId): the server never applies it and answers with its own
+      // reason ("Create this product in the Products tab first...").
+      var m = q('costs-up-map') && q('costs-up-map').value;
+      d.action = 'apply';
+      if (m) d.productId = m;
+    }
+    // Rows with errors are sent too, only so the results list their reasons.
+    if (r.status === 'error') d.action = 'apply';
+    return d;
+  });
+}
+
+document.getElementById('costs-upload-apply').addEventListener('click', function() {
+  if (!costsUploadFile) return;
+  var decisions = collectUploadDecisions();
+  var applying = decisions.filter(function(d, i) { var st = costsUploadRows[i].status; return d.action === 'apply' && (st === 'ready' || d.productId); }).length;
+  if (!applying) { costsSetStatus('costs-upload-status', 'No rows selected to apply.', 'error'); return; }
+  var fd = new FormData();
+  fd.append('file', costsUploadFile);
+  fd.append('decisions', JSON.stringify(decisions));
+  var btn = document.getElementById('costs-upload-apply');
+  btn.disabled = true;
+  costsSetStatus('costs-upload-status', 'Applying ' + applying + ' row(s)…');
+  costsApi('POST', '/wholesaler-import/apply', fd)
+    .then(function(out) {
+      var s = out.summary || {};
+      document.getElementById('costs-upload-results-counts').innerHTML = ['applied', 'skipped', 'error'].filter(function(k) { return s[k]; }).map(function(k) { return k.charAt(0).toUpperCase() + k.slice(1) + ': <strong>' + s[k] + '</strong>'; }).join(' · ');
+      var previewStatus = {};
+      costsUploadRows.forEach(function(r) { previewStatus[r.rowNumber] = r.status; });
+      document.querySelector('#costs-upload-results-table tbody').innerHTML = out.results.map(function(r) {
+        var chip = r.result === 'applied' ? costsChip('Applied', 'good') : r.result === 'error' ? costsChip('Error', 'bad') : costsChip('Skipped', 'muted');
+        var reason = r.reason;
+        if (r.result === 'skipped' && reason === 'Skipped by admin.') {
+          reason = previewStatus[r.rowNumber] === 'no_change' ? 'No changes to apply.' : previewStatus[r.rowNumber] === 'needs_confirmation' ? 'Suggested match not confirmed.' : 'Not selected.';
+        }
+        var details = reason ? escapeHtml(reason) : r.batch ? (r.batch.action === 'created' ? 'New current batch ' + escapeHtml(r.batch.lot) : 'Lot ' + escapeHtml(r.batch.lot) + ' already recorded') : '';
+        return '<tr><td>' + r.rowNumber + '</td><td>' + escapeHtml(r.sku || '') + '</td><td>' + chip + '</td><td>' + escapeHtml(r.productId || '') + '</td><td>' + details + '</td></tr>';
+      }).join('');
+      document.getElementById('costs-upload-results').hidden = false;
+      document.getElementById('costs-upload-preview-area').hidden = true;
+      costsSetStatus('costs-upload-status', 'Done. Upload the file again to preview the updated state.', 'success');
+      loadCostsProducts(true);
+    })
+    .catch(function(err) { costsShowError('costs-upload-status', err); })
+    .then(function() { btn.disabled = false; });
+});
+
+// ---------- Order costs ----------
+var costsOrderData = null;
+
+function loadOrderCosts(query) {
+  query = String(query || '').trim();
+  if (!query) { costsSetStatus('costs-order-status', 'Enter an order number or ID.', 'error'); return; }
+  document.getElementById('costs-order-query').value = query;
+  document.getElementById('costs-order-result').hidden = true;
+  costsSetStatus('costs-order-status', 'Loading…');
+  Promise.all([loadCostsProducts(), costsApi('GET', '/orders/' + encodeURIComponent(query) + '/cost-breakdown')])
+    .then(function(results) { costsOrderData = results[1]; renderOrderCosts(); costsSetStatus('costs-order-status', ''); })
+    .catch(function(err) { costsShowError('costs-order-status', err); });
+}
+
+function costsRow(label, cents, cls) {
+  return '<div class="row' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span><span>' + costsMoney(cents) + '</span></div>';
+}
+
+function renderOrderCosts() {
+  var d = costsOrderData, b = d.breakdown, c = d.commission;
+  var html = '<div class="costs-review-head"><strong>Order ' + escapeHtml(d.order.order_number || d.order.id) + '</strong> ' + costsChip(d.order.status, d.order.status === 'paid' ? 'good' : 'muted') +
+    ' <span style="color:var(--gray);">Paid by ' + escapeHtml(d.order.payment_method || '--') + ' · costed ' + escapeHtml(formatDate(b.computed_at)) + (b.recomputed_at ? ' · re-costed ' + escapeHtml(formatDate(b.recomputed_at)) : '') + '</span></div>';
+  if (b.review_reasons && b.review_reasons.length) html += '<ul class="costs-list bad"><li><strong>Missing costs (hold a profit-basis commission):</strong></li>' + b.review_reasons.map(function(r) { return '<li>' + escapeHtml(r) + '</li>'; }).join('') + '</ul>';
+  if (b.notices && b.notices.length) html += '<ul class="costs-list warn"><li><strong>Notices:</strong></li>' + b.notices.map(function(n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>';
+  var snap = b.settings_snapshot || {}, fee = snap.processingFee || {};
+  html += '<div class="costs-summary">' +
+    '<div class="costs-card"><h5>Revenue</h5>' + costsRow('Item subtotal', b.item_subtotal_cents) + costsRow('Discount (bulk or coupon)', -b.discount_cents) + costsRow('Store credit against items', -b.store_credit_items_cents) + costsRow('Revenue', b.revenue_cents, 'total') + '</div>' +
+    '<div class="costs-card"><h5>Costs (' + b.vials + ' vials)</h5>' + costsRow('Product', b.product_cost_cents) + costsRow('Lab analysis', b.lab_cost_cents) + costsRow('Labels', b.label_cost_cents) + costsRow('Packaging', b.packaging_cost_cents) +
+      costsRow('Shipping (quote ' + costsMoney(b.shipping_quote_cents) + ' − paid ' + costsMoney(b.shipping_paid_cents) + ')', b.shipping_cost_cents) +
+      costsRow('Processing' + (fee.percent != null ? ' (' + fee.percent + '% + ' + costsMoney(fee.fixedCents || 0) + ')' : ''), b.processing_fee_cents) + costsRow('Total cost', b.total_cost_cents, 'total') + '</div>' +
+    '<div class="costs-card"><h5>Profit &amp; commission</h5>' + costsRow('Profit', b.profit_cents, 'total') +
+      (c ? '<div class="row"><span>Commission (' + escapeHtml(c.basis_type === 'profit_v1' ? 'profit basis' : 'revenue basis') + ')</span><span>' + costsMoney(c.commission_cents) + '</span></div><div class="row"><span>Status</span><span>' + costsChip(c.status, c.status === 'held' || c.status === 'void' ? 'bad' : c.status === 'paid' ? 'good' : 'muted') + '</span></div>' +
+        (c.hold_reason ? '<div style="color:#c0392b;font-size:0.75rem;">' + escapeHtml(c.hold_reason) + '</div>' : '') + (c.flag_reason ? '<div style="color:#9A6B1E;font-size:0.75rem;">Flag: ' + escapeHtml(c.flag_reason) + '</div>' : '')
+        : '<div class="row"><span>Commission</span><span>none (customer not referred)</span></div>') + '</div>' +
+    '</div>';
+  html += '<h4 class="costs-h4">Lines</h4><div class="costs-table-wrap"><table class="products-table costs-table"><thead><tr><th>#</th><th>Product</th><th>Qty / vials</th><th>Batch</th><th>Cost / vial</th><th>Product cost</th><th>Lab share</th><th>Change batch</th></tr></thead><tbody>' +
+    b.lines.map(function(l) {
+      var batchCell = l.lot ? escapeHtml(l.lot) + ' ' + costsChip(l.batchSource === 'override' ? 'override' : 'auto', l.batchSource === 'override' ? 'warn' : 'muted') : costsChip('no batch', 'warn');
+      var source = l.costSource === 'missing' ? costsChip('missing', 'bad') : l.costSource === 'product_default' ? costsChip('product default', 'warn') : '';
+      return '<tr><td>' + (l.index + 1) + '</td><td>' + escapeHtml(l.name || l.productId) + '</td>' +
+        '<td>' + l.qty + ' / ' + (l.vials == null ? costsChip('vials not set', 'bad') : l.vials) + '</td>' +
+        '<td>' + batchCell + '</td><td>' + costsMoney(l.unitCostCents) + ' ' + source + '</td><td>' + costsMoney(l.productCostCents) + '</td><td>' + costsMoney(l.labShareCents) + '</td>' +
+        '<td><select class="costs-select costs-line-batch" data-line="' + l.index + '" data-product="' + escapeHtml(l.productId) + '"><option value="">Loading…</option></select> <button type="button" class="costs-link costs-line-apply" data-line="' + l.index + '">Apply</button></td></tr>';
+    }).join('') + '</tbody></table></div>';
+  var result = document.getElementById('costs-order-result');
+  result.innerHTML = html;
+  result.hidden = false;
+  // Batch choices per line: its base product's batches.
+  result.querySelectorAll('.costs-line-batch').forEach(function(sel) {
+    var line = b.lines[Number(sel.getAttribute('data-line'))];
+    costsApi('GET', '/products/' + encodeURIComponent(sel.getAttribute('data-product')) + '/batches')
+      .then(function(data) {
+        sel.innerHTML = '<option value="">' + (line.autoBatchId ? 'Auto-assigned batch' : 'No batch (product default)') + '</option>' + data.batches.map(function(bt) {
+          return '<option value="' + escapeHtml(bt.id) + '"' + (line.batchSource === 'override' && line.batchId === bt.id ? ' selected' : '') + '>' + escapeHtml(bt.lot) + ' (' + costsMoney(bt.wholesale_cost_cents_per_vial) + '/vial)</option>';
+        }).join('');
+      })
+      .catch(function(err) { if (!err.loggedOut) sel.innerHTML = '<option value="">Could not load batches</option>'; });
+  });
+}
+
+document.getElementById('costs-order-load').addEventListener('click', function() { loadOrderCosts(document.getElementById('costs-order-query').value); });
+document.getElementById('costs-order-query').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadOrderCosts(this.value); });
+document.getElementById('costs-order-result').addEventListener('click', function(e) {
+  if (!e.target.classList.contains('costs-line-apply')) return;
+  var index = Number(e.target.getAttribute('data-line'));
+  var sel = document.querySelector('.costs-line-batch[data-line="' + index + '"]');
+  costsSetStatus('costs-order-status', 'Re-costing line ' + (index + 1) + '…');
+  costsApi('POST', '/orders/' + encodeURIComponent(costsOrderData.breakdown.order_id) + '/cost-breakdown/lines/' + index + '/batch', { batchId: sel.value || null })
+    .then(function(data) {
+      costsOrderData.breakdown = data.breakdown; costsOrderData.commission = data.commission;
+      renderOrderCosts();
+      var c = data.commission;
+      costsSetStatus('costs-order-status', 'Line ' + (index + 1) + ' re-costed.' + (c && c.flag_reason && c.status === 'paid' ? ' The commission was already paid, so it was flagged for review instead of changed.' : ''), 'success');
+    })
+    .catch(function(err) { costsShowError('costs-order-status', err); });
+});
+
+// ---------- Commission review ----------
+var costsCommissions = [];
+
+function loadCommissionReview() {
+  costsSetStatus('costs-review-status', 'Loading…');
+  costsApi('GET', '/referral-commissions')
+    .then(function(rows) { costsCommissions = rows; renderCommissionReview(); })
+    .catch(function(err) { costsShowError('costs-review-status', err); document.getElementById('costs-review-list').innerHTML = ''; });
+}
+
+function renderCommissionReview() {
+  var filter = document.getElementById('costs-review-filter').value;
+  var rows = costsCommissions.filter(function(c) {
+    if (filter === 'held') return c.status === 'held';
+    if (filter === 'flagged') return !!c.flagged_at;
+    if (filter === 'attention') return c.status === 'held' || !!c.flagged_at;
+    return true;
+  });
+  costsSetStatus('costs-review-status', rows.length + ' commission' + (rows.length === 1 ? '' : 's') + (filter === 'attention' ? ' need attention.' : '.'));
+  document.getElementById('costs-review-list').innerHTML = rows.length ? rows.map(function(c) {
+    var kind = c.status === 'held' || c.status === 'void' ? 'bad' : c.status === 'paid' ? 'good' : 'muted';
+    var reason = c.hold_reason || (c.status === 'void' ? c.void_reason : '') || '';
+    var actions = '';
+    if (c.status === 'held') actions += '<button type="button" class="fulfillment-btn" data-review-action="release" data-id="' + escapeHtml(c.id) + '">Release</button>';
+    if (c.status === 'held' || c.status === 'pending') actions += '<button type="button" class="costs-btn-secondary" data-review-action="void" data-id="' + escapeHtml(c.id) + '">Void</button>';
+    if (c.flagged_at) actions += '<button type="button" class="fulfillment-btn" data-review-action="resolve-flag" data-id="' + escapeHtml(c.id) + '">Resolve Flag</button>';
+    return '<div class="costs-review-item">' +
+      '<div class="costs-review-head"><button type="button" class="costs-link" data-review-order="' + escapeHtml(c.order_number || c.order_id) + '">Order ' + escapeHtml(c.order_number || c.order_id) + '</button>' +
+        costsChip(c.status, kind) + (c.flagged_at ? costsChip('flagged', 'warn') : '') +
+        '<span>' + costsMoney(c.commission_cents) + ' (' + escapeHtml(c.basis_type === 'profit_v1' ? 'profit' : 'revenue') + ' basis, ' + Number(c.commission_rate_at_time) + '%)</span>' +
+        '<span style="color:var(--gray);">Affiliate: ' + escapeHtml(c.referrer_name || c.referrer_email || '--') + ' · ' + escapeHtml(formatDate(c.created_at)) + '</span></div>' +
+      (reason ? '<div style="color:#c0392b;margin-top:4px;">' + escapeHtml(reason) + '</div>' : '') +
+      (c.flag_reason ? '<div style="color:#9A6B1E;margin-top:4px;">Flag: ' + escapeHtml(c.flag_reason) + '</div>' : '') +
+      (actions ? '<div class="costs-review-actions"><textarea placeholder="Required note: what you checked and why" data-note-for="' + escapeHtml(c.id) + '"></textarea>' + actions + '</div>' : '') +
+      '</div>';
+  }).join('') : '<p style="color:var(--gray);font-size:0.85rem;">Nothing here.</p>';
+}
+
+document.getElementById('costs-review-filter').addEventListener('change', renderCommissionReview);
+document.getElementById('costs-review-refresh').addEventListener('click', loadCommissionReview);
+document.getElementById('costs-review-list').addEventListener('click', function(e) {
+  var orderRef = e.target.getAttribute('data-review-order');
+  if (orderRef) { showCostsSub('order'); loadOrderCosts(orderRef); return; }
+  var action = e.target.getAttribute('data-review-action');
+  if (!action) return;
+  var id = e.target.getAttribute('data-id');
+  var noteEl = document.querySelector('textarea[data-note-for="' + id + '"]');
+  var note = noteEl ? noteEl.value.trim() : '';
+  if (!note) { costsSetStatus('costs-review-status', 'A note is required: say what you checked and why.', 'error'); if (noteEl) noteEl.focus(); return; }
+  costsSetStatus('costs-review-status', 'Saving…');
+  costsApi('POST', '/referral-commissions/' + encodeURIComponent(id) + '/' + action, { note: note })
+    .then(function() {
+      costsSetStatus('costs-review-status', { release: 'Released -- the commission is payable once its hold period ends.', void: 'Voided.', 'resolve-flag': 'Flag resolved.' }[action], 'success');
+      return costsApi('GET', '/referral-commissions').then(function(rows) { costsCommissions = rows; var msg = document.getElementById('costs-review-status').textContent; renderCommissionReview(); costsSetStatus('costs-review-status', msg, 'success'); });
+    })
+    .catch(function(err) { costsShowError('costs-review-status', err); });
+});
+
+document.querySelectorAll('#costs-subtabs .content-subtab').forEach(function(b) {
+  b.addEventListener('click', function() { showCostsSub(b.getAttribute('data-costs-sub')); });
+});
+document.getElementById('tab-costs').addEventListener('click', showCostsTab);
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('orders-subtab-list').addEventListener('click', function() {
