@@ -3244,19 +3244,33 @@ function renderProductsSingleSelectOptions() {
   if (select.value !== current) select.value = '';
 }
 
+// GET /api/admin/products -- full product rows for admin screens (the
+// public /api/products deliberately omits internal fields like the sale
+// schedule, weight, units sold and wholesale costs). Resolves with the
+// product array, or null after a 401 (login screen shown, same as every
+// other admin loader); rejects with an Error describing any other failure.
+function fetchAdminProducts() {
+  return fetch('/api/admin/products', { credentials: 'include' })
+    .then(function(res) {
+      if (res.status === 401) { showLogin(); return null; }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    });
+}
+
 function loadProductsList() {
   if (productsLoaded) { renderProductsRows(); return; }
-  fetch('/api/products', { credentials: 'include' })
-    .then(function(res) { return res.json(); })
+  fetchAdminProducts()
     .then(function(products) {
+      if (!products) return;
       productsAllProducts = products;
       productsLoaded = true;
       renderProductsCategoryOptions();
       renderProductsSingleSelectOptions();
       renderProductsRows();
     })
-    .catch(function() {
-      document.getElementById('products-tbody').innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">Could not load products.</td></tr>';
+    .catch(function(err) {
+      document.getElementById('products-tbody').innerHTML = '<tr><td colspan="5" style="color:#c0392b;padding:20px;">Could not load products (' + escapeHtml(err && err.message ? err.message : 'network error') + '). Reopen the tab to retry.</td></tr>';
     });
 }
 
@@ -3635,9 +3649,9 @@ function closeInboxDetail() {
   inboxCurrentMessage = null;
 }
 
-// Lazy-loaded (and cached) the same live catalog every other page fetches
-// from GET /api/products, rather than a dedicated admin endpoint -- there's
-// nothing admin-specific about "list of products" here. Kits are excluded
+// Lazy-loaded (and cached) from GET /api/admin/products via
+// fetchAdminProducts() (the admin product list -- the public endpoint omits
+// internal fields, though this picker only needs id/name/category). Kits are excluded
 // entirely -- a kit is just a discounted bundle of a real vial product, so
 // it never gets its own COA upload (see findBackingVial() in product.html,
 // which is how a kit's product page shows its backing vial's COA instead).
@@ -3672,15 +3686,15 @@ function renderCoaCategoryOptions() {
 function loadCoaProducts() {
   if (coaProductsLoaded) return;
   coaProductsLoaded = true;
-  fetch('/api/products', { credentials: 'include' })
-    .then(function(res) { return res.json(); })
+  fetchAdminProducts()
     .then(function(products) {
+      if (!products) { coaProductsLoaded = false; return; }
       coaAllProducts = products.filter(function(p) { return p.category !== 'kit'; });
       renderCoaCategoryOptions();
       renderCoaProductOptions();
     })
-    .catch(function() {
-      document.getElementById('coa-product-select').innerHTML = '<option value="">Could not load products</option>';
+    .catch(function(err) {
+      document.getElementById('coa-product-select').innerHTML = '<option value="">Could not load products (' + escapeHtml(err && err.message ? err.message : 'network error') + ')</option>';
       coaProductsLoaded = false;
     });
 }

@@ -411,7 +411,7 @@ function saveShopState() {
 const SORT_MODES = ['az', 'za', 'price_low', 'price_high', 'popular', 'sales'];
 
 // Applied after the category filter and before pagination -- everything
-// needed (inStock/onSale/unitsSold/lowestPrice/name) was already computed
+// needed (inStock/onSale/popularityRank/lowestPrice/name) was already computed
 // per-group in renderShopGrid()'s grouping step, so this never re-fetches
 // or re-groups, just re-orders the already-loaded list.
 function sortGroupList(list, mode) {
@@ -427,7 +427,16 @@ function sortGroupList(list, mode) {
       sorted.sort((a, b) => b.lowestPrice - a.lowestPrice);
       break;
     case 'popular':
-      sorted.sort((a, b) => b.unitsSold - a.unitsSold);
+      // popularity_rank (1 = best-selling family) comes from the server
+      // (backend lib/popularity.js), which ranks families by their summed
+      // sales so raw per-product sales counts stay private. Families
+      // without a rank sort last. Fallback for a backend that doesn't send
+      // it yet: the old summed units_sold.
+      if (sorted.some((g) => g.popularityRank != null)) {
+        sorted.sort((a, b) => (a.popularityRank ?? Infinity) - (b.popularityRank ?? Infinity));
+      } else {
+        sorted.sort((a, b) => b.unitsSold - a.unitsSold);
+      }
       break;
     case 'sales':
       // onSale families first; A-Z as a stable tiebreak within each bucket
@@ -904,13 +913,19 @@ async function renderShopGrid() {
         lowestPrice: p.effectivePrice, highestPrice: p.effectivePrice, lowestRegularPrice: p.price,
         lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
         inStock: !isEffectivelyOutOfStock(p), onSale: !!p.onSaleNow,
-        salePercent: p.onSaleNow ? p.sale_percent : null, unitsSold: p.units_sold || 0 };
+        salePercent: p.onSaleNow ? p.sale_percent : null, unitsSold: p.units_sold || 0,
+        popularityRank: p.popularity_rank ?? null };
     } else {
       groups[base].count += 1;
       groups[base].multi = true;
       groups[base].inStock = groups[base].inStock || !isEffectivelyOutOfStock(p);
       groups[base].onSale = groups[base].onSale || !!p.onSaleNow;
       groups[base].unitsSold += (p.units_sold || 0);
+      // Every tier carries its family's rank; min() just guards against a
+      // mismatch rather than relying on encounter order.
+      if (p.popularity_rank != null && (groups[base].popularityRank == null || p.popularity_rank < groups[base].popularityRank)) {
+        groups[base].popularityRank = p.popularity_rank;
+      }
       if (p.effectivePrice > 0 && (groups[base].lowestPrice <= 0 || p.effectivePrice < groups[base].lowestPrice)) {
         groups[base].lowestPrice = p.effectivePrice;
         groups[base].lowestRegularPrice = p.price;
