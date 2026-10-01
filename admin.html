@@ -73,6 +73,11 @@ body{ background:var(--bg); color:#1a1a1a; font-family:-apple-system,BlinkMacSys
 }
 .qbo-status-badge.connected{ color:var(--green); background:#eafaf0; border:1px solid var(--green); }
 .qbo-status-badge.disconnected{ color:var(--gray); background:var(--panel); border:1px solid var(--line); }
+.qbo-status-badge.needs-reconnect{ color:#c0392b; background:#fdecea; border:1px solid #c0392b; }
+.qbo-status-badge.unknown{ color:#9A6B1E; background:#FDECD2; border:1px solid #9A6B1E; }
+.qbo-reconnect-banner{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:#fdecea; color:#8e2a1f; border:1px solid #c0392b; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:0.85rem; }
+.qbo-reconnect-banner[hidden]{ display:none; }
+.qbo-reconnect-banner strong{ display:block; margin-bottom:2px; }
 .qbo-connect-btn{
   background:var(--navy); color:#fff; border:none; border-radius:6px; padding:9px 16px;
   font-weight:700; font-size:0.82rem; cursor:pointer; text-decoration:none; white-space:nowrap;
@@ -420,6 +425,10 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 </div>
 
 <div class="admin-wrap" id="admin-wrap">
+  <div class="qbo-reconnect-banner" id="qbo-reconnect-banner" role="alert" hidden>
+    <div><strong>QuickBooks needs to be reconnected. Card payments are offline.</strong><span id="qbo-reconnect-banner-reason"></span></div>
+    <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn">Reconnect QuickBooks</a>
+  </div>
   <div class="admin-tabs">
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
     <button type="button" class="admin-tab" id="tab-payments">Payments</button>
@@ -600,7 +609,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="qbo-status-left">
       <span class="qbo-status-title">QuickBooks Payments (Credit/Debit Card)</span>
       <span class="qbo-status-detail" id="qbo-status-detail">Checking connection…</span>
-      <span class="qbo-status-badge disconnected" id="qbo-status-badge">Not Connected</span>
+      <span class="qbo-status-badge disconnected" id="qbo-status-badge">Checking…</span>
     </div>
     <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn" id="qbo-connect-btn">Connect</a>
   </div>
@@ -1540,6 +1549,11 @@ function showAdmin(username) {
     usernameEl.style.display = 'inline';
   }
   loadOrders();
+  checkQuickBooksBanner();
+  // A re-login lands back on whatever view was open; refresh the
+  // QuickBooks card if that's Payments, so it can't show a stale result
+  // from a request made while logged out.
+  if (document.getElementById('view-payments').classList.contains('active')) loadQuickBooksStatus();
   // Connects the /admin chat socket only once a valid admin session is
   // actually confirmed (this function's only two call sites are the
   // existing-session check and a fresh login success) -- the socket
@@ -2439,24 +2453,48 @@ function showPaymentsSubtab(subtabId, subviewId) {
   document.getElementById(subviewId).classList.add('active');
 }
 
-// GET /api/admin/quickbooks/status -- never returns tokens, just enough
-// to render "Connected to realm X" vs. "Not Connected" and toggle the
-// button's label between Connect/Reconnect. The button itself is a plain
-// <a href> (not a fetch-driven click handler) since /quickbooks/connect
-// is a real page navigation -- it 302s the admin's browser to Intuit's
-// own consent screen, which a fetch() can't follow across origins the
-// way a top-level navigation can.
+// GET /api/admin/quickbooks/status -- never returns tokens. Renders the
+// Payments > QuickBooks status card and the admin-wide reconnect banner
+// from the backend's connectionState:
+//   connected        green
+//   needs_reconnect  red, with the reason (banner shown)
+//   not_connected    gray (banner shown only if card payments are enabled)
+// A failed status request is NOT "not connected": a 401 sends the admin to
+// the login screen like every other loader, and any other failure shows an
+// amber "status unavailable" card and leaves the banner alone. (Treating a
+// 401 as "Not Connected" is what led to an unnecessary reconnect on
+// 2026-09-30.) The button itself is a plain <a href> (not a fetch-driven
+// click handler) since /quickbooks/connect is a real page navigation -- it
+// 302s the admin's browser to Intuit's own consent screen, which a fetch()
+// can't follow across origins the way a top-level navigation can.
 function loadQuickBooksStatus() {
   const detailEl = document.getElementById('qbo-status-detail');
   const badgeEl = document.getElementById('qbo-status-badge');
   const btnEl = document.getElementById('qbo-connect-btn');
+  // Neutral until the backend actually answers -- never a default
+  // "Not Connected" that a failed request could leave behind.
+  badgeEl.textContent = 'Checking…';
+  badgeEl.className = 'qbo-status-badge disconnected';
+  detailEl.textContent = 'Checking connection…';
   fetch('/api/admin/quickbooks/status', { credentials: 'include' })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (r.status === 401) { showLogin(); return null; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function(status) {
-      if (status.connected) {
+      if (!status) return;
+      // Older backends don't send connectionState -- fall back to connected.
+      var state = status.connectionState || (status.connected ? 'connected' : 'not_connected');
+      if (state === 'connected') {
         badgeEl.textContent = 'Connected';
         badgeEl.className = 'qbo-status-badge connected';
         detailEl.textContent = 'Realm ' + status.realmId + ' (' + status.environment + ')';
+        btnEl.textContent = 'Reconnect';
+      } else if (state === 'needs_reconnect') {
+        badgeEl.textContent = 'Needs Reconnect';
+        badgeEl.className = 'qbo-status-badge needs-reconnect';
+        detailEl.textContent = status.reason || 'The QuickBooks connection stopped working.';
         btnEl.textContent = 'Reconnect';
       } else {
         badgeEl.textContent = 'Not Connected';
@@ -2464,10 +2502,35 @@ function loadQuickBooksStatus() {
         detailEl.textContent = 'No QuickBooks account connected yet.';
         btnEl.textContent = 'Connect';
       }
+      renderQuickBooksBanner(status, state);
     })
-    .catch(function() {
-      detailEl.textContent = 'Could not check QuickBooks connection status.';
+    .catch(function(err) {
+      badgeEl.textContent = 'Status Unavailable';
+      badgeEl.className = 'qbo-status-badge unknown';
+      detailEl.textContent = 'Could not check the QuickBooks connection (' + (err && err.message ? err.message : 'network error') + '). This does not mean it is disconnected.';
+      btnEl.textContent = 'Reconnect';
     });
+}
+
+// Shown only on a successful status response that says the connection
+// needs action -- never because the status request itself failed.
+function renderQuickBooksBanner(status, state) {
+  var banner = document.getElementById('qbo-reconnect-banner');
+  var show = state === 'needs_reconnect' || (state === 'not_connected' && status.needsReconnect === true);
+  document.getElementById('qbo-reconnect-banner-reason').textContent = show ? (' ' + (status.reason || '')) : '';
+  banner.hidden = !show;
+}
+
+// Admin-wide banner check on login / page load -- banner only, the
+// Payments card is refreshed when that tab is opened.
+function checkQuickBooksBanner() {
+  fetch('/api/admin/quickbooks/status', { credentials: 'include' })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(status) {
+      if (!status) return;
+      renderQuickBooksBanner(status, status.connectionState || (status.connected ? 'connected' : 'not_connected'));
+    })
+    .catch(function() {});
 }
 
 // ============================================================
@@ -5050,6 +5113,7 @@ document.getElementById('payments-subtab-payram').addEventListener('click', func
 });
 document.getElementById('payments-subtab-quickbooks').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-quickbooks', 'payments-subview-quickbooks');
+  loadQuickBooksStatus();
 });
 document.getElementById('payments-subtab-storecredit').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-storecredit', 'payments-subview-storecredit');
