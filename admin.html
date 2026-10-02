@@ -314,8 +314,16 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .turnstile-widget{ margin:14px 0; }
 /* ---- Costs tab (commission cost basis) ---- */
 .costs-panel{ max-width:1100px; }
-.costs-sub{ display:none; }
-.costs-sub.active{ display:block; }
+.admin-sub{ display:none; }
+.admin-sub.active{ display:block; }
+#view-products.products-wide{ max-width:1100px; }
+.affiliate-basis-status{ border:1.5px solid var(--line); border-left:4px solid var(--navy); border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:0.85rem; background:#fff; }
+.affiliate-basis-status.profit{ border-left-color:var(--green); }
+.affiliate-basis-status .costs-warn, .affiliate-basis-status .costs-missing{ display:block; margin-top:4px; font-size:0.8rem; }
+.affiliate-section-status{ font-size:0.8rem; margin:4px 0 0; }
+.affiliate-section-status.error{ color:#c0392b; }
+.affiliate-section-status.success{ color:#1F7A34; }
+.affiliate-active-chip{ margin-left:6px; }
 .costs-fieldset{ border:1.5px solid var(--line); border-radius:8px; padding:12px 14px 14px; margin:0 0 16px; }
 .costs-fieldset legend{ font-size:0.78rem; font-weight:700; color:var(--navy-dark); padding:0 6px; }
 .costs-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px 16px; }
@@ -495,7 +503,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-audit">Audit Log</button>
     <button type="button" class="admin-tab" id="tab-jobs">Jobs</button>
     <button type="button" class="admin-tab" id="tab-livechat">Live Chat</button>
-    <button type="button" class="admin-tab" id="tab-costs">Costs</button>
+    <button type="button" class="admin-tab" id="tab-affiliate">Affiliate</button>
   </div>
 
   <div class="admin-view active" id="view-orders">
@@ -628,8 +636,6 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="content-subtab" id="payments-subtab-quickbooks">QuickBooks</button>
     <button type="button" class="content-subtab" id="payments-subtab-storecredit">Store Credit</button>
     <button type="button" class="content-subtab" id="payments-subtab-coupon">Coupon</button>
-    <button type="button" class="content-subtab" id="payments-subtab-referrals">Referrals</button>
-    <button type="button" class="content-subtab" id="payments-subtab-applications">Applications</button>
   </div>
 
   <div class="content-subview active" id="payments-subview-payram">
@@ -773,122 +779,13 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
        above -- referral_commissions is its own domain object (referrer/
        referred/order/payout), not another view of the orders table, so
        there was no existing paymentsOrdersCache shape to reuse here. -->
-  <div class="content-subview" id="payments-subview-referrals">
-  <!-- Visible, not just a code comment -- see lib/referrals.js's own
-       REVENUE_BASIS_CENTS comment (backend repo) and this migration's
-       header comment for the same statement kept next to the code that
-       actually computes/stores it. Anyone paying out an affiliate from
-       this tab should see this, not just whoever reads the source later. -->
-  <div style="background:#FDECD2; border:1px solid #F0D5A8; border-radius:8px; padding:12px 16px; margin-bottom:20px; font-size:0.82rem; color:#7A5416;">
-    <strong>Temporary basis:</strong> Commission is currently calculated on <strong>revenue</strong>, not profit -- no per-product cost-basis data exists in the system yet. This will switch to profit-based once real cost data is available.
-  </div>
-  <div class="fulfillment-section" style="margin-bottom:20px;">
-    <h3>Program Settings</h3>
-    <div class="credit-issue-row">
-      <div>
-        <label>Commission Rate (%)</label>
-        <input type="number" step="0.01" min="0" max="100" id="referral-rate-input" style="width:110px;">
-      </div>
-      <div>
-        <label>Attribution Window (days)</label>
-        <input type="number" step="1" min="0" id="referral-attribution-window-input" style="width:110px;">
-      </div>
-      <div>
-        <label>Payout Hold (days)</label>
-        <input type="number" step="1" min="0" id="referral-payout-hold-input" style="width:110px;">
-      </div>
-      <div>
-        <label>Minimum Payout (USD)</label>
-        <input type="number" step="0.01" min="0" id="referral-minimum-payout-input" style="width:110px;">
-      </div>
-      <div>
-        <label>Payout Schedule (days)</label>
-        <input type="number" step="1" min="0" id="referral-payout-schedule-input" style="width:110px;">
-      </div>
-      <button type="button" id="referral-settings-save-btn">Save</button>
-    </div>
-    <p class="credit-issue-status" id="referral-rate-status"></p>
-    <p class="fulfillment-section-note">Applies only to commissions calculated after this change -- every existing commission keeps the rate/hold period it was actually calculated at.</p>
-  </div>
-
-  <div class="fulfillment-section" style="margin-bottom:20px;">
-    <h3>Payouts</h3>
-    <p class="fulfillment-section-note">One row per affiliate. "Pay Out" pays every one of their eligible (past the hold period) pending commissions at once -- only enabled once their eligible balance meets the minimum payout and they haven't been paid within the schedule window.</p>
-    <div style="overflow-x:auto;">
-    <table class="orders-table">
-      <thead>
-        <tr>
-          <th>Affiliate</th>
-          <th>Eligible Balance</th>
-          <th>Not Yet Eligible</th>
-          <th>Lifetime Paid</th>
-          <th>Last Paid</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="referral-payouts-tbody"></tbody>
-    </table>
-    </div>
-  </div>
-
-  <div class="fulfillment-section">
-    <h3>Commission History</h3>
-    <div class="filters">
-      <input type="text" id="referral-search" placeholder="Search by order number, referrer, or referred email...">
-      <select id="referral-status-filter">
-        <option value="">All statuses</option>
-        <option value="pending">Pending</option>
-        <option value="paid">Paid</option>
-      </select>
-    </div>
-    <p class="result-count" id="referral-result-count"></p>
-    <div style="overflow-x:auto;">
-    <table class="orders-table">
-      <thead>
-        <tr>
-          <th>Referrer</th>
-          <th>Referred Customer</th>
-          <th>Order</th>
-          <th>Date</th>
-          <th>Commission</th>
-          <th>Eligible</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="referral-tbody"></tbody>
-    </table>
-    </div>
-  </div>
-  </div>
+  
 
   <!-- Own endpoints (GET /api/admin/referral-applications, POST
        .../approve, POST .../reject). Full submitted detail is shown
        expanded per row, same pattern as the Store Credit tab's
        Correct/Remove expandable row. -->
-  <div class="content-subview" id="payments-subview-applications">
-  <div class="filters">
-    <select id="applications-status-filter">
-      <option value="pending">Pending</option>
-      <option value="approved">Approved</option>
-      <option value="rejected">Rejected</option>
-      <option value="">All</option>
-    </select>
-  </div>
-  <p class="result-count" id="applications-result-count"></p>
-  <div style="overflow-x:auto;">
-  <table class="orders-table">
-    <thead>
-      <tr>
-        <th>Applicant</th>
-        <th>Submitted</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="applications-tbody"></tbody>
-  </table>
-  </div>
-  </div>
+  
   </div>
 
   <div class="admin-view coa-panel" id="view-coas">
@@ -1031,6 +928,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
   </div>
 
   <div class="admin-view products-panel" id="view-products">
+    <div class="content-subtabs costs-subtabs" id="products-subtabs">
+      <button type="button" class="content-subtab active" data-sub="catalog">Catalog</button>
+      <button type="button" class="content-subtab" data-sub="batches">Costs &amp; Batches</button>
+      <button type="button" class="content-subtab" data-sub="upload">Wholesaler Upload</button>
+    </div>
+    <div class="admin-sub active" id="products-sub-catalog">
     <div class="filters">
       <select id="products-category-filter"><option value="">All Categories</option></select>
       <select id="products-status-filter">
@@ -1122,6 +1025,58 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </thead>
       <tbody id="products-tbody"></tbody>
     </table>
+    </div>
+    <div class="admin-sub" id="products-sub-batches">
+      <div class="costs-status" id="costs-batches-status"></div>
+      <label for="costs-product-select" class="costs-label">Product (base products only -- pack sizes and kits share their base product's batches)</label>
+      <select id="costs-product-select"><option value="">Loading products…</option></select>
+      <div id="costs-product-detail" hidden>
+        <fieldset class="costs-fieldset">
+          <legend>Product cost fields</legend>
+          <div class="costs-grid">
+            <label>Current wholesale cost per vial ($)<input type="text" inputmode="decimal" id="costs-pf-cost"></label>
+            <label>Vials per unit<input type="text" inputmode="numeric" id="costs-pf-vials" placeholder="empty = 1 (kits must be set)"></label>
+            <label>Wholesaler SKU<input type="text" id="costs-pf-sku"></label>
+          </div>
+          <button type="button" class="fulfillment-btn" id="costs-pf-save">Save Cost Fields</button>
+        </fieldset>
+        <h4 class="costs-h4">Batches</h4>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-batches-table"><thead><tr><th>Lot</th><th>Received</th><th>Vials purchased</th><th>Cost / vial</th><th>Lab cost</th><th>Lab / vial</th><th>Current</th><th></th></tr></thead><tbody></tbody></table></div>
+        <fieldset class="costs-fieldset" id="costs-batch-form">
+          <legend id="costs-batch-form-title">Add a batch</legend>
+          <div class="costs-grid">
+            <label>Lot<input type="text" id="costs-bf-lot"></label>
+            <label>Received (YYYY-MM-DD)<input type="date" id="costs-bf-received"></label>
+            <label>Vials purchased<input type="text" inputmode="numeric" id="costs-bf-vials"></label>
+            <label>Cost per vial ($)<input type="text" inputmode="decimal" id="costs-bf-cost" placeholder="empty = product's current cost"></label>
+            <label>Lab analysis cost ($)<input type="text" inputmode="decimal" id="costs-bf-lab" placeholder="0.00"></label>
+            <label>Notes<input type="text" id="costs-bf-notes"></label>
+          </div>
+          <label class="costs-radio"><input type="checkbox" id="costs-bf-current" checked> Make this the current batch (new orders are assigned to it)</label>
+          <button type="button" class="fulfillment-btn" id="costs-bf-save">Add Batch</button>
+          <button type="button" class="costs-btn-secondary" id="costs-bf-cancel" hidden>Cancel Edit</button>
+        </fieldset>
+      </div>
+    </div>
+    <div class="admin-sub" id="products-sub-upload">
+      <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit, the wholesaler SKU mapping and new batches -- never retail prices, names, descriptions or stock, and never creates products.</p>
+      <button type="button" class="costs-btn-secondary" id="costs-upload-template">Download CSV Template</button>
+      <div class="costs-upload-row">
+        <input type="file" id="costs-upload-file" accept=".csv,text/csv">
+        <button type="button" class="fulfillment-btn" id="costs-upload-preview">Preview</button>
+      </div>
+      <div class="costs-status" id="costs-upload-status"></div>
+      <div id="costs-upload-preview-area" hidden>
+        <div class="costs-counts" id="costs-upload-counts"></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Batch</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
+        <button type="button" class="fulfillment-btn" id="costs-upload-apply">Apply Selected Rows</button>
+      </div>
+      <div id="costs-upload-results" hidden>
+        <h4 class="costs-h4">Results</h4>
+        <div class="costs-counts" id="costs-upload-results-counts"></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-results-table"><thead><tr><th>Row</th><th>SKU</th><th>Result</th><th>Product</th><th>Details</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
   </div>
 
   <div class="admin-view coa-panel" id="view-content">
@@ -1536,120 +1491,140 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     </div>
   </div>
 
-  <!-- Costs: commission cost basis (backend lib/orderCosts.js, routes/
-       adminCosts.js) -- settings, product costs & batches, wholesaler
-       upload, per-order cost breakdowns, and held/flagged commission
-       review. Every request goes through costsApi() below (401 -> login
-       screen; other failures shown with their reason). -->
-  <div class="admin-view costs-panel" id="view-costs">
-    <div class="content-subtabs costs-subtabs" id="costs-subtabs">
-      <button type="button" class="content-subtab active" data-costs-sub="settings">Settings</button>
-      <button type="button" class="content-subtab" data-costs-sub="batches">Products &amp; Batches</button>
-      <button type="button" class="content-subtab" data-costs-sub="upload">Wholesaler Upload</button>
-      <button type="button" class="content-subtab" data-costs-sub="order">Order Costs</button>
-      <button type="button" class="content-subtab" data-costs-sub="review">Commission Review</button>
+  <!-- Affiliate: the referral program (settings, payouts/commission history,
+       applications) and the commission cost basis (commission review,
+       per-order costs). Product cost data (Costs & Batches, Wholesaler
+       Upload) lives under the Products tab. -->
+  <div class="admin-view costs-panel" id="view-affiliate">
+    <div class="affiliate-basis-status" id="affiliate-basis-status">Loading commission status…</div>
+    <div class="content-subtabs costs-subtabs" id="affiliate-subtabs">
+      <button type="button" class="content-subtab active" data-sub="settings">Settings</button>
+      <button type="button" class="content-subtab" data-sub="referrals">Referrals</button>
+      <button type="button" class="content-subtab" data-sub="applications">Applications</button>
+      <button type="button" class="content-subtab" data-sub="review">Commission Review</button>
+      <button type="button" class="content-subtab" data-sub="order">Order Costs</button>
     </div>
-
-    <div class="costs-sub active" id="costs-sub-settings">
-      <p class="fulfillment-section-note">Applies to orders paid from now on. Each order's cost breakdown keeps a snapshot of the values it used. Leave a field empty to unset it.</p>
-      <div class="costs-status" id="costs-settings-status"></div>
+    <div class="admin-sub active" id="affiliate-sub-settings">
+      <p class="fulfillment-section-note">Changes apply to commissions calculated from now on -- every existing commission keeps the rate, basis and hold period it was calculated with. Leave a cost field empty to unset it.</p>
+      <div class="costs-status" id="aff-settings-status"></div>
       <fieldset class="costs-fieldset">
-        <legend>Commission basis</legend>
-        <label class="costs-radio"><input type="radio" name="costs-method" value="revenue"> Revenue (subtotal minus discount; the original method)</label>
-        <label class="costs-radio"><input type="radio" name="costs-method" value="profit_v1"> Profit (revenue minus product, lab, label, packaging, shipping and processing costs)</label>
+        <legend>Program</legend>
         <div class="costs-grid">
-          <label>Profit commission rate (%)<input type="text" inputmode="decimal" id="costs-profit-rate" placeholder="e.g. 5"></label>
+          <label>Attribution window (days)<input type="text" inputmode="numeric" id="aff-attribution-window"></label>
+          <label>Payout hold (days)<input type="text" inputmode="numeric" id="aff-payout-hold"></label>
+          <label>Minimum payout ($)<input type="text" inputmode="decimal" id="aff-minimum-payout"></label>
+          <label>Payout schedule (days)<input type="text" inputmode="numeric" id="aff-payout-schedule"></label>
         </div>
+        <p class="affiliate-section-status" id="aff-status-program"></p>
       </fieldset>
       <fieldset class="costs-fieldset">
-        <legend>Per-vial costs</legend>
+        <legend>Commission</legend>
+        <label class="costs-radio"><input type="radio" name="aff-method" value="revenue"> Revenue basis (subtotal minus discount)</label>
+        <label class="costs-radio"><input type="radio" name="aff-method" value="profit_v1"> Profit basis (revenue minus product, lab, label, packaging, shipping and processing costs)</label>
         <div class="costs-grid">
-          <label>Label cost per vial ($)<input type="text" inputmode="decimal" id="costs-label" placeholder="e.g. 0.20"></label>
-          <label>Packaging cost per vial ($)<input type="text" inputmode="decimal" id="costs-packaging" placeholder="e.g. 0.50"></label>
+          <label><span>Revenue commission rate (%)<span class="affiliate-active-chip" id="aff-revenue-rate-chip"></span></span><input type="text" inputmode="decimal" id="aff-revenue-rate"></label>
+          <label><span>Profit commission rate (%)<span class="affiliate-active-chip" id="aff-profit-rate-chip"></span></span><input type="text" inputmode="decimal" id="aff-profit-rate" placeholder="e.g. 5"></label>
         </div>
+        <p class="affiliate-section-status" id="aff-status-commission"></p>
       </fieldset>
       <fieldset class="costs-fieldset">
-        <legend>Processing fees (on the amount charged)</legend>
+        <legend>Cost settings</legend>
         <div class="costs-grid">
-          <label>Card fee (%)<input type="text" inputmode="decimal" id="costs-fee-card-pct" placeholder="e.g. 2.9"></label>
-          <label>Card fixed fee ($, optional)<input type="text" inputmode="decimal" id="costs-fee-card-fixed" placeholder="e.g. 0.30"></label>
-          <label>PayRam fee (%)<input type="text" inputmode="decimal" id="costs-fee-payram-pct" placeholder="e.g. 1"></label>
-          <label>PayRam fixed fee ($, optional)<input type="text" inputmode="decimal" id="costs-fee-payram-fixed" placeholder="e.g. 0"></label>
+          <label>Label cost per vial ($)<input type="text" inputmode="decimal" id="aff-label" placeholder="e.g. 0.20"></label>
+          <label>Packaging cost per vial ($)<input type="text" inputmode="decimal" id="aff-packaging" placeholder="e.g. 0.50"></label>
+          <label>Card fee (%)<input type="text" inputmode="decimal" id="aff-fee-card-pct" placeholder="e.g. 2.9"></label>
+          <label>Card fixed fee ($, optional)<input type="text" inputmode="decimal" id="aff-fee-card-fixed" placeholder="e.g. 0.30"></label>
+          <label>PayRam fee (%)<input type="text" inputmode="decimal" id="aff-fee-payram-pct" placeholder="e.g. 1"></label>
+          <label>PayRam fixed fee ($, optional)<input type="text" inputmode="decimal" id="aff-fee-payram-fixed" placeholder="e.g. 0"></label>
         </div>
+        <p class="affiliate-section-status" id="aff-status-costs"></p>
       </fieldset>
-      <button type="button" class="fulfillment-btn" id="costs-settings-save">Save Settings</button>
-      <div class="costs-confirm" id="costs-profit-confirm" hidden>
+      <button type="button" class="fulfillment-btn" id="aff-settings-save">Save Settings</button>
+      <div class="costs-confirm" id="aff-profit-confirm" hidden>
         <strong>Switch commissions to the profit basis?</strong>
         <p>New commissions will be calculated on profit at the profit commission rate. Commissions already recorded keep the basis they were calculated with.</p>
-        <div id="costs-profit-confirm-missing"></div>
-        <button type="button" class="fulfillment-btn" id="costs-profit-confirm-yes">Switch to Profit</button>
-        <button type="button" class="costs-btn-secondary" id="costs-profit-confirm-no">Cancel</button>
+        <div id="aff-profit-confirm-missing"></div>
+        <button type="button" class="fulfillment-btn" id="aff-profit-confirm-yes">Switch to Profit and Save</button>
+        <button type="button" class="costs-btn-secondary" id="aff-profit-confirm-no">Cancel</button>
       </div>
     </div>
+    <div class="admin-sub" id="affiliate-sub-referrals">
+  
 
-    <div class="costs-sub" id="costs-sub-batches">
-      <div class="costs-status" id="costs-batches-status"></div>
-      <label for="costs-product-select" class="costs-label">Product (base products only -- pack sizes and kits share their base product's batches)</label>
-      <select id="costs-product-select"><option value="">Loading products…</option></select>
-      <div id="costs-product-detail" hidden>
-        <fieldset class="costs-fieldset">
-          <legend>Product cost fields</legend>
-          <div class="costs-grid">
-            <label>Current wholesale cost per vial ($)<input type="text" inputmode="decimal" id="costs-pf-cost"></label>
-            <label>Vials per unit<input type="text" inputmode="numeric" id="costs-pf-vials" placeholder="empty = 1 (kits must be set)"></label>
-            <label>Wholesaler SKU<input type="text" id="costs-pf-sku"></label>
-          </div>
-          <button type="button" class="fulfillment-btn" id="costs-pf-save">Save Cost Fields</button>
-        </fieldset>
-        <h4 class="costs-h4">Batches</h4>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-batches-table"><thead><tr><th>Lot</th><th>Received</th><th>Vials purchased</th><th>Cost / vial</th><th>Lab cost</th><th>Lab / vial</th><th>Current</th><th></th></tr></thead><tbody></tbody></table></div>
-        <fieldset class="costs-fieldset" id="costs-batch-form">
-          <legend id="costs-batch-form-title">Add a batch</legend>
-          <div class="costs-grid">
-            <label>Lot<input type="text" id="costs-bf-lot"></label>
-            <label>Received (YYYY-MM-DD)<input type="date" id="costs-bf-received"></label>
-            <label>Vials purchased<input type="text" inputmode="numeric" id="costs-bf-vials"></label>
-            <label>Cost per vial ($)<input type="text" inputmode="decimal" id="costs-bf-cost" placeholder="empty = product's current cost"></label>
-            <label>Lab analysis cost ($)<input type="text" inputmode="decimal" id="costs-bf-lab" placeholder="0.00"></label>
-            <label>Notes<input type="text" id="costs-bf-notes"></label>
-          </div>
-          <label class="costs-radio"><input type="checkbox" id="costs-bf-current" checked> Make this the current batch (new orders are assigned to it)</label>
-          <button type="button" class="fulfillment-btn" id="costs-bf-save">Add Batch</button>
-          <button type="button" class="costs-btn-secondary" id="costs-bf-cancel" hidden>Cancel Edit</button>
-        </fieldset>
-      </div>
+  <div class="fulfillment-section" style="margin-bottom:20px;">
+    <h3>Payouts</h3>
+    <p class="fulfillment-section-note">One row per affiliate. "Pay Out" pays every one of their eligible (past the hold period) pending commissions at once -- only enabled once their eligible balance meets the minimum payout and they haven't been paid within the schedule window.</p>
+    <div style="overflow-x:auto;">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Affiliate</th>
+          <th>Eligible Balance</th>
+          <th>Not Yet Eligible</th>
+          <th>Lifetime Paid</th>
+          <th>Last Paid</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="referral-payouts-tbody"></tbody>
+    </table>
     </div>
+  </div>
 
-    <div class="costs-sub" id="costs-sub-upload">
-      <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit, the wholesaler SKU mapping and new batches -- never retail prices, names, descriptions or stock, and never creates products.</p>
-      <button type="button" class="costs-btn-secondary" id="costs-upload-template">Download CSV Template</button>
-      <div class="costs-upload-row">
-        <input type="file" id="costs-upload-file" accept=".csv,text/csv">
-        <button type="button" class="fulfillment-btn" id="costs-upload-preview">Preview</button>
-      </div>
-      <div class="costs-status" id="costs-upload-status"></div>
-      <div id="costs-upload-preview-area" hidden>
-        <div class="costs-counts" id="costs-upload-counts"></div>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Batch</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
-        <button type="button" class="fulfillment-btn" id="costs-upload-apply">Apply Selected Rows</button>
-      </div>
-      <div id="costs-upload-results" hidden>
-        <h4 class="costs-h4">Results</h4>
-        <div class="costs-counts" id="costs-upload-results-counts"></div>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-results-table"><thead><tr><th>Row</th><th>SKU</th><th>Result</th><th>Product</th><th>Details</th></tr></thead><tbody></tbody></table></div>
-      </div>
+  <div class="fulfillment-section">
+    <h3>Commission History</h3>
+    <div class="filters">
+      <input type="text" id="referral-search" placeholder="Search by order number, referrer, or referred email...">
+      <select id="referral-status-filter">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="paid">Paid</option>
+      </select>
     </div>
-
-    <div class="costs-sub" id="costs-sub-order">
-      <div class="costs-upload-row">
-        <input type="text" id="costs-order-query" placeholder="Order number or ID">
-        <button type="button" class="fulfillment-btn" id="costs-order-load">Load Breakdown</button>
-      </div>
-      <div class="costs-status" id="costs-order-status"></div>
-      <div id="costs-order-result" hidden></div>
+    <p class="result-count" id="referral-result-count"></p>
+    <div style="overflow-x:auto;">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Referrer</th>
+          <th>Referred Customer</th>
+          <th>Order</th>
+          <th>Date</th>
+          <th>Commission</th>
+          <th>Eligible</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="referral-tbody"></tbody>
+    </table>
     </div>
-
-    <div class="costs-sub" id="costs-sub-review">
+  </div>
+    </div>
+    <div class="admin-sub" id="affiliate-sub-applications">
+  <div class="filters">
+    <select id="applications-status-filter">
+      <option value="pending">Pending</option>
+      <option value="approved">Approved</option>
+      <option value="rejected">Rejected</option>
+      <option value="">All</option>
+    </select>
+  </div>
+  <p class="result-count" id="applications-result-count"></p>
+  <div style="overflow-x:auto;">
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>Applicant</th>
+        <th>Submitted</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="applications-tbody"></tbody>
+  </table>
+  </div>
+    </div>
+    <div class="admin-sub" id="affiliate-sub-review">
       <div class="costs-upload-row">
         <select id="costs-review-filter">
           <option value="attention">Needs attention (held or flagged)</option>
@@ -1661,6 +1636,14 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </div>
       <div class="costs-status" id="costs-review-status"></div>
       <div id="costs-review-list"></div>
+    </div>
+    <div class="admin-sub" id="affiliate-sub-order">
+      <div class="costs-upload-row">
+        <input type="text" id="costs-order-query" placeholder="Order number or ID">
+        <button type="button" class="fulfillment-btn" id="costs-order-load">Load Breakdown</button>
+      </div>
+      <div class="costs-status" id="costs-order-status"></div>
+      <div id="costs-order-result" hidden></div>
     </div>
   </div>
 </div>
@@ -1731,6 +1714,7 @@ function showAdmin(username) {
   }
   loadOrders();
   checkQuickBooksBanner();
+  routeAdminHash();
   // A re-login lands back on whatever view was open; refresh the
   // QuickBooks card if that's Payments, so it can't show a stale result
   // from a request made while logged out.
@@ -2168,52 +2152,6 @@ function debouncedRenderCouponPayments() {
 // Payments > Referrals
 // ============================================================
 
-// Reads from the PUBLIC GET (same one account.html's application form
-// reads) rather than a separate admin-only endpoint -- these settings
-// aren't sensitive, and it means these inputs always reflect exactly
-// what's live, same convention as content-free-shipping-input above.
-function loadReferralSettings() {
-  fetch('/api/content/referral-program-settings')
-    .then(function(r) { return r.json(); })
-    .then(function(s) {
-      document.getElementById('referral-rate-input').value = s.commissionRatePercent;
-      document.getElementById('referral-attribution-window-input').value = s.attributionWindowDays;
-      document.getElementById('referral-payout-hold-input').value = s.payoutHoldDays;
-      document.getElementById('referral-minimum-payout-input').value = (s.minimumPayoutCents / 100).toFixed(2);
-      document.getElementById('referral-payout-schedule-input').value = s.payoutScheduleDays;
-    })
-    .catch(function() {});
-}
-
-document.getElementById('referral-settings-save-btn').addEventListener('click', function() {
-  var btn = this;
-  var statusEl = document.getElementById('referral-rate-status');
-  var payload = {
-    commissionRatePercent: document.getElementById('referral-rate-input').value,
-    attributionWindowDays: document.getElementById('referral-attribution-window-input').value,
-    payoutHoldDays: document.getElementById('referral-payout-hold-input').value,
-    minimumPayoutCents: Math.round(parseFloat(document.getElementById('referral-minimum-payout-input').value) * 100),
-    payoutScheduleDays: document.getElementById('referral-payout-schedule-input').value,
-  };
-  btn.disabled = true;
-  statusEl.textContent = '';
-  statusEl.className = 'credit-issue-status';
-  fetch('/api/admin/content/referral-program-settings', {
-    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-  })
-    .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
-    .then(function(r) {
-      btn.disabled = false;
-      statusEl.textContent = r.ok ? 'Saved.' : (r.d.error || 'Could not save.');
-      statusEl.className = 'credit-issue-status ' + (r.ok ? 'success' : 'error');
-    })
-    .catch(function() {
-      btn.disabled = false;
-      statusEl.textContent = 'Could not save.';
-      statusEl.className = 'credit-issue-status error';
-    });
-});
-
 // ============================================================
 // Payouts (aggregate, per affiliate) -- replaces the old per-commission
 // "Mark Paid" action. See GET /api/admin/referral-payouts' own comment
@@ -2566,10 +2504,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat', 'tab-costs'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat', 'tab-affiliate'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat', 'view-costs'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat', 'view-affiliate'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -2603,10 +2541,6 @@ function showPaymentsTab() {
   loadPayments();
   loadQuickBooksStatus();
   loadQuickBooksTransactions();
-  loadReferralSettings();
-  loadReferralCommissions();
-  loadReferralPayouts();
-  loadReferralApplications();
 }
 
 // Sub-navigation within the Payments tab -- PayRam (the order/payment
@@ -2624,10 +2558,10 @@ function showPaymentsTab() {
 // and admin-gated, so eager-loading all of them up front was chosen for
 // simplicity over matching that lazier pattern).
 function showPaymentsSubtab(subtabId, subviewId) {
-  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon', 'payments-subtab-referrals', 'payments-subtab-applications'].forEach(function(id) {
+  ['payments-subtab-payram', 'payments-subtab-quickbooks', 'payments-subtab-storecredit', 'payments-subtab-coupon'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon', 'payments-subview-referrals', 'payments-subview-applications'].forEach(function(id) {
+  ['payments-subview-payram', 'payments-subview-quickbooks', 'payments-subview-storecredit', 'payments-subview-coupon'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -3455,9 +3389,10 @@ function loadProductsList() {
     });
 }
 
-function showProductsTab() {
+// sub is optional (a click handler passes an Event, which is ignored).
+function showProductsTab(sub) {
   showAdminTab('tab-products', 'view-products');
-  loadProductsList();
+  showProductsSub(typeof sub === 'string' ? sub : productsActiveSub);
 }
 
 // ============================================================
@@ -5351,69 +5286,281 @@ function costsChip(text, kind) {
   return '<span class="costs-chip ' + kind + '">' + escapeHtml(text) + '</span>';
 }
 
-var costsActiveSub = 'settings';
-function showCostsSub(name) {
-  costsActiveSub = name;
-  document.querySelectorAll('#costs-subtabs .content-subtab').forEach(function(b) { b.classList.toggle('active', b.getAttribute('data-costs-sub') === name); });
-  document.querySelectorAll('#view-costs .costs-sub').forEach(function(v) { v.classList.toggle('active', v.id === 'costs-sub-' + name); });
-  if (name === 'settings') loadCostSettings();
-  if (name === 'batches') loadCostsProducts();
+// Affiliate and Products tabs both use sub-views (.admin-sub, direct
+// children of the tab's view) switched by data-sub buttons; each
+// sub-view's loader runs when it's shown.
+var affiliateActiveSub = 'settings';
+var productsActiveSub = 'catalog';
+
+function setActiveSub(view, name) {
+  document.querySelectorAll('#' + view + '-subtabs .content-subtab').forEach(function(b) { b.classList.toggle('active', b.getAttribute('data-sub') === name); });
+  document.querySelectorAll('#view-' + view + ' > .admin-sub').forEach(function(v) { v.classList.toggle('active', v.id === view + '-sub-' + name); });
+}
+
+function showAffiliateSub(name) {
+  affiliateActiveSub = name;
+  setActiveSub('affiliate', name);
+  if (name === 'settings') loadAffiliateSettings();
+  if (name === 'referrals') { loadReferralCommissions(); loadReferralPayouts(); }
+  if (name === 'applications') loadReferralApplications();
   if (name === 'review') loadCommissionReview();
 }
 
-function showCostsTab() {
-  showAdminTab('tab-costs', 'view-costs');
-  showCostsSub(costsActiveSub);
+// sub is optional (a click handler passes an Event, which is ignored).
+function showAffiliateTab(sub) {
+  showAdminTab('tab-affiliate', 'view-affiliate');
+  loadAffiliateStatus();
+  showAffiliateSub(typeof sub === 'string' ? sub : affiliateActiveSub);
 }
 
-// ---------- Settings ----------
-var costsSettings = null;
-
-function renderCostSettings(s) {
-  costsSettings = s;
-  document.querySelectorAll('input[name="costs-method"]').forEach(function(r) { r.checked = r.value === s.method; });
-  document.getElementById('costs-profit-rate').value = s.profitRatePercent == null ? '' : s.profitRatePercent;
-  document.getElementById('costs-label').value = costsCentsToInput(s.labelPerVialCents);
-  document.getElementById('costs-packaging').value = costsCentsToInput(s.packagingPerVialCents);
-  document.getElementById('costs-fee-card-pct').value = s.fees.card.percent == null ? '' : s.fees.card.percent;
-  document.getElementById('costs-fee-card-fixed').value = costsCentsToInput(s.fees.card.fixedCents);
-  document.getElementById('costs-fee-payram-pct').value = s.fees.payram.percent == null ? '' : s.fees.payram.percent;
-  document.getElementById('costs-fee-payram-fixed').value = costsCentsToInput(s.fees.payram.fixedCents);
+function showProductsSub(name) {
+  productsActiveSub = name;
+  setActiveSub('products', name);
+  // The cost screens' tables need more room than the catalog's 900px.
+  document.getElementById('view-products').classList.toggle('products-wide', name !== 'catalog');
+  if (name === 'catalog') loadProductsList();
+  if (name === 'batches') loadCostsProducts();
 }
 
-function loadCostSettings() {
-  costsSetStatus('costs-settings-status', 'Loading…');
-  costsApi('GET', '/cost-settings')
-    .then(function(s) {
-      renderCostSettings(s);
-      var note = s.method === 'profit_v1' ? 'Commissions are on the PROFIT basis.' : 'Commissions are on the REVENUE basis.';
-      if (s.missingForProfit && s.missingForProfit.length) note += ' Not set yet: ' + s.missingForProfit.join(', ') + '.';
-      costsSetStatus('costs-settings-status', note);
-    })
-    .catch(function(err) { costsShowError('costs-settings-status', err); });
+// ---------- Affiliate status line ----------
+// Program settings come from the same public GET account.html reads.
+function fetchProgramSettings() {
+  return fetch('/api/content/referral-program-settings')
+    .catch(function() { throw new Error('Network error -- check your connection and try again.'); })
+    .then(function(res) {
+      if (!res.ok) throw new Error('Could not load program settings (HTTP ' + res.status + ').');
+      return res.json();
+    });
 }
 
-// Reads the form into the PUT body. Returns { body } or { error }.
-function readCostSettingsForm() {
-  var methodEl = document.querySelector('input[name="costs-method"]:checked');
-  var body = { method: methodEl ? methodEl.value : 'revenue' };
-  var pct = function(id) { var v = document.getElementById(id).value.trim(); return v === '' ? '' : v; };
-  body.profitRatePercent = pct('costs-profit-rate');
-  body.feeCardPercent = pct('costs-fee-card-pct');
-  body.feePayramPercent = pct('costs-fee-payram-pct');
-  var money = { labelPerVialCents: 'costs-label', packagingPerVialCents: 'costs-packaging', feeCardFixedCents: 'costs-fee-card-fixed', feePayramFixedCents: 'costs-fee-payram-fixed' };
-  for (var field in money) {
-    var cents = costsDollarsToCents(document.getElementById(money[field]).value);
-    if (cents === null) return { error: 'Enter dollar amounts like 0.50 (at most 2 decimals), or leave the field empty.' };
-    body[field] = cents;
+// Reads the live commission_basis_method -- replaces the old static
+// "Temporary basis" banner.
+function renderAffiliateStatus(cost, program) {
+  var el = document.getElementById('affiliate-basis-status');
+  var profit = cost.method === 'profit_v1';
+  var rate = profit ? cost.profitRatePercent : (program ? program.commissionRatePercent : null);
+  var html = 'Commissions are calculated on the <strong>' + (profit ? 'PROFIT' : 'REVENUE') + ' basis</strong> ' +
+    (profit ? '(revenue minus product, lab, label, packaging, shipping and processing costs)' : '(subtotal minus discount)') +
+    (rate != null ? ' at <strong>' + escapeHtml(String(rate)) + '%</strong>' : '') + '.';
+  var missing = cost.missingForProfit || [];
+  if (missing.length) {
+    html += profit
+      ? '<span class="costs-missing">Not set yet -- new commissions are being held for review: ' + missing.map(escapeHtml).join(', ') + '.</span>'
+      : '<span class="costs-warn">Not set yet (needed before switching to profit): ' + missing.map(escapeHtml).join(', ') + '.</span>';
   }
-  var pctFields = ['profitRatePercent', 'feeCardPercent', 'feePayramPercent'];
-  for (var i = 0; i < pctFields.length; i++) {
-    var v = body[pctFields[i]];
-    if (v !== '' && !(isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100)) return { error: 'Percentages must be numbers between 0 and 100, or empty.' };
-  }
-  return { body: body };
+  el.innerHTML = html;
+  el.classList.toggle('profit', profit);
 }
+
+function loadAffiliateStatus() {
+  var el = document.getElementById('affiliate-basis-status');
+  Promise.all([costsApi('GET', '/cost-settings'), fetchProgramSettings().catch(function() { return null; })])
+    .then(function(r) { renderAffiliateStatus(r[0], r[1]); })
+    .catch(function(err) {
+      if (err.loggedOut) return;
+      el.innerHTML = '<span class="costs-missing">Could not load the commission status: ' + escapeHtml(err.message) + '</span>';
+    });
+}
+
+// ---------- Affiliate settings (program + commission + costs) ----------
+// One form, two endpoints: PUT /content/referral-program-settings (program
+// settings + the revenue commission rate) and PUT /cost-settings
+// (basis, profit rate, cost settings). Only a section whose values
+// changed is sent, and each endpoint's result is reported separately.
+var affSettings = { program: null, cost: null }; // as loaded/saved; null = not loaded
+
+var AFF_COST_MONEY = { labelPerVialCents: 'aff-label', packagingPerVialCents: 'aff-packaging', feeCardFixedCents: 'aff-fee-card-fixed', feePayramFixedCents: 'aff-fee-payram-fixed' };
+var AFF_PROGRAM_INPUTS = ['aff-attribution-window', 'aff-payout-hold', 'aff-minimum-payout', 'aff-payout-schedule', 'aff-revenue-rate'];
+var AFF_COST_INPUTS = ['aff-profit-rate', 'aff-label', 'aff-packaging', 'aff-fee-card-pct', 'aff-fee-card-fixed', 'aff-fee-payram-pct', 'aff-fee-payram-fixed'];
+
+function affSectionStatus(section, message, kind) {
+  var el = document.getElementById('aff-status-' + section);
+  el.textContent = message || '';
+  el.className = 'affiliate-section-status' + (kind ? ' ' + kind : '');
+}
+
+function renderAffProgram(p) {
+  document.getElementById('aff-attribution-window').value = p.attributionWindowDays;
+  document.getElementById('aff-payout-hold').value = p.payoutHoldDays;
+  document.getElementById('aff-minimum-payout').value = (p.minimumPayoutCents / 100).toFixed(2);
+  document.getElementById('aff-payout-schedule').value = p.payoutScheduleDays;
+  document.getElementById('aff-revenue-rate').value = p.commissionRatePercent;
+}
+
+function renderAffCost(c) {
+  document.querySelectorAll('input[name="aff-method"]').forEach(function(r) { r.checked = r.value === c.method; });
+  document.getElementById('aff-profit-rate').value = c.profitRatePercent == null ? '' : c.profitRatePercent;
+  document.getElementById('aff-label').value = costsCentsToInput(c.labelPerVialCents);
+  document.getElementById('aff-packaging').value = costsCentsToInput(c.packagingPerVialCents);
+  document.getElementById('aff-fee-card-pct').value = c.fees.card.percent == null ? '' : c.fees.card.percent;
+  document.getElementById('aff-fee-card-fixed').value = costsCentsToInput(c.fees.card.fixedCents);
+  document.getElementById('aff-fee-payram-pct').value = c.fees.payram.percent == null ? '' : c.fees.payram.percent;
+  document.getElementById('aff-fee-payram-fixed').value = costsCentsToInput(c.fees.payram.fixedCents);
+}
+
+// "Active" marks the rate the SAVED basis uses; picking the other basis
+// shows which rate will be active once saved.
+function renderAffRateChips() {
+  var saved = affSettings.cost ? affSettings.cost.method : null;
+  var selectedEl = document.querySelector('input[name="aff-method"]:checked');
+  var selected = selectedEl ? selectedEl.value : saved;
+  [['revenue', 'aff-revenue-rate-chip'], ['profit_v1', 'aff-profit-rate-chip']].forEach(function(pair) {
+    var el = document.getElementById(pair[1]);
+    if (pair[0] === saved && pair[0] === selected) el.innerHTML = costsChip('Active', 'good');
+    else if (pair[0] === selected) el.innerHTML = costsChip('Active after saving', 'warn');
+    else el.innerHTML = '';
+  });
+}
+
+function setAffInputsDisabled(ids, disabled) {
+  ids.forEach(function(id) { document.getElementById(id).disabled = disabled; });
+}
+
+function loadAffiliateSettings() {
+  costsSetStatus('aff-settings-status', 'Loading…');
+  ['program', 'commission', 'costs'].forEach(function(s) { affSectionStatus(s, ''); });
+  document.getElementById('aff-profit-confirm').hidden = true;
+  var program = fetchProgramSettings().then(function(p) {
+    affSettings.program = p; renderAffProgram(p); setAffInputsDisabled(AFF_PROGRAM_INPUTS, false);
+  }, function(err) {
+    affSettings.program = null; setAffInputsDisabled(AFF_PROGRAM_INPUTS, true);
+    affSectionStatus('program', 'Could not load program settings: ' + err.message + ' This section won\'t be saved.', 'error');
+  });
+  var cost = costsApi('GET', '/cost-settings').then(function(c) {
+    affSettings.cost = c; renderAffCost(c); setAffInputsDisabled(AFF_COST_INPUTS, false);
+  }, function(err) {
+    affSettings.cost = null; setAffInputsDisabled(AFF_COST_INPUTS, true);
+    if (!err.loggedOut) affSectionStatus('costs', 'Could not load commission and cost settings: ' + err.message + ' The basis, profit rate and cost settings won\'t be saved.', 'error');
+  });
+  Promise.all([program, cost]).then(function() {
+    costsSetStatus('aff-settings-status', '');
+    renderAffRateChips();
+  });
+}
+
+function readAffiliateForm() {
+  var v = function(id) { return document.getElementById(id).value.trim(); };
+  var out = {};
+  if (affSettings.program) {
+    var ints = [['aff-attribution-window', 'Attribution window'], ['aff-payout-hold', 'Payout hold'], ['aff-payout-schedule', 'Payout schedule']];
+    for (var i = 0; i < ints.length; i++) {
+      if (!/^\d+$/.test(v(ints[i][0])) || Number(v(ints[i][0])) > 3650) return { error: ints[i][1] + ' must be a whole number of days (0-3650).' };
+    }
+    var minPayout = costsDollarsToCents(v('aff-minimum-payout'));
+    if (minPayout === null || minPayout === '') return { error: 'Minimum payout must be a dollar amount like 50.00.' };
+    var rev = v('aff-revenue-rate');
+    if (rev === '' || !(isFinite(Number(rev)) && Number(rev) >= 0 && Number(rev) <= 100)) return { error: 'Revenue commission rate must be a number between 0 and 100.' };
+    out.program = {
+      commissionRatePercent: Number(rev), attributionWindowDays: Number(v('aff-attribution-window')),
+      payoutHoldDays: Number(v('aff-payout-hold')), minimumPayoutCents: minPayout, payoutScheduleDays: Number(v('aff-payout-schedule')),
+    };
+  }
+  if (affSettings.cost) {
+    var methodEl = document.querySelector('input[name="aff-method"]:checked');
+    var cost = { method: methodEl ? methodEl.value : affSettings.cost.method, profitRatePercent: v('aff-profit-rate'), feeCardPercent: v('aff-fee-card-pct'), feePayramPercent: v('aff-fee-payram-pct') };
+    for (var field in AFF_COST_MONEY) {
+      var cents = costsDollarsToCents(v(AFF_COST_MONEY[field]));
+      if (cents === null) return { error: 'Enter dollar amounts like 0.50 (at most 2 decimals), or leave the field empty.' };
+      cost[field] = cents;
+    }
+    var pcts = ['profitRatePercent', 'feeCardPercent', 'feePayramPercent'];
+    for (var j = 0; j < pcts.length; j++) {
+      var p = cost[pcts[j]];
+      if (p !== '' && !(isFinite(Number(p)) && Number(p) >= 0 && Number(p) <= 100)) return { error: 'Percentages must be numbers between 0 and 100, or empty.' };
+    }
+    out.cost = cost;
+  }
+  return out;
+}
+
+function affProgramChanged(form) {
+  var p = affSettings.program;
+  return !!(p && form.program) && (form.program.commissionRatePercent !== Number(p.commissionRatePercent) || form.program.attributionWindowDays !== Number(p.attributionWindowDays) ||
+    form.program.payoutHoldDays !== Number(p.payoutHoldDays) || form.program.minimumPayoutCents !== Number(p.minimumPayoutCents) || form.program.payoutScheduleDays !== Number(p.payoutScheduleDays));
+}
+
+function affCostChanged(form) {
+  var c = affSettings.cost;
+  if (!c || !form.cost) return false;
+  var num = function(x) { return x === '' || x === null || x === undefined ? null : Number(x); };
+  return form.cost.method !== c.method || num(form.cost.profitRatePercent) !== c.profitRatePercent ||
+    num(form.cost.labelPerVialCents) !== c.labelPerVialCents || num(form.cost.packagingPerVialCents) !== c.packagingPerVialCents ||
+    num(form.cost.feeCardPercent) !== c.fees.card.percent || (num(form.cost.feeCardFixedCents) || 0) !== c.fees.card.fixedCents ||
+    num(form.cost.feePayramPercent) !== c.fees.payram.percent || (num(form.cost.feePayramFixedCents) || 0) !== c.fees.payram.fixedCents;
+}
+
+function saveAffiliateSettings(form, programChanged, costChanged) {
+  var btn = document.getElementById('aff-settings-save');
+  btn.disabled = true;
+  ['program', 'commission', 'costs'].forEach(function(s) { affSectionStatus(s, ''); });
+  costsSetStatus('aff-settings-status', 'Saving…');
+  var result = { program: null, cost: null }; // null = not attempted; true = saved; Error = failed
+  var step1 = programChanged
+    ? costsApi('PUT', '/content/referral-program-settings', form.program).then(function() { result.program = true; affSettings.program = Object.assign({}, affSettings.program, form.program); }, function(err) { result.program = err; })
+    : Promise.resolve();
+  step1.then(function() {
+    if (result.program && result.program.loggedOut) return;
+    if (!costChanged) return;
+    return costsApi('PUT', '/cost-settings', form.cost).then(function(c) { result.cost = true; affSettings.cost = c; renderAffCost(c); }, function(err) { result.cost = err; });
+  }).then(function() {
+    btn.disabled = false;
+    document.getElementById('aff-profit-confirm').hidden = true;
+    if ((result.program && result.program.loggedOut) || (result.cost && result.cost.loggedOut)) { costsSetStatus('aff-settings-status', ''); return; }
+    var saved = [], failed = [];
+    if (result.program === true) { saved.push('program settings and revenue commission rate'); affSectionStatus('program', 'Saved.', 'success'); }
+    if (result.program instanceof Error) { failed.push('program settings and revenue commission rate (' + result.program.message.replace(/\.$/, '') + ')'); affSectionStatus('program', 'Not saved: ' + result.program.message, 'error'); }
+    if (result.cost === true) { saved.push('commission basis, profit commission rate and cost settings'); affSectionStatus('costs', 'Saved.', 'success'); }
+    if (result.cost instanceof Error) { failed.push('commission basis, profit commission rate and cost settings (' + result.cost.message.replace(/\.$/, '') + ')'); affSectionStatus('costs', 'Not saved: ' + result.cost.message, 'error'); }
+    var commissionParts = [];
+    if (result.program !== null) commissionParts.push('Revenue rate: ' + (result.program === true ? 'saved' : 'NOT saved') + '.');
+    if (result.cost !== null) commissionParts.push('Basis and profit rate: ' + (result.cost === true ? 'saved' : 'NOT saved') + '.');
+    affSectionStatus('commission', commissionParts.join(' '), failed.length ? (saved.length ? '' : 'error') : 'success');
+    if (!failed.length) costsSetStatus('aff-settings-status', 'Saved: ' + saved.join('; ') + '.', 'success');
+    else if (saved.length) costsSetStatus('aff-settings-status', 'Partly saved. Saved: ' + saved.join('; ') + '. NOT saved: ' + failed.join('; ') + '.', 'error');
+    else costsSetStatus('aff-settings-status', 'Nothing was saved. ' + failed.join('; ') + '.', 'error');
+    renderAffRateChips();
+    loadAffiliateStatus();
+  });
+}
+
+var affPendingSave = null;
+
+document.getElementById('aff-settings-save').addEventListener('click', function() {
+  var form = readAffiliateForm();
+  if (form.error) { costsSetStatus('aff-settings-status', form.error, 'error'); return; }
+  var programChanged = affProgramChanged(form), costChanged = affCostChanged(form);
+  if (!programChanged && !costChanged) { costsSetStatus('aff-settings-status', 'No changes to save.'); return; }
+  var switchingToProfit = costChanged && form.cost.method === 'profit_v1' && affSettings.cost.method !== 'profit_v1';
+  if (!switchingToProfit) { saveAffiliateSettings(form, programChanged, costChanged); return; }
+  // Switching to profit: confirm first, listing anything still empty;
+  // can't proceed while a required setting is empty (server enforces too).
+  var missing = missingForProfitFromForm(form.cost);
+  var warnings = [];
+  if (form.cost.labelPerVialCents === '') warnings.push('Label cost per vial');
+  if (form.cost.feeCardFixedCents === '') warnings.push('Card fixed fee (counts as $0)');
+  if (form.cost.feePayramFixedCents === '') warnings.push('PayRam fixed fee (counts as $0)');
+  var html = '';
+  if (missing.length) html += '<p class="costs-missing">Can\'t switch yet. Set these first: ' + missing.map(escapeHtml).join(', ') + '.</p>';
+  if (warnings.length) html += '<p class="costs-warn">Also empty: ' + warnings.map(escapeHtml).join(', ') + '.</p>';
+  if (!missing.length && !warnings.length) html += '<p>All cost settings are set.</p>';
+  if (programChanged) html += '<p>Your program setting changes will be saved at the same time.</p>';
+  document.getElementById('aff-profit-confirm-missing').innerHTML = html;
+  document.getElementById('aff-profit-confirm-yes').disabled = missing.length > 0;
+  document.getElementById('aff-profit-confirm').hidden = false;
+  affPendingSave = { form: form, programChanged: programChanged, costChanged: costChanged };
+});
+document.getElementById('aff-profit-confirm-yes').addEventListener('click', function() {
+  if (affPendingSave) saveAffiliateSettings(affPendingSave.form, affPendingSave.programChanged, affPendingSave.costChanged);
+  affPendingSave = null;
+});
+document.getElementById('aff-profit-confirm-no').addEventListener('click', function() {
+  document.getElementById('aff-profit-confirm').hidden = true;
+  affPendingSave = null;
+  if (affSettings.cost) document.querySelectorAll('input[name="aff-method"]').forEach(function(r) { r.checked = r.value === affSettings.cost.method; });
+  renderAffRateChips();
+  costsSetStatus('aff-settings-status', 'Not switched -- nothing was saved.');
+});
+document.querySelectorAll('input[name="aff-method"]').forEach(function(r) { r.addEventListener('change', renderAffRateChips); });
 
 // Same rule the server enforces (routes/adminCosts.js missingForProfit).
 function missingForProfitFromForm(body) {
@@ -5424,48 +5571,6 @@ function missingForProfitFromForm(body) {
   if (body.feePayramPercent === '') missing.push('PayRam processing fee %');
   return missing;
 }
-
-function saveCostSettings(body) {
-  costsSetStatus('costs-settings-status', 'Saving…');
-  return costsApi('PUT', '/cost-settings', body)
-    .then(function(s) {
-      renderCostSettings(s);
-      document.getElementById('costs-profit-confirm').hidden = true;
-      costsSetStatus('costs-settings-status', 'Saved. Commissions are on the ' + (s.method === 'profit_v1' ? 'PROFIT' : 'REVENUE') + ' basis.', 'success');
-    })
-    .catch(function(err) { costsShowError('costs-settings-status', err); });
-}
-
-document.getElementById('costs-settings-save').addEventListener('click', function() {
-  var read = readCostSettingsForm();
-  if (read.error) { costsSetStatus('costs-settings-status', read.error, 'error'); return; }
-  var switchingToProfit = read.body.method === 'profit_v1' && (!costsSettings || costsSettings.method !== 'profit_v1');
-  if (!switchingToProfit) { saveCostSettings(read.body); return; }
-  // Switching to profit: confirm first, listing anything still empty.
-  var missing = missingForProfitFromForm(read.body);
-  var warnings = [];
-  if (read.body.labelPerVialCents === '') warnings.push('Label cost per vial');
-  if (read.body.feeCardFixedCents === '') warnings.push('Card fixed fee (counts as $0)');
-  if (read.body.feePayramFixedCents === '') warnings.push('PayRam fixed fee (counts as $0)');
-  var html = '';
-  if (missing.length) html += '<p class="costs-missing">Can\'t switch yet. Set these first: ' + missing.map(escapeHtml).join(', ') + '.</p>';
-  if (warnings.length) html += '<p class="costs-warn">Also empty: ' + warnings.map(escapeHtml).join(', ') + '.</p>';
-  if (!missing.length && !warnings.length) html += '<p>All cost settings are set.</p>';
-  document.getElementById('costs-profit-confirm-missing').innerHTML = html;
-  document.getElementById('costs-profit-confirm-yes').disabled = missing.length > 0;
-  var box = document.getElementById('costs-profit-confirm');
-  box.hidden = false;
-  box.dataset.pendingBody = JSON.stringify(read.body);
-});
-document.getElementById('costs-profit-confirm-yes').addEventListener('click', function() {
-  var box = document.getElementById('costs-profit-confirm');
-  saveCostSettings(JSON.parse(box.dataset.pendingBody || '{}'));
-});
-document.getElementById('costs-profit-confirm-no').addEventListener('click', function() {
-  document.getElementById('costs-profit-confirm').hidden = true;
-  if (costsSettings) renderCostSettings(costsSettings);
-  costsSetStatus('costs-settings-status', 'Not switched.');
-});
 
 // ---------- Products & Batches ----------
 var costsProducts = null;      // full admin product rows
@@ -5906,7 +6011,7 @@ document.getElementById('costs-review-filter').addEventListener('change', render
 document.getElementById('costs-review-refresh').addEventListener('click', loadCommissionReview);
 document.getElementById('costs-review-list').addEventListener('click', function(e) {
   var orderRef = e.target.getAttribute('data-review-order');
-  if (orderRef) { showCostsSub('order'); loadOrderCosts(orderRef); return; }
+  if (orderRef) { showAffiliateSub('order'); loadOrderCosts(orderRef); return; }
   var action = e.target.getAttribute('data-review-action');
   if (!action) return;
   var id = e.target.getAttribute('data-id');
@@ -5922,10 +6027,52 @@ document.getElementById('costs-review-list').addEventListener('click', function(
     .catch(function(err) { costsShowError('costs-review-status', err); });
 });
 
-document.querySelectorAll('#costs-subtabs .content-subtab').forEach(function(b) {
-  b.addEventListener('click', function() { showCostsSub(b.getAttribute('data-costs-sub')); });
+document.querySelectorAll('#affiliate-subtabs .content-subtab').forEach(function(b) {
+  b.addEventListener('click', function() { showAffiliateSub(b.getAttribute('data-sub')); });
 });
-document.getElementById('tab-costs').addEventListener('click', showCostsTab);
+document.querySelectorAll('#products-subtabs .content-subtab').forEach(function(b) {
+  b.addEventListener('click', function() { showProductsSub(b.getAttribute('data-sub')); });
+});
+document.getElementById('tab-affiliate').addEventListener('click', showAffiliateTab);
+
+// admin.html#hash links (also used by the QuickBooks reconnect redirect
+// and emails: #quickbooks). Links from before the Affiliate
+// reorganisation are redirected to where those screens live now.
+var ADMIN_HASH_REDIRECTS = {
+  referrals: 'affiliate-referrals', applications: 'affiliate-applications',
+  costs: 'affiliate-settings', 'costs-settings': 'affiliate-settings', 'costs-review': 'affiliate-review', 'costs-order': 'affiliate-order-costs',
+  'costs-batches': 'products-batches', 'costs-upload': 'products-upload',
+};
+var ADMIN_HASH_ROUTES = {
+  orders: function() { showOrdersTab(); },
+  payments: function() { showPaymentsTab(); },
+  payram: function() { showPaymentsTab(); document.getElementById('payments-subtab-payram').click(); },
+  quickbooks: function() { showPaymentsTab(); document.getElementById('payments-subtab-quickbooks').click(); },
+  storecredit: function() { showPaymentsTab(); document.getElementById('payments-subtab-storecredit').click(); },
+  coupon: function() { showPaymentsTab(); document.getElementById('payments-subtab-coupon').click(); },
+  affiliate: function() { showAffiliateTab('settings'); },
+  'affiliate-settings': function() { showAffiliateTab('settings'); },
+  'affiliate-referrals': function() { showAffiliateTab('referrals'); },
+  'affiliate-applications': function() { showAffiliateTab('applications'); },
+  'affiliate-review': function() { showAffiliateTab('review'); },
+  'affiliate-order-costs': function() { showAffiliateTab('order'); },
+  products: function() { showProductsTab('catalog'); },
+  'products-catalog': function() { showProductsTab('catalog'); },
+  'products-batches': function() { showProductsTab('batches'); },
+  'products-upload': function() { showProductsTab('upload'); },
+};
+function routeAdminHash() {
+  var hash = location.hash.replace(/^#/, '').toLowerCase();
+  if (!hash) return;
+  if (ADMIN_HASH_REDIRECTS[hash]) {
+    hash = ADMIN_HASH_REDIRECTS[hash];
+    history.replaceState(null, '', '#' + hash);
+  }
+  if (ADMIN_HASH_ROUTES[hash]) ADMIN_HASH_ROUTES[hash]();
+}
+window.addEventListener('hashchange', function() {
+  if (document.getElementById('admin-wrap').style.display === 'block') routeAdminHash();
+});
 
 document.getElementById('tab-orders').addEventListener('click', showOrdersTab);
 document.getElementById('orders-subtab-list').addEventListener('click', function() {
@@ -5948,12 +6095,6 @@ document.getElementById('payments-subtab-storecredit').addEventListener('click',
 });
 document.getElementById('payments-subtab-coupon').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-coupon', 'payments-subview-coupon');
-});
-document.getElementById('payments-subtab-referrals').addEventListener('click', function() {
-  showPaymentsSubtab('payments-subtab-referrals', 'payments-subview-referrals');
-});
-document.getElementById('payments-subtab-applications').addEventListener('click', function() {
-  showPaymentsSubtab('payments-subtab-applications', 'payments-subview-applications');
 });
 document.getElementById('payments-search').addEventListener('input', debouncedRenderPayments);
 document.getElementById('payments-date-from').addEventListener('change', renderPayments);
