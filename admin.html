@@ -368,6 +368,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .costs-review-actions textarea{ flex:1 1 260px; min-height:38px; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font:inherit; font-size:0.8rem; }
 .costs-review-actions .fulfillment-btn, .costs-review-actions .costs-btn-secondary{ margin:0; padding:8px 12px; font-size:0.78rem; }
 .costs-link{ background:none; border:none; padding:0; color:var(--navy); text-decoration:underline; cursor:pointer; font:inherit; }
+.costs-namekey{ font-size:0.82rem; color:var(--gray); margin:8px 0 12px; overflow-wrap:anywhere; }
 @media (max-width: 700px) {
   .admin-tabs, .costs-subtabs{ flex-wrap:wrap; }
   .costs-btn-secondary{ margin-left:0; }
@@ -1038,6 +1039,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
             <label>Vials per unit<input type="text" inputmode="numeric" id="costs-pf-vials" placeholder="empty = 1 (kits must be set)"></label>
             <label>Wholesaler SKU<input type="text" id="costs-pf-sku"></label>
           </div>
+          <div class="costs-namekey" id="costs-pf-namekey-row" hidden>Wholesaler name (remembered from uploads): <strong id="costs-pf-namekey"></strong> <button type="button" class="costs-link" id="costs-pf-namekey-clear">Unlink</button></div>
           <button type="button" class="fulfillment-btn" id="costs-pf-save">Save Cost Fields</button>
         </fieldset>
         <h4 class="costs-h4">Batches</h4>
@@ -1060,6 +1062,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     </div>
     <div class="admin-sub" id="products-sub-upload">
       <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit, the wholesaler SKU mapping and new batches -- never retail prices, names, descriptions or stock, and never creates products.</p>
+      <p class="fulfillment-section-note">wholesaler_sku is optional: leave it blank, or leave the column out. A row without a SKU is matched by the wholesaler's product name + dosage once you've confirmed it for a product; after that, the same name matches automatically.</p>
       <button type="button" class="costs-btn-secondary" id="costs-upload-template">Download CSV Template</button>
       <div class="costs-upload-row">
         <input type="file" id="costs-upload-file" accept=".csv,text/csv">
@@ -1068,13 +1071,13 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <div class="costs-status" id="costs-upload-status"></div>
       <div id="costs-upload-preview-area" hidden>
         <div class="costs-counts" id="costs-upload-counts"></div>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Batch</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU (optional) / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Batch</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
         <button type="button" class="fulfillment-btn" id="costs-upload-apply">Apply Selected Rows</button>
       </div>
       <div id="costs-upload-results" hidden>
         <h4 class="costs-h4">Results</h4>
         <div class="costs-counts" id="costs-upload-results-counts"></div>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-results-table"><thead><tr><th>Row</th><th>SKU</th><th>Result</th><th>Product</th><th>Details</th></tr></thead><tbody></tbody></table></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-results-table"><thead><tr><th>Row</th><th>SKU / file product</th><th>Result</th><th>Product</th><th>Details</th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
   </div>
@@ -5622,9 +5625,34 @@ function renderCostsProductDetail() {
   document.getElementById('costs-pf-cost').value = costsCentsToInput(p.wholesale_cost_cents);
   document.getElementById('costs-pf-vials').value = p.vials_per_unit == null ? '' : p.vials_per_unit;
   document.getElementById('costs-pf-sku').value = p.wholesaler_sku || '';
+  renderCostsNameKey(p);
   resetBatchForm();
   loadCostsBatches();
 }
+
+// The remembered wholesaler name (set by confirming a no-SKU upload row);
+// shown here only so a wrong match can be unlinked.
+function costsNameKeyLabel(key) {
+  return String(key || '').replace('|', ' / ');
+}
+function renderCostsNameKey(p) {
+  document.getElementById('costs-pf-namekey-row').hidden = !p.wholesaler_name_key;
+  document.getElementById('costs-pf-namekey').textContent = costsNameKeyLabel(p.wholesaler_name_key);
+}
+
+document.getElementById('costs-pf-namekey-clear').addEventListener('click', function() {
+  var p = costsSelectedProduct();
+  if (!p || !p.wholesaler_name_key) return;
+  if (!confirm('Unlink the wholesaler name "' + costsNameKeyLabel(p.wholesaler_name_key) + '" from ' + p.id + '? Upload rows with that name will need confirming again.')) return;
+  costsSetStatus('costs-batches-status', 'Unlinking…');
+  costsApi('PATCH', '/products/' + encodeURIComponent(p.id) + '/cost-fields', { wholesalerNameKey: null })
+    .then(function(row) {
+      p.wholesaler_name_key = row.wholesaler_name_key;
+      renderCostsNameKey(p);
+      costsSetStatus('costs-batches-status', 'Wholesaler name unlinked from ' + p.id + '.', 'success');
+    })
+    .catch(function(err) { costsShowError('costs-batches-status', err); });
+});
 
 var costsBatches = [];
 function loadCostsBatches() {
@@ -5684,7 +5712,7 @@ document.getElementById('costs-pf-save').addEventListener('click', function() {
   costsSetStatus('costs-batches-status', 'Saving…');
   costsApi('PATCH', '/products/' + encodeURIComponent(p.id) + '/cost-fields', body)
     .then(function(row) {
-      p.wholesale_cost_cents = row.wholesale_cost_cents; p.vials_per_unit = row.vials_per_unit; p.wholesaler_sku = row.wholesaler_sku;
+      p.wholesale_cost_cents = row.wholesale_cost_cents; p.vials_per_unit = row.vials_per_unit; p.wholesaler_sku = row.wholesaler_sku; p.wholesaler_name_key = row.wholesaler_name_key;
       renderCostsProductOptions();
       costsSetStatus('costs-batches-status', 'Cost fields saved for ' + p.id + '.', 'success');
     })
@@ -5779,14 +5807,21 @@ function uploadStatusChip(status) {
 }
 
 function describeUploadChange(c) {
-  var fmt = function(v) { return c.field === 'wholesale_cost_cents' ? costsMoney(v) : (v === null || v === undefined ? '--' : escapeHtml(String(v))); };
-  var label = { wholesale_cost_cents: 'Cost / vial', vials_per_unit: 'Vials per unit', wholesaler_sku: 'Wholesaler SKU' }[c.field] || c.field;
+  var fmt = function(v) {
+    if (v === null || v === undefined) return c.field === 'wholesale_cost_cents' ? costsMoney(v) : '--';
+    return c.field === 'wholesale_cost_cents' ? costsMoney(v) : escapeHtml(c.field === 'wholesaler_name_key' ? costsNameKeyLabel(v) : String(v));
+  };
+  var label = { wholesale_cost_cents: 'Cost / vial', vials_per_unit: 'Vials per unit', wholesaler_sku: 'Wholesaler SKU', wholesaler_name_key: 'Wholesaler name' }[c.field] || c.field;
   return label + ': ' + fmt(c.from) + ' → ' + fmt(c.to);
 }
 
-function costsMappableProductOptions(selectedId) {
-  return '<option value="">Map to an existing product…</option>' + costsBaseProducts().filter(function(p) { return !p.wholesaler_sku; }).map(function(p) {
-    return '<option value="' + escapeHtml(p.id) + '"' + (p.id === selectedId ? ' selected' : '') + '>' + escapeHtml(costsProductLabel(p)) + '</option>';
+// A row with a SKU can map to a product with no SKU yet. A row without
+// one can map to any base product; one already linked to a different
+// wholesaler name gets relinked to this row's name (shown as a change).
+function costsMappableProductOptions(selectedId, row) {
+  return '<option value="">Map to an existing product…</option>' + costsBaseProducts().filter(function(p) { return row.sku ? !p.wholesaler_sku : true; }).map(function(p) {
+    var note = !row.sku && p.wholesaler_name_key ? ' -- relinks from "' + costsNameKeyLabel(p.wholesaler_name_key) + '"' : '';
+    return '<option value="' + escapeHtml(p.id) + '"' + (p.id === selectedId ? ' selected' : '') + '>' + escapeHtml(costsProductLabel(p) + note) + '</option>';
   }).join('');
 }
 
@@ -5797,7 +5832,7 @@ function renderUploadPreview(data) {
     ['Ready', c.ready], ['Confirm match', c.needs_confirmation], ['No match', c.needs_mapping], ['No change', c.no_change], ['Errors', c.error],
   ].filter(function(x) { return x[1]; }).map(function(x) { return x[0] + ': <strong>' + x[1] + '</strong>'; }).join(' · ');
   document.querySelector('#costs-upload-table tbody').innerHTML = data.rows.map(function(r) {
-    var product = r.product ? escapeHtml(r.product.id) : r.suggestion ? 'Suggested: <strong>' + escapeHtml(r.suggestion.id) + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(r.suggestion.name + ' / ' + (r.suggestion.dosage || '')) + '</div>' : '--';
+    var product = r.product ? escapeHtml(r.product.id) + (r.match === 'name_key' ? '<div style="color:var(--gray);font-size:0.72rem;">Matched by wholesaler name</div>' : '') : r.suggestion ? 'Suggested: <strong>' + escapeHtml(r.suggestion.id) + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(r.suggestion.name + ' / ' + (r.suggestion.dosage || '')) + '</div>' : '--';
     var changes = (r.changes || []).map(describeUploadChange).join('<br>') || (r.status === 'error' ? '' : '--');
     var batch = !r.batch ? (r.batchInput ? '' : '--') : r.batch.action === 'create'
       ? 'New lot <strong>' + escapeHtml(r.batch.lot) + '</strong> (' + r.batch.vialsPurchased + ' vials, lab ' + costsMoney(r.batch.labCents) + ')' + (r.batch.replacesCurrentLot ? '<br>replaces current lot ' + escapeHtml(r.batch.replacesCurrentLot) : '')
@@ -5806,11 +5841,11 @@ function renderUploadPreview(data) {
       (r.warnings && r.warnings.length ? '<ul class="costs-list warn">' + r.warnings.map(function(w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '');
     var decision;
     if (r.status === 'ready') decision = '<label class="costs-radio"><input type="checkbox" class="costs-up-apply" data-row="' + r.rowNumber + '" checked> Apply</label>';
-    else if (r.status === 'needs_confirmation') decision = '<label class="costs-radio"><input type="checkbox" class="costs-up-confirm" data-row="' + r.rowNumber + '"> Confirm ' + escapeHtml(r.suggestion.id) + '</label><select class="costs-select costs-up-map" data-row="' + r.rowNumber + '">' + costsMappableProductOptions('') + '</select>';
-    else if (r.status === 'needs_mapping') decision = '<select class="costs-select costs-up-map" data-row="' + r.rowNumber + '">' + costsMappableProductOptions('') + '</select><div style="color:var(--gray);font-size:0.72rem;margin-top:4px;">Otherwise skipped -- create the product in the Products tab first, then re-upload.</div>';
+    else if (r.status === 'needs_confirmation') decision = '<label class="costs-radio"><input type="checkbox" class="costs-up-confirm" data-row="' + r.rowNumber + '"> Confirm ' + escapeHtml(r.suggestion.id) + '</label><select class="costs-select costs-up-map" data-row="' + r.rowNumber + '">' + costsMappableProductOptions('', r) + '</select>';
+    else if (r.status === 'needs_mapping') decision = '<select class="costs-select costs-up-map" data-row="' + r.rowNumber + '">' + costsMappableProductOptions('', r) + '</select><div style="color:var(--gray);font-size:0.72rem;margin-top:4px;">Otherwise skipped -- create the product in the Products tab first, then re-upload.</div>';
     else decision = '--';
     return '<tr><td>' + r.rowNumber + '</td>' +
-      '<td><strong>' + escapeHtml(r.sku || '(none)') + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml((r.name || '') + ' / ' + (r.dosage || '')) + '</div></td>' +
+      '<td><strong>' + escapeHtml(r.sku || '(no SKU)') + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml((r.name || '') + ' / ' + (r.dosage || '')) + '</div></td>' +
       '<td>' + uploadStatusChip(r.status) + '</td><td>' + product + '</td><td>' + changes + notes + '</td><td>' + batch + '</td><td>' + decision + '</td></tr>';
   }).join('');
   document.getElementById('costs-upload-preview-area').hidden = false;
@@ -5873,7 +5908,8 @@ document.getElementById('costs-upload-apply').addEventListener('click', function
       var s = out.summary || {};
       document.getElementById('costs-upload-results-counts').innerHTML = ['applied', 'skipped', 'error'].filter(function(k) { return s[k]; }).map(function(k) { return k.charAt(0).toUpperCase() + k.slice(1) + ': <strong>' + s[k] + '</strong>'; }).join(' · ');
       var previewStatus = {};
-      costsUploadRows.forEach(function(r) { previewStatus[r.rowNumber] = r.status; });
+      var previewRow = {};
+      costsUploadRows.forEach(function(r) { previewStatus[r.rowNumber] = r.status; previewRow[r.rowNumber] = r; });
       document.querySelector('#costs-upload-results-table tbody').innerHTML = out.results.map(function(r) {
         var chip = r.result === 'applied' ? costsChip('Applied', 'good') : r.result === 'error' ? costsChip('Error', 'bad') : costsChip('Skipped', 'muted');
         var reason = r.reason;
@@ -5881,7 +5917,9 @@ document.getElementById('costs-upload-apply').addEventListener('click', function
           reason = previewStatus[r.rowNumber] === 'no_change' ? 'No changes to apply.' : previewStatus[r.rowNumber] === 'needs_confirmation' ? 'Suggested match not confirmed.' : 'Not selected.';
         }
         var details = reason ? escapeHtml(reason) : r.batch ? (r.batch.action === 'created' ? 'New current batch ' + escapeHtml(r.batch.lot) : 'Lot ' + escapeHtml(r.batch.lot) + ' already recorded') : '';
-        return '<tr><td>' + r.rowNumber + '</td><td>' + escapeHtml(r.sku || '') + '</td><td>' + chip + '</td><td>' + escapeHtml(r.productId || '') + '</td><td>' + details + '</td></tr>';
+        var src = previewRow[r.rowNumber] || {};
+        var fileProduct = escapeHtml(r.sku || '(no SKU)') + '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml((src.name || '') + ' / ' + (src.dosage || '')) + '</div>';
+        return '<tr><td>' + r.rowNumber + '</td><td>' + fileProduct + '</td><td>' + chip + '</td><td>' + escapeHtml(r.productId || '') + '</td><td>' + details + '</td></tr>';
       }).join('');
       document.getElementById('costs-upload-results').hidden = false;
       document.getElementById('costs-upload-preview-area').hidden = true;
