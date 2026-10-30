@@ -850,7 +850,7 @@ window.addEventListener('pageshow', function(e) {
 });
 
 function buildCardHtml(group) {
-  // group = {baseId, name, category, lowestPrice, highestPrice, lowestRegularPrice, lot, dosage, imgUrl}
+  // group = {baseId, name, category, lowestPrice, highestPrice, lowestRegularPrice, dosage, imgUrl}
   // lowestPrice/highestPrice are already effectivePrice (sale-aware) as
   // computed in renderShopGrid()'s grouping step below -- a range (kit
   // with varying tiers) never gets a "was" strikethrough since the range
@@ -912,7 +912,7 @@ async function renderShopGrid() {
   // a family counts as on-sale if ANY tier is, and unitsSold is
   // summed across every tier, since the card represents the whole family,
   // not one arbitrary row within it (same reasoning already applied to
-  // "cheapest tier wins the card" for price/dosage/lot below).
+  // "cheapest tier wins the card" for price/dosage below).
   const groups = {};
   products.forEach(p => {
     if (EXCLUDED_COMPONENT_IDS.indexOf(p.id) !== -1) return;
@@ -922,7 +922,7 @@ async function renderShopGrid() {
     if (!groups[base]) {
       groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
         lowestPrice: p.effectivePrice, highestPrice: p.effectivePrice, lowestRegularPrice: p.price,
-        lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
+        dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
         onSale: !!p.onSaleNow,
         salePercent: p.onSaleNow ? p.sale_percent : null, unitsSold: p.units_sold || 0,
         popularityRank: p.popularity_rank ?? null };
@@ -941,9 +941,8 @@ async function renderShopGrid() {
         groups[base].lowestRegularPrice = p.price;
         groups[base].baseId = p.id; // link to the cheapest tier
         groups[base].dosage = p.dosage;
-        groups[base].lot = p.lot;
         // The card's photo should be the cheapest tier's own photo, same as
-        // baseId/dosage/lot above -- previously left at whichever sibling
+        // baseId/dosage above -- previously left at whichever sibling
         // happened to be encountered first (harmless while every tier of a
         // family shared one photo, but Insulin Needles' 30ct/100ct now have
         // distinct real photos, so a stale imgUrl here would show the wrong
@@ -1373,7 +1372,7 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Clicking anywhere else on a card (image, name, lot, price) goes to
+  // Clicking anywhere else on a card (image, name, price) goes to
   // that product's detail page — the buttons above are handled first
   // and return early, so they're excluded from this navigation.
   const card = e.target.closest('.card');

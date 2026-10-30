@@ -354,6 +354,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .costs-chip.warn{ color:#9A6B1E; background:#FDECD2; }
 .costs-chip.bad{ color:#c0392b; background:#fdecea; }
 .costs-chip.muted{ color:var(--gray); background:var(--panel); }
+.lots-preview{ background:#e9e9ee; padding:10px; border-radius:6px; overflow:auto; margin:10px 0; }
+.lots-preview svg{ display:block; background:#fff; box-shadow:0 0 0 1px #c9ccd4; }
+.lots-check{ font-size:0.8rem; margin:8px 0 0; }
+.lots-check.bad{ color:#c0392b; }
+.lots-actions{ white-space:nowrap; }
+.lots-actions .costs-link{ margin-right:10px; }
 .costs-list{ margin:4px 0 0; padding-left:18px; font-size:0.78rem; }
 .costs-list.bad{ color:#c0392b; }
 .costs-list.warn{ color:#9A6B1E; }
@@ -811,8 +817,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 
     <div class="coa-fields" id="coa-fields" style="display:none;">
       <div>
-        <label for="coa-batch-lot">Lot Number</label>
-        <input type="text" id="coa-batch-lot">
+        <label for="coa-lot-select">Lot</label>
+        <select id="coa-lot-select"><option value="">Select a product first</option></select>
+        <p class="fulfillment-section-note" id="coa-lot-hint" style="margin:4px 0 0;"></p>
       </div>
       <div>
         <label for="coa-batch-date">Batch Date</label>
@@ -937,6 +944,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div class="content-subtabs costs-subtabs" id="products-subtabs">
       <button type="button" class="content-subtab active" data-sub="catalog">Catalog</button>
       <button type="button" class="content-subtab" data-sub="batches">Costs &amp; Batches</button>
+      <button type="button" class="content-subtab" data-sub="lots">Lots &amp; Labels</button>
       <button type="button" class="content-subtab" data-sub="upload">Wholesaler Upload</button>
     </div>
     <div class="admin-sub active" id="products-sub-catalog">
@@ -1035,7 +1043,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     </div>
     <div class="admin-sub" id="products-sub-batches">
       <div class="costs-status" id="costs-batches-status"></div>
-      <label for="costs-product-select" class="costs-label">Product (base products only -- pack sizes and kits share their base product's batches)</label>
+      <label for="costs-product-select" class="costs-label">Product (kits share their backing vial's batches)</label>
       <select id="costs-product-select"><option value="">Loading products…</option></select>
       <div id="costs-product-detail" hidden>
         <fieldset class="costs-fieldset">
@@ -1065,6 +1073,79 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <button type="button" class="costs-btn-secondary" id="costs-bf-cancel" hidden>Cancel Edit</button>
         </fieldset>
       </div>
+    </div>
+    <div class="admin-sub" id="products-sub-lots">
+      <div class="costs-status" id="lots-status"></div>
+      <label for="lots-product-select" class="costs-label">Product (a kit's vials carry their vial's lot)</label>
+      <select id="lots-product-select" class="costs-select" style="width:100%; max-width:520px; margin-bottom:14px;"><option value="">Loading products…</option></select>
+      <div id="lots-detail" hidden>
+        <p class="fulfillment-section-note" id="lots-product-summary"></p>
+        <h4 class="costs-h4">Lots</h4>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="lots-table"><thead><tr><th>Lot</th><th>Received</th><th>Expiry</th><th>Supplier lot</th><th>Cost</th><th>COA</th><th></th></tr></thead><tbody></tbody></table></div>
+        <fieldset class="costs-fieldset" id="lots-print" hidden>
+          <legend id="lots-print-title">Print labels</legend>
+          <div class="costs-grid">
+            <label>Label preset<select class="costs-select" id="lots-print-preset"></select></label>
+            <label>Mode<select class="costs-select" id="lots-print-mode"><option value="full">Full colour (colour label printer)</option><option value="overprint">Overprint only (thermal printer, pre-printed stock)</option></select></label>
+            <label>Quantity (1-500)<input type="number" min="1" max="500" step="1" id="lots-print-qty" value="1"></label>
+          </div>
+          <p class="costs-warn" id="lots-print-warning" hidden></p>
+          <div class="lots-preview" id="lots-print-preview"></div>
+          <p class="lots-check" id="lots-print-check"></p>
+          <button type="button" class="fulfillment-btn" id="lots-print-open">Open Label PDF</button>
+          <button type="button" class="costs-btn-secondary" id="lots-print-close">Close</button>
+        </fieldset>
+        <fieldset class="costs-fieldset" id="lots-new-form">
+          <legend>New lot (stock received)</legend>
+          <div class="costs-grid">
+            <label>Received<input type="date" id="lots-nf-received"></label>
+            <label>Expiry<input type="date" id="lots-nf-expiry"></label>
+            <label>Supplier lot (optional)<input type="text" id="lots-nf-supplier"></label>
+            <label>Vials purchased (optional)<input type="text" inputmode="numeric" id="lots-nf-vials"></label>
+            <label>Cost per vial ($, optional)<input type="text" inputmode="decimal" id="lots-nf-cost"></label>
+            <label>Lab analysis cost ($, optional)<input type="text" inputmode="decimal" id="lots-nf-lab"></label>
+            <label>Notes<input type="text" id="lots-nf-notes"></label>
+          </div>
+          <p class="fulfillment-section-note" id="lots-nf-preview" style="margin-top:10px;"></p>
+          <label class="costs-radio"><input type="checkbox" id="lots-nf-current" checked> Make this the current batch for order costing (until its cost is filled in under Costs &amp; Batches, new orders for it are marked "needs review")</label>
+          <button type="button" class="fulfillment-btn" id="lots-nf-save">Create Lot</button>
+        </fieldset>
+        <fieldset class="costs-fieldset">
+          <legend>Static artwork (for a label printing company)</legend>
+          <p class="fulfillment-section-note">Everything except LOT / EXP / QR, laid out to fit every lot of this product. Print onto this stock with "Overprint only".</p>
+          <div class="costs-grid"><label>Label preset<select class="costs-select" id="lots-art-preset"></select></label></div>
+          <button type="button" class="fulfillment-btn" id="lots-art-open">Open Artwork PDF</button>
+        </fieldset>
+      </div>
+      <h4 class="costs-h4">Label presets</h4>
+      <div class="costs-table-wrap"><table class="products-table costs-table" id="presets-table"><thead><tr><th>Preset</th><th>Vial</th><th>Size (mm)</th><th>Layout</th><th>Wrap seam</th><th>Clearance</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+      <fieldset class="costs-fieldset" id="presets-form">
+        <legend id="presets-form-title">Add a preset</legend>
+        <div class="costs-grid">
+          <label>Key (a-z, 0-9, -)<input type="text" id="pf-key" placeholder="e.g. 10ml-65x35"></label>
+          <label>Name<input type="text" id="pf-name"></label>
+          <label>Vial size<select class="costs-select" id="pf-vial"><option value="">none</option><option value="3">3 mL</option><option value="10">10 mL</option><option value="20">20 mL</option><option value="30">30 mL</option></select></label>
+          <label>Width (mm)<input type="text" inputmode="decimal" id="pf-width"></label>
+          <label>Height (mm)<input type="text" inputmode="decimal" id="pf-height"></label>
+          <label>Layout<select class="costs-select" id="pf-layout"><option value="full">Full (logo, storage, website)</option><option value="compact">Compact (LOT / EXP / QR only)</option></select></label>
+          <label>Seam<select class="costs-select" id="pf-seam-mode"><option value="gap">Gap (label shorter than the vial)</option><option value="overlap">Overlap (ends overlap)</option></select></label>
+          <label>Seam gap / overlap (mm)<input type="text" inputmode="decimal" id="pf-seam-mm" value="0"></label>
+          <label>Clearance from label ends (mm)<input type="text" inputmode="decimal" id="pf-end-clear" value="1.5"></label>
+          <label>Back panel share (0.40-0.60)<input type="text" inputmode="decimal" id="pf-back-share" value="0.50"></label>
+          <label>Notes<input type="text" id="pf-notes"></label>
+        </div>
+        <label class="costs-radio"><input type="checkbox" id="pf-short"> Short disclaimer ("RUO" / "NOT FOR HUMAN USE")</label>
+        <label class="costs-radio"><input type="checkbox" id="pf-verified" checked> Verified (size measured on a real vial)</label>
+        <label class="costs-radio"><input type="checkbox" id="pf-default" checked> Default for its vial size</label>
+        <label class="costs-radio"><input type="checkbox" id="pf-active" checked> Active</label>
+        <button type="button" class="fulfillment-btn" id="pf-save">Add Preset</button>
+        <button type="button" class="costs-btn-secondary" id="pf-cancel" hidden>Cancel Edit</button>
+      </fieldset>
+      <fieldset class="costs-fieldset">
+        <legend>Stock guard</legend>
+        <label class="costs-radio"><input type="checkbox" id="lots-guard"> Require a COA on a product's newest lot before it can be marked In Stock</label>
+        <p class="fulfillment-section-note">Off by default. Products with no lots are never blocked; a kit checks its vial's newest lot.</p>
+      </fieldset>
     </div>
     <div class="admin-sub" id="products-sub-upload">
       <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit, the wholesaler SKU mapping and new batches -- never retail prices, names, descriptions or stock, and never creates products.</p>
@@ -3372,7 +3453,30 @@ function renderProductsRows() {
                 '<p class="fulfillment-section-note" style="margin:4px 0 0;">Display label only.</p>' +
               '</div>' +
             '</div>'
-          ) : '') +
+          ) : (
+            // Vial label fields (Products > Lots & Labels). Kits have none:
+            // their vials carry their own vial's label.
+            '<div class="product-detail-grid" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">' +
+              '<div>' +
+                '<label>Vial Size (default label preset)</label>' +
+                '<select class="product-detail-vial-size">' + ['', '3', '10', '20', '30'].map(function(v) {
+                  return '<option value="' + v + '"' + (String(p.vial_size_ml != null ? p.vial_size_ml : '') === v ? ' selected' : '') + '>' + (v ? v + ' mL' : 'Not set (choose a preset when printing)') + '</option>';
+                }).join('') + '</select>' +
+                '<label>Shelf Life (months)</label>' +
+                '<input type="number" min="1" max="120" step="1" class="product-detail-shelf-life" value="' + (p.shelf_life_months != null ? p.shelf_life_months : '') + '" placeholder="e.g. 24 -- pre-fills each lot\'s expiry">' +
+                '<label>Reconstitution Volume (mL)</label>' +
+                '<input type="number" min="0.01" max="30" step="0.01" class="product-detail-recon-ml" value="' + (p.reconstitution_ml != null ? Number(p.reconstitution_ml) : '') + '" placeholder="empty = no storage lines on the label">' +
+              '</div>' +
+              '<div>' +
+                '<label>Label Name (optional)</label>' +
+                '<input type="text" class="product-detail-label-name" value="' + escapeHtml(p.label_name || '') + '" placeholder="default: display name without its size">' +
+                '<label>Label Dosage Text (optional)</label>' +
+                '<input type="text" class="product-detail-label-dosage" value="' + escapeHtml(p.label_dosage_text || '') + '" placeholder="default: from the dosage, e.g. 10MG / 10MG">' +
+                '<label>Volume (mL, optional)</label>' +
+                '<input type="number" min="0.01" step="0.01" class="product-detail-volume-ml" value="' + (p.volume_ml != null ? Number(p.volume_ml) : '') + '" placeholder="for products with no amount, e.g. waters">' +
+              '</div>' +
+            '</div>'
+          )) +
           '<button type="button" class="product-save-btn" data-product-id="' + p.id + '">Save</button>' +
           '<span class="product-save-status" id="product-save-status-' + p.id + '"></span>' +
         '</td>' +
@@ -3896,29 +4000,67 @@ function resetCoaForm() {
   lastCoaExtraction = null;
 }
 
-// Reuses the already-public GET /api/products/:id/coas (same endpoint
-// product.html's own COA list fetches) rather than a dedicated admin-only
-// listing route -- this data isn't sensitive, it's already shown to every
-// site visitor on the product page.
+// Every COA belongs to one lot (Products > Lots & Labels). The product's
+// lots come from the admin lots API: lots with a COA are listed as existing
+// certificates; lots without one fill the Lot picker (one COA per lot).
+var coaLots = [];
+
+function renderCoaLotOptions() {
+  var select = document.getElementById('coa-lot-select');
+  var numbered = coaLots.filter(function(l) { return l.lot_number; });
+  if (!numbered.length) {
+    select.innerHTML = '<option value="">No lots yet -- create one under Products > Lots &amp; Labels</option>';
+    return;
+  }
+  select.innerHTML = '<option value="">Select the lot this COA is for…</option>' + numbered.map(function(l) {
+    return '<option value="' + escapeHtml(l.id) + '"' + (l.coa_id ? ' disabled' : '') + '>' + escapeHtml(l.lot_number) +
+      ' -- received ' + escapeHtml(l.received_at) + (l.coa_id ? ' (COA attached)' : '') + '</option>';
+  }).join('');
+}
+
+// Pre-selects the lot whose number matches the one extracted from the PDF.
+function matchCoaLot(extractedLot) {
+  var hint = document.getElementById('coa-lot-hint');
+  var want = String(extractedLot || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!want) { hint.textContent = ''; return; }
+  var match = coaLots.filter(function(l) { return l.lot_number === want && !l.coa_id; })[0];
+  if (match) {
+    document.getElementById('coa-lot-select').value = match.id;
+    hint.textContent = 'Matched the lot number on the PDF (' + want + ').';
+  } else {
+    hint.textContent = 'The PDF says lot "' + extractedLot + '" -- no matching lot without a COA. Pick the right lot.';
+  }
+}
+
 function loadExistingCoas(productId) {
   var container = document.getElementById('coa-existing-list');
-  if (!productId) { container.innerHTML = ''; return; }
-  fetch('/api/products/' + encodeURIComponent(productId) + '/coas')
-    .then(function(res) { return res.json(); })
-    .then(function(coas) {
-      if (!Array.isArray(coas) || coas.length === 0) {
+  coaLots = [];
+  document.getElementById('coa-lot-hint').textContent = '';
+  if (!productId) {
+    container.innerHTML = '';
+    document.getElementById('coa-lot-select').innerHTML = '<option value="">Select a product first</option>';
+    return;
+  }
+  costsApi('GET', '/products/' + encodeURIComponent(productId) + '/lots')
+    .then(function(data) {
+      coaLots = data.lots || [];
+      renderCoaLotOptions();
+      var withCoa = coaLots.filter(function(l) { return l.coa_id; });
+      if (withCoa.length === 0) {
         container.innerHTML = '<p class="coa-existing-empty">No certificates uploaded yet for this product.</p>';
         return;
       }
-      container.innerHTML = '<h3>Existing Certificates</h3>' + coas.map(function(coa) {
+      container.innerHTML = '<h3>Existing Certificates</h3>' + withCoa.map(function(l) {
         return '<div class="coa-existing-item">' +
-          '<span>LOT #' + coa.batch_lot + ' — ' + coa.batch_date + '</span>' +
-          '<button type="button" class="coa-delete-btn" data-coa-id="' + coa.id + '">Delete</button>' +
+          '<span>LOT ' + escapeHtml(l.lot_number) + ' — ' + escapeHtml(l.coa_batch_date || '') + '</span>' +
+          '<button type="button" class="coa-delete-btn" data-coa-id="' + escapeHtml(l.coa_id) + '">Delete</button>' +
         '</div>';
       }).join('');
     })
-    .catch(function() {
-      container.innerHTML = '<p class="coa-existing-empty">Could not load existing certificates.</p>';
+    .catch(function(err) {
+      if (err && err.loggedOut) return;
+      container.innerHTML = '<p class="coa-existing-empty">' + escapeHtml(err && err.message ? err.message : 'Could not load existing certificates.') + '</p>';
+      document.getElementById('coa-lot-select').innerHTML = '<option value="">Could not load lots</option>';
     });
 }
 
@@ -5360,8 +5502,343 @@ function showProductsSub(name) {
   document.getElementById('view-products').classList.toggle('products-wide', name !== 'catalog');
   if (name === 'catalog') loadProductsList();
   if (name === 'batches') loadCostsProducts();
+  if (name === 'lots') loadLotsTab();
   if (name === 'upload') loadIgnoredList();
 }
+
+// ---------- Products > Lots & Labels ----------
+// Lots (FW-{product code}-{YYMMDD received}-{NN}), their COA status, label
+// printing (preset + mode + quantity), static artwork, label presets and the
+// stock guard. Backend: routes/adminLots.js. Every label is checked for
+// readability server-side before a PDF is produced.
+var lotsState = { products: null, presets: [], productId: '', data: null, printLotId: null };
+
+function lotsProduct() {
+  var id = lotsState.productId;
+  return (lotsState.products || []).filter(function(p) { return p.id === id; })[0] || null;
+}
+
+function loadLotsTab() {
+  costsSetStatus('lots-status', '');
+  var productsP = lotsState.products ? Promise.resolve(lotsState.products) : fetchAdminProducts().then(function(products) {
+    if (!products) return null;
+    lotsState.products = products.filter(function(p) { return p.category !== 'kit' && p.product_code != null; })
+      .sort(function(a, b) { return a.name.localeCompare(b.name); });
+    return lotsState.products;
+  });
+  Promise.all([productsP, loadLotPresets(), loadLotGuard()])
+    .then(function(r) {
+      if (!r[0]) return;
+      var select = document.getElementById('lots-product-select');
+      select.innerHTML = '<option value="">Select a product…</option>' + lotsState.products.map(function(p) {
+        return '<option value="' + escapeHtml(p.id) + '">' + p.product_code + ' -- ' + escapeHtml(costsProductLabel(p)) + '</option>';
+      }).join('');
+      if (lotsState.productId) { select.value = lotsState.productId; loadLots(); }
+    })
+    .catch(function(err) { costsShowError('lots-status', err); });
+}
+
+function loadLotPresets() {
+  return costsApi('GET', '/label-presets').then(function(d) { lotsState.presets = d.presets || []; renderPresetsTable(); });
+}
+
+function loadLotGuard() {
+  return costsApi('GET', '/lot-settings').then(function(d) { document.getElementById('lots-guard').checked = !!d.requireCoaForInStock; });
+}
+
+function presetOptions(defaultVial) {
+  var active = lotsState.presets.filter(function(p) { return p.active; });
+  var def = active.filter(function(p) { return p.is_default && defaultVial != null && Number(p.vial_size_ml) === Number(defaultVial); })[0];
+  return (def ? '' : '<option value="">Choose a preset…</option>') + active.map(function(p) {
+    return '<option value="' + p.id + '"' + (def && def.id === p.id ? ' selected' : '') + '>' + escapeHtml(p.name) + ' -- ' + Number(p.width_mm) + ' x ' + Number(p.height_mm) + ' mm' + (p.verified ? '' : ' (UNVERIFIED)') + '</option>';
+  }).join('');
+}
+
+// doneMessage (optional) is shown once the reloaded list is in -- setting it
+// before calling loadLots() would be wiped by the "Loading lots…" status.
+function loadLots(doneMessage) {
+  var id = lotsState.productId;
+  var detail = document.getElementById('lots-detail');
+  closeLotPrint();
+  if (!id) { detail.hidden = true; return; }
+  costsSetStatus('lots-status', 'Loading lots…');
+  costsApi('GET', '/products/' + encodeURIComponent(id) + '/lots')
+    .then(function(d) {
+      lotsState.data = d;
+      costsSetStatus('lots-status', doneMessage || '', doneMessage ? 'success' : '');
+      detail.hidden = false;
+      var o = d.owner;
+      document.getElementById('lots-product-summary').innerHTML = 'Product code <strong>' + o.productCode + '</strong> · vial size ' +
+        (o.vialSizeMl ? o.vialSizeMl + ' mL' : '<span class="costs-warn">not set (choose a preset when printing)</span>') +
+        ' · shelf life ' + (o.shelfLifeMonths ? o.shelfLifeMonths + ' months' : '<span class="costs-warn">not set (enter each expiry)</span>') +
+        '. Label fields are under Catalog > Edit Details.';
+      renderLotsTable();
+      document.getElementById('lots-art-preset').innerHTML = presetOptions(o.vialSizeMl);
+      document.getElementById('lots-nf-received').value = d.today;
+      document.getElementById('lots-nf-expiry').value = '';
+      refreshLotPreview();
+    })
+    .catch(function(err) { detail.hidden = true; costsShowError('lots-status', err); });
+}
+
+function renderLotsTable() {
+  var lots = lotsState.data.lots;
+  var tbody = document.querySelector('#lots-table tbody');
+  if (!lots.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:var(--gray);">No lots yet. Create one below when stock is received.</td></tr>'; return; }
+  tbody.innerHTML = lots.map(function(l) {
+    var cost = l.wholesale_cost_cents_per_vial != null && l.vials_purchased != null
+      ? escapeHtml(String(l.vials_purchased)) + ' @ ' + costsMoney(l.wholesale_cost_cents_per_vial)
+      : costsChip('cost needed', 'warn');
+    var coa = l.coaStatus === 'attached' ? costsChip('attached', 'good') + ' <a href="/' + escapeHtml(l.coa_path) + '" target="_blank" rel="noopener">PDF</a>'
+      : l.coaStatus === 'pending' ? costsChip('pending', 'warn') : costsChip('no lot number', 'muted');
+    var actions = l.lot_number
+      ? '<button type="button" class="costs-link" data-lot-print="' + escapeHtml(l.id) + '">Print labels</button>' +
+        '<button type="button" class="costs-link" data-lot-expiry="' + escapeHtml(l.id) + '">Edit expiry</button>' +
+        '<a class="costs-link" href="/L/' + escapeHtml(l.lot_number) + '" target="_blank" rel="noopener">Public page</a>'
+      : '<button type="button" class="costs-link" data-lot-assign="' + escapeHtml(l.id) + '">Assign lot number</button>';
+    return '<tr><td><strong>' + escapeHtml(l.lot_number || '--') + '</strong>' + (l.is_current ? ' ' + costsChip('current', 'muted') : '') + '</td>' +
+      '<td>' + escapeHtml(l.received_at || '--') + '</td><td>' + escapeHtml(l.expires_on || '--') + '</td>' +
+      '<td>' + escapeHtml(l.supplier_lot && l.supplier_lot !== l.lot_number ? l.supplier_lot : '') + '</td>' +
+      '<td>' + cost + '</td><td>' + coa + '</td><td class="lots-actions">' + actions + '</td></tr>';
+  }).join('');
+}
+
+// Lot number + default expiry the next lot would get (not reserved).
+function refreshLotPreview() {
+  var id = lotsState.productId, received = document.getElementById('lots-nf-received').value;
+  var el = document.getElementById('lots-nf-preview');
+  if (!id || !received) { el.textContent = ''; return; }
+  costsApi('GET', '/products/' + encodeURIComponent(id) + '/lots/next?receivedAt=' + encodeURIComponent(received))
+    .then(function(d) {
+      el.innerHTML = 'Next lot number: <strong>' + escapeHtml(d.lotNumber) + '</strong>' +
+        (d.defaultExpiresOn ? ' · expiry defaults to ' + escapeHtml(d.defaultExpiresOn) + ' (' + d.shelfLifeMonths + '-month shelf life)' : ' · no shelf life set, so enter the expiry');
+      var exp = document.getElementById('lots-nf-expiry');
+      if (!exp.value && d.defaultExpiresOn) exp.value = d.defaultExpiresOn;
+    })
+    .catch(function(err) { el.textContent = err.message; });
+}
+
+function createLotFromForm() {
+  var vialsRaw = document.getElementById('lots-nf-vials').value.trim();
+  var cost = costsDollarsToCents(document.getElementById('lots-nf-cost').value);
+  var lab = costsDollarsToCents(document.getElementById('lots-nf-lab').value);
+  if (cost === null || lab === null) { costsSetStatus('lots-status', 'Costs must be dollar amounts like 9.50, or empty.', 'error'); return; }
+  if (vialsRaw && !/^\d+$/.test(vialsRaw)) { costsSetStatus('lots-status', 'Vials purchased must be a whole number, or empty.', 'error'); return; }
+  var body = {
+    receivedAt: document.getElementById('lots-nf-received').value || null,
+    expiresOn: document.getElementById('lots-nf-expiry').value || null,
+    supplierLot: document.getElementById('lots-nf-supplier').value.trim() || null,
+    notes: document.getElementById('lots-nf-notes').value.trim() || null,
+    makeCurrent: document.getElementById('lots-nf-current').checked,
+  };
+  if (vialsRaw) body.vialsPurchased = Number(vialsRaw);
+  if (cost !== '') body.wholesaleCostCentsPerVial = cost;
+  if (lab !== '') body.labAnalysisCostCents = lab;
+  var btn = document.getElementById('lots-nf-save');
+  btn.disabled = true;
+  costsApi('POST', '/products/' + encodeURIComponent(lotsState.productId) + '/lots', body)
+    .then(function(lot) {
+      btn.disabled = false;
+      ['lots-nf-supplier', 'lots-nf-vials', 'lots-nf-cost', 'lots-nf-lab', 'lots-nf-notes'].forEach(function(f) { document.getElementById(f).value = ''; });
+      loadLots('Lot ' + lot.lot_number + ' created.');
+    })
+    .catch(function(err) { btn.disabled = false; costsShowError('lots-status', err); });
+}
+
+function editLotExpiry(lotId) {
+  var lot = lotsState.data.lots.filter(function(l) { return l.id === lotId; })[0];
+  var v = window.prompt('New expiry date for ' + lot.lot_number + ' (YYYY-MM-DD):', lot.expires_on || '');
+  if (v === null) return;
+  costsApi('PATCH', '/lots/' + encodeURIComponent(lotId), { expiresOn: v.trim() })
+    .then(function(l) { loadLots('Expiry for ' + l.lot_number + ' is now ' + l.expires_on + '.'); })
+    .catch(function(err) { costsShowError('lots-status', err); });
+}
+
+function assignLotNumber(batchId) {
+  var batch = lotsState.data.lots.filter(function(l) { return l.id === batchId; })[0];
+  var received = window.prompt('Date this stock was received (YYYY-MM-DD) -- it becomes part of the lot number:', batch.received_at || lotsState.data.today);
+  if (received === null) return;
+  var body = { receivedAt: received.trim() };
+  if (!lotsState.data.owner.shelfLifeMonths) {
+    var exp = window.prompt('No shelf life is set for this product. Expiry date (YYYY-MM-DD):', '');
+    if (exp === null) return;
+    body.expiresOn = exp.trim();
+  }
+  costsApi('POST', '/batches/' + encodeURIComponent(batchId) + '/lot-number', body)
+    .then(function(l) { loadLots('Batch ' + (l.supplier_lot || '') + ' is now lot ' + l.lot_number + '.'); })
+    .catch(function(err) { costsShowError('lots-status', err); });
+}
+
+// ---- printing
+function openLotPrint(lotId) {
+  var lot = lotsState.data.lots.filter(function(l) { return l.id === lotId; })[0];
+  lotsState.printLotId = lotId;
+  document.getElementById('lots-print-title').textContent = 'Print labels for ' + lot.lot_number;
+  document.getElementById('lots-print-preset').innerHTML = presetOptions(lotsState.data.owner.vialSizeMl);
+  document.getElementById('lots-print-qty').value = 1;
+  document.getElementById('lots-print').hidden = false;
+  refreshLotPrintPreview();
+  document.getElementById('lots-print').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeLotPrint() {
+  lotsState.printLotId = null;
+  document.getElementById('lots-print').hidden = true;
+  document.getElementById('lots-print-preview').innerHTML = '';
+}
+
+function refreshLotPrintPreview() {
+  var lotId = lotsState.printLotId;
+  var preset = document.getElementById('lots-print-preset').value;
+  var mode = document.getElementById('lots-print-mode').value;
+  var previewEl = document.getElementById('lots-print-preview'), checkEl = document.getElementById('lots-print-check');
+  var warnEl = document.getElementById('lots-print-warning'), openBtn = document.getElementById('lots-print-open');
+  openBtn.disabled = true;
+  warnEl.hidden = true;
+  if (!lotId) return;
+  if (!preset) { previewEl.innerHTML = ''; checkEl.textContent = 'Choose a label preset.'; checkEl.className = 'lots-check'; return; }
+  checkEl.textContent = 'Checking…';
+  costsApi('GET', '/lots/' + encodeURIComponent(lotId) + '/label-preview?preset=' + encodeURIComponent(preset) + '&mode=' + mode)
+    .then(function(d) {
+      previewEl.innerHTML = d.svg;
+      var svg = previewEl.querySelector('svg');
+      if (svg) { svg.setAttribute('width', (Number(d.preset.width_mm) * 4) + 'px'); svg.setAttribute('height', (Number(d.preset.height_mm) * 4) + 'px'); }
+      var c = d.check, m = c.metrics;
+      var ok = c.pass && (mode !== 'overprint' || c.overprintOk);
+      checkEl.className = 'lots-check' + (ok ? '' : ' bad');
+      checkEl.innerHTML = ok
+        ? 'Readable: lot ' + m.lotPt + 'pt, expiry ' + m.expiryPt + 'pt, smallest text ' + m.minBodyPt + 'pt, QR ' + m.qrMm + ' mm (' + m.qrModuleMm + ' mm/module).' +
+          (mode === 'overprint' ? ' Overprint clearance ' + m.overprintClearMm + ' mm.' : '') + ' Shown 4x enlarged.'
+        : 'Not printable at this preset: ' + escapeHtml(c.fails.concat(mode === 'overprint' ? c.overprintFails : []).join('; '));
+      if (d.warning) { warnEl.textContent = d.warning; warnEl.hidden = false; }
+      openBtn.disabled = !ok;
+    })
+    .catch(function(err) { previewEl.innerHTML = ''; checkEl.className = 'lots-check bad'; checkEl.textContent = err.message; });
+}
+
+function openLotPdf() {
+  var preset = document.getElementById('lots-print-preset').value;
+  var mode = document.getElementById('lots-print-mode').value;
+  var qty = Number(document.getElementById('lots-print-qty').value);
+  if (!Number.isInteger(qty) || qty < 1 || qty > 500) { costsSetStatus('lots-status', 'Quantity must be a whole number from 1 to 500.', 'error'); return; }
+  var p = lotsState.presets.filter(function(x) { return String(x.id) === preset; })[0];
+  if (p && !p.verified && !window.confirm('"' + p.name + '" is UNVERIFIED (placeholder size). Print anyway?')) return;
+  window.open('/api/admin/lots/' + encodeURIComponent(lotsState.printLotId) + '/labels.pdf?preset=' + encodeURIComponent(preset) + '&mode=' + mode + '&qty=' + qty, '_blank');
+}
+
+function openArtworkPdf() {
+  var preset = document.getElementById('lots-art-preset').value;
+  if (!preset) { costsSetStatus('lots-status', 'Choose a label preset for the artwork.', 'error'); return; }
+  var p = lotsState.presets.filter(function(x) { return String(x.id) === preset; })[0];
+  if (p && !p.verified && !window.confirm('"' + p.name + '" is UNVERIFIED (placeholder size). Continue?')) return;
+  window.open('/api/admin/products/' + encodeURIComponent(lotsState.productId) + '/label-artwork.pdf?preset=' + encodeURIComponent(preset), '_blank');
+}
+
+// ---- presets
+var presetEditId = null;
+
+function renderPresetsTable() {
+  var tbody = document.querySelector('#presets-table tbody');
+  tbody.innerHTML = lotsState.presets.map(function(p) {
+    var status = (p.active ? '' : costsChip('inactive', 'muted') + ' ') + (p.verified ? costsChip('verified', 'good') : costsChip('UNVERIFIED', 'bad')) + (p.is_default ? ' ' + costsChip('default', 'muted') : '');
+    return '<tr><td><strong>' + escapeHtml(p.name) + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(p.key) + '</div></td>' +
+      '<td>' + (p.vial_size_ml ? p.vial_size_ml + ' mL' : '--') + '</td>' +
+      '<td>' + Number(p.width_mm) + ' x ' + Number(p.height_mm) + '</td>' +
+      '<td>' + escapeHtml(p.layout) + (p.short_disclaimer ? ', short disclaimer' : '') + '</td>' +
+      '<td>' + escapeHtml(p.seam_mode) + ' ' + Number(p.seam_mm) + ' mm</td>' +
+      '<td>' + Number(p.end_clear_mm) + ' mm, back ' + Math.round(Number(p.back_share) * 100) + '%</td>' +
+      '<td>' + status + '</td>' +
+      '<td><button type="button" class="costs-link" data-preset-edit="' + p.id + '">Edit</button></td></tr>';
+  }).join('');
+}
+
+function resetPresetForm() {
+  presetEditId = null;
+  document.getElementById('presets-form-title').textContent = 'Add a preset';
+  document.getElementById('pf-save').textContent = 'Add Preset';
+  document.getElementById('pf-cancel').hidden = true;
+  document.getElementById('pf-key').disabled = false;
+  [['pf-key', ''], ['pf-name', ''], ['pf-vial', ''], ['pf-width', ''], ['pf-height', ''], ['pf-layout', 'full'], ['pf-seam-mode', 'gap'],
+    ['pf-seam-mm', '0'], ['pf-end-clear', '1.5'], ['pf-back-share', '0.50'], ['pf-notes', '']].forEach(function(f) { document.getElementById(f[0]).value = f[1]; });
+  document.getElementById('pf-short').checked = false;
+  ['pf-verified', 'pf-default', 'pf-active'].forEach(function(f) { document.getElementById(f).checked = true; });
+}
+
+function editPreset(id) {
+  var p = lotsState.presets.filter(function(x) { return x.id === id; })[0];
+  presetEditId = id;
+  document.getElementById('presets-form-title').textContent = 'Edit preset ' + p.name;
+  document.getElementById('pf-save').textContent = 'Save Preset';
+  document.getElementById('pf-cancel').hidden = false;
+  document.getElementById('pf-key').value = p.key;
+  document.getElementById('pf-key').disabled = true;
+  document.getElementById('pf-name').value = p.name;
+  document.getElementById('pf-vial').value = p.vial_size_ml || '';
+  document.getElementById('pf-width').value = Number(p.width_mm);
+  document.getElementById('pf-height').value = Number(p.height_mm);
+  document.getElementById('pf-layout').value = p.layout;
+  document.getElementById('pf-seam-mode').value = p.seam_mode;
+  document.getElementById('pf-seam-mm').value = Number(p.seam_mm);
+  document.getElementById('pf-end-clear').value = Number(p.end_clear_mm);
+  document.getElementById('pf-back-share').value = Number(p.back_share).toFixed(2);
+  document.getElementById('pf-notes').value = p.notes || '';
+  document.getElementById('pf-short').checked = !!p.short_disclaimer;
+  document.getElementById('pf-verified').checked = !!p.verified;
+  document.getElementById('pf-default').checked = !!p.is_default;
+  document.getElementById('pf-active').checked = !!p.active;
+  document.getElementById('presets-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function savePreset() {
+  var num = function(id) { var v = document.getElementById(id).value.trim(); return v === '' ? NaN : Number(v); };
+  var body = {
+    name: document.getElementById('pf-name').value.trim(),
+    vial_size_ml: document.getElementById('pf-vial').value ? Number(document.getElementById('pf-vial').value) : null,
+    width_mm: num('pf-width'), height_mm: num('pf-height'),
+    layout: document.getElementById('pf-layout').value, seam_mode: document.getElementById('pf-seam-mode').value,
+    seam_mm: num('pf-seam-mm'), end_clear_mm: num('pf-end-clear'), back_share: num('pf-back-share'),
+    short_disclaimer: document.getElementById('pf-short').checked, verified: document.getElementById('pf-verified').checked,
+    is_default: document.getElementById('pf-default').checked, active: document.getElementById('pf-active').checked,
+    notes: document.getElementById('pf-notes').value.trim() || null,
+  };
+  if (!presetEditId) body.key = document.getElementById('pf-key').value.trim();
+  var req = presetEditId ? costsApi('PATCH', '/label-presets/' + presetEditId, body) : costsApi('POST', '/label-presets', body);
+  req.then(function(p) {
+    resetPresetForm();
+    return loadLotPresets().then(function() {
+      costsSetStatus('lots-status', 'Preset ' + p.name + ' saved.', 'success');
+      if (lotsState.data) document.getElementById('lots-art-preset').innerHTML = presetOptions(lotsState.data.owner.vialSizeMl);
+    });
+  }).catch(function(err) { costsShowError('lots-status', err); });
+}
+
+document.getElementById('lots-product-select').addEventListener('change', function() { lotsState.productId = this.value; loadLots(); });
+document.getElementById('lots-nf-received').addEventListener('change', function() { document.getElementById('lots-nf-expiry').value = ''; refreshLotPreview(); });
+document.getElementById('lots-nf-save').addEventListener('click', createLotFromForm);
+document.getElementById('lots-table').addEventListener('click', function(e) {
+  var b = e.target.closest('button');
+  if (!b) return;
+  if (b.hasAttribute('data-lot-print')) openLotPrint(b.getAttribute('data-lot-print'));
+  else if (b.hasAttribute('data-lot-expiry')) editLotExpiry(b.getAttribute('data-lot-expiry'));
+  else if (b.hasAttribute('data-lot-assign')) assignLotNumber(b.getAttribute('data-lot-assign'));
+});
+document.getElementById('lots-print-preset').addEventListener('change', refreshLotPrintPreview);
+document.getElementById('lots-print-mode').addEventListener('change', refreshLotPrintPreview);
+document.getElementById('lots-print-open').addEventListener('click', openLotPdf);
+document.getElementById('lots-print-close').addEventListener('click', closeLotPrint);
+document.getElementById('lots-art-open').addEventListener('click', openArtworkPdf);
+document.getElementById('presets-table').addEventListener('click', function(e) {
+  var b = e.target.closest('[data-preset-edit]');
+  if (b) editPreset(Number(b.getAttribute('data-preset-edit')));
+});
+document.getElementById('pf-save').addEventListener('click', savePreset);
+document.getElementById('pf-cancel').addEventListener('click', resetPresetForm);
+document.getElementById('lots-guard').addEventListener('change', function() {
+  var box = this, want = box.checked;
+  costsApi('PUT', '/lot-settings', { requireCoaForInStock: want })
+    .then(function() { costsSetStatus('lots-status', 'Stock guard ' + (want ? 'on' : 'off') + '.', 'success'); })
+    .catch(function(err) { box.checked = !want; costsShowError('lots-status', err); });
+});
 
 // ---------- Affiliate status line ----------
 // Program settings come from the same public GET account.html reads.
@@ -5618,7 +6095,8 @@ var costsProducts = null;      // full admin product rows
 var costsBatchEditing = null;  // batch id being edited, or null
 
 function costsBaseProducts() {
-  return (costsProducts || []).filter(function(p) { return !p.base_product_id; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+  // Every non-kit product is its own base (a kit's batches are its backing vial's).
+  return (costsProducts || []).filter(function(p) { return p.category !== 'kit'; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
 }
 function costsProductLabel(p) {
   return p.name + (p.dosage && p.name.indexOf(p.dosage) === -1 ? ' ' + p.dosage : '') + ' (' + p.id + ')';
@@ -5705,10 +6183,11 @@ function loadCostsBatches() {
       tbody.innerHTML = data.batches.map(function(b) {
         var share = b.vials_purchased ? Math.round(b.lab_analysis_cost_cents / b.vials_purchased) : null;
         return '<tr>' +
-          '<td>' + escapeHtml(b.lot) + (b.notes ? '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(b.notes) + '</div>' : '') + '</td>' +
+          '<td>' + escapeHtml(b.lot) + (b.lot_number && b.lot_number !== b.lot ? '<div style="font-size:0.72rem;">Lot ' + escapeHtml(b.lot_number) + '</div>' : '') + (b.notes ? '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(b.notes) + '</div>' : '') + '</td>' +
           '<td>' + (b.received_at ? escapeHtml(String(b.received_at).slice(0, 10)) : '--') + '</td>' +
-          '<td>' + b.vials_purchased + '</td>' +
-          '<td>' + costsMoney(b.wholesale_cost_cents_per_vial) + '</td>' +
+          // A lot can be created before its cost is known (Lots & Labels).
+          '<td>' + (b.vials_purchased != null ? b.vials_purchased : costsChip('needed', 'warn')) + '</td>' +
+          '<td>' + (b.wholesale_cost_cents_per_vial != null ? costsMoney(b.wholesale_cost_cents_per_vial) : costsChip('needed', 'warn')) + '</td>' +
           '<td>' + costsMoney(b.lab_analysis_cost_cents) + '</td>' +
           '<td>' + costsMoney(share) + '</td>' +
           '<td>' + (b.is_current ? costsChip('Current', 'good') : '') + '</td>' +
@@ -5766,7 +6245,7 @@ document.querySelector('#costs-batches-table tbody').addEventListener('click', f
     costsBatchEditing = b.id;
     document.getElementById('costs-bf-lot').value = b.lot;
     document.getElementById('costs-bf-received').value = b.received_at ? String(b.received_at).slice(0, 10) : '';
-    document.getElementById('costs-bf-vials').value = b.vials_purchased;
+    document.getElementById('costs-bf-vials').value = b.vials_purchased != null ? b.vials_purchased : '';
     document.getElementById('costs-bf-cost').value = costsCentsToInput(b.wholesale_cost_cents_per_vial);
     document.getElementById('costs-bf-lab').value = costsCentsToInput(b.lab_analysis_cost_cents);
     document.getElementById('costs-bf-notes').value = b.notes || '';
@@ -6374,6 +6853,16 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
   var packSizeInput = detailRow2.querySelector('.product-detail-pack-size');
   if (basePidInput) body.base_product_id = basePidInput.value || null;
   if (packSizeInput) body.pack_size = packSizeInput.value || null;
+  // Vial label fields -- only rendered for non-kit rows.
+  var vialSizeSelect = detailRow2.querySelector('.product-detail-vial-size');
+  if (vialSizeSelect) {
+    body.vial_size_ml = vialSizeSelect.value ? Number(vialSizeSelect.value) : null;
+    body.shelf_life_months = detailRow2.querySelector('.product-detail-shelf-life').value || null;
+    body.reconstitution_ml = detailRow2.querySelector('.product-detail-recon-ml').value || null;
+    body.label_name = detailRow2.querySelector('.product-detail-label-name').value || null;
+    body.label_dosage_text = detailRow2.querySelector('.product-detail-label-dosage').value || null;
+    body.volume_ml = detailRow2.querySelector('.product-detail-volume-ml').value || null;
+  }
 
   saveBtn.disabled = true;
   statusEl.textContent = '';
@@ -7359,7 +7848,7 @@ document.getElementById('coa-file-input').addEventListener('change', function() 
     .then(function(data) {
       lastCoaExtraction = data;
       statusEl.textContent = 'Fields extracted — review before saving.';
-      document.getElementById('coa-batch-lot').value = data.current_lot || '';
+      matchCoaLot(data.current_lot);
       document.getElementById('coa-batch-date').value = data.batch_date_guess || '';
       document.getElementById('coa-appearance').value = data.appearance || '';
       document.getElementById('coa-net-content').value = data.net_content_average || '';
@@ -7399,11 +7888,17 @@ document.getElementById('coa-save-btn').addEventListener('click', function() {
     statusEl.classList.add('show', 'error');
     return;
   }
+  var lotId = document.getElementById('coa-lot-select').value;
+  if (!lotId) {
+    statusEl.textContent = 'Choose the lot this COA is for.';
+    statusEl.classList.add('show', 'error');
+    return;
+  }
 
   saveBtn.disabled = true;
   var formData = new FormData();
   formData.append('file', file);
-  formData.append('batch_lot', document.getElementById('coa-batch-lot').value.trim());
+  formData.append('lot_id', lotId);
   formData.append('batch_date', document.getElementById('coa-batch-date').value);
   formData.append('appearance', document.getElementById('coa-appearance').value.trim());
   formData.append('net_content_average', document.getElementById('coa-net-content').value.trim());

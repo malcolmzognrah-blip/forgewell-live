@@ -139,7 +139,6 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
 .purity-badge{display:inline-block; background:var(--green); color:#fff; font-size:0.7rem; font-weight:700; padding:4px 10px; border-radius:20px; margin-bottom:10px;}
 .product-title{font-size:1.7rem; color:var(--navy-dark); margin:0 0 4px; font-weight:700;}
-.product-lot{color:var(--gray); font-size:0.8rem; margin-bottom:14px;}
 .product-price{font-size:1.9rem; color:var(--navy); font-weight:700; margin-bottom:16px;}
 .product-price .was{font-size:1rem; color:var(--gray); text-decoration:line-through; font-weight:500; margin-left:8px;}
 
@@ -637,9 +636,7 @@ async function loadProducts() {
       const name = nameEl.textContent.trim();
       const product = products.find(p => p.name === name);
       if (!product) return;
-      const lotEl = card.querySelector('.lot');
       const priceEl = card.querySelector('.price');
-      if (lotEl) lotEl.textContent = product.dosage + ' · LOT #' + product.lot;
       if (priceEl) priceEl.textContent = product.price > 0 ? '$' + product.price.toFixed(2) : '$XX';
       card.dataset.productId = product.id;
     });
@@ -715,7 +712,7 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Clicking anywhere else on a card (image, name, lot, price) goes to
+  // Clicking anywhere else on a card (image, name, price) goes to
   // that product's detail page — the buttons above are handled first
   // and return early, so they're excluded from this navigation.
   const card = e.target.closest('.card');

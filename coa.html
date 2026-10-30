@@ -139,7 +139,6 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 
 .purity-badge{display:inline-block; background:var(--green); color:#fff; font-size:0.7rem; font-weight:700; padding:4px 10px; border-radius:20px; margin-bottom:10px;}
 .product-title{font-size:1.7rem; color:var(--navy-dark); margin:0 0 4px; font-weight:700;}
-.product-lot{color:var(--gray); font-size:0.8rem; margin-bottom:14px;}
 .product-price{font-size:1.9rem; color:var(--navy); font-weight:700; margin-bottom:16px;}
 .product-price .was{font-size:1rem; color:var(--gray); text-decoration:line-through; font-weight:500; margin-left:8px;}
 
@@ -205,6 +204,17 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 .legal-wrap p, .legal-wrap li{ color:#333; font-size:0.9rem; line-height:1.7; }
 .legal-wrap ul{ padding-left:20px; }
 .legal-wrap a{ color:var(--navy); }
+/* ---- COA by lot (QR on every vial label -> /L/<lot>) ---- */
+.lot-lookup{ display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 6px; }
+.lot-lookup input{ flex:1 1 240px; padding:11px 14px; border:1.5px solid var(--line); border-radius:8px; font-size:1rem; font-family:'Quicksand',sans-serif; text-transform:uppercase; letter-spacing:0.02em; }
+.lot-lookup button{ padding:11px 20px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif; font-size:0.95rem; }
+.lot-hint{ color:var(--gray); font-size:0.78rem; margin:0 0 20px; }
+.lot-result{ border:1.5px solid var(--line); border-radius:10px; padding:18px 20px; margin:0 0 24px; background:var(--panel); }
+.lot-result h2{ margin:0 0 4px; }
+.lot-result .lot-meta{ color:var(--gray); font-size:0.85rem; margin:0 0 12px; }
+.lot-result .lot-status{ font-size:0.95rem; color:#333; margin:0; }
+.lot-result .lot-coa-btn{ display:inline-block; margin-top:6px; padding:11px 18px; background:var(--navy); color:#fff; border-radius:8px; font-weight:700; text-decoration:none; }
+.lot-result.notfound{ background:#fff; }
 .draft-banner{ background:#FDECD2; border:1px solid #E8B96A; color:#7A4E12; font-size:0.8rem; font-weight:700; padding:12px 16px; border-radius:8px; margin-bottom:24px; }
 </style>
 
@@ -225,7 +235,13 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 
 <div class="legal-wrap">
   <h1>Certificates of Analysis</h1>
-  <p class="updated">Content coming soon.</p>
+  <p>Every Forgewell vial is labelled with a lot number and a QR code. Scan the QR code, or enter the lot number below, to see that lot&rsquo;s third-party test results.</p>
+  <form class="lot-lookup" id="lot-lookup-form" novalidate>
+    <input type="text" id="lot-lookup-input" placeholder="e.g. FW-111-261030-01" aria-label="Lot number" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40">
+    <button type="submit">Look up</button>
+  </form>
+  <p class="lot-hint">The lot number is printed on the vial label, after &ldquo;LOT&rdquo;.</p>
+  <div class="lot-result" id="lot-result" hidden aria-live="polite"></div>
   <p><a href="/shop.html">Browse the shop &rarr;</a></p>
 </div>
 
@@ -541,9 +557,7 @@ async function loadProducts() {
       const name = nameEl.textContent.trim();
       const product = products.find(p => p.name === name);
       if (!product) return;
-      const lotEl = card.querySelector('.lot');
       const priceEl = card.querySelector('.price');
-      if (lotEl) lotEl.textContent = product.dosage + ' · LOT #' + product.lot;
       if (priceEl) priceEl.textContent = product.price > 0 ? '$' + product.price.toFixed(2) : '$XX';
       card.dataset.productId = product.id;
     });
@@ -619,7 +633,7 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Clicking anywhere else on a card (image, name, lot, price) goes to
+  // Clicking anywhere else on a card (image, name, price) goes to
   // that product's detail page — the buttons above are handled first
   // and return early, so they're excluded from this navigation.
   const card = e.target.closest('.card');
@@ -632,6 +646,70 @@ document.addEventListener('click', (e) => {
 });
 
 let productsReady = loadProducts().then(populateMostPopular);
+
+// ---- COA by lot ----
+// The QR on each vial label opens /L/<lot> (nginx serves this page there
+// without changing the URL) or /coa.html?lot=<lot>. GET /api/lots/<lot>
+// answers pending (testing in progress) / attached (COA link) / 404.
+function lotFromUrl() {
+  var m = window.location.pathname.match(/^\/l\/([^\/?#]+)\/?$/i);
+  if (m) return decodeURIComponent(m[1]);
+  return new URLSearchParams(window.location.search).get('lot') || '';
+}
+
+function showLotResult(build) {
+  var box = document.getElementById('lot-result');
+  box.innerHTML = '';
+  box.className = 'lot-result';
+  build(box);
+  box.hidden = false;
+}
+
+function addEl(parent, tag, text, cls) {
+  var el = document.createElement(tag);
+  if (text) el.textContent = text;
+  if (cls) el.className = cls;
+  parent.appendChild(el);
+  return el;
+}
+
+function lookUpLot(raw) {
+  var lot = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!lot) return;
+  document.getElementById('lot-lookup-input').value = lot;
+  showLotResult(function(box) { addEl(box, 'p', 'Looking up ' + lot + '…', 'lot-status'); });
+  fetch('/api/lots/' + encodeURIComponent(lot))
+    .then(function(res) { return res.json().catch(function() { return {}; }).then(function(d) { return { status: res.status, d: d }; }); })
+    .then(function(r) {
+      if (r.status === 404) {
+        showLotResult(function(box) { box.classList.add('notfound'); addEl(box, 'h2', 'Lot not found'); addEl(box, 'p', 'Check the lot number on the vial label and try again.', 'lot-status'); });
+        return;
+      }
+      if (r.status === 429) { showLotResult(function(box) { addEl(box, 'p', 'Too many lookups — please wait a minute and try again.', 'lot-status'); }); return; }
+      if (r.status !== 200) throw new Error('lookup failed');
+      var d = r.d;
+      showLotResult(function(box) {
+        addEl(box, 'h2', d.productName);
+        addEl(box, 'p', 'Lot ' + d.lotNumber + (d.dosage ? ' · ' + d.dosage : ''), 'lot-meta');
+        if (d.status === 'attached' && d.coa) {
+          addEl(box, 'p', 'Third-party tested' + (d.coa.batchDate ? ' · COA dated ' + d.coa.batchDate : '') + '.', 'lot-status');
+          var a = addEl(box, 'a', 'View Certificate of Analysis (PDF)', 'lot-coa-btn');
+          a.href = d.coa.url; a.target = '_blank'; a.rel = 'noopener';
+        } else {
+          addEl(box, 'p', 'Third-party testing in progress — the COA will be posted here.', 'lot-status');
+        }
+      });
+      // Shareable URL for this lot; /coa.html?lot= works with or without the /L/ nginx route.
+      if (window.history && window.history.replaceState && !/^\/l\//i.test(window.location.pathname)) window.history.replaceState(null, '', '/coa.html?lot=' + encodeURIComponent(d.lotNumber));
+    })
+    .catch(function() { showLotResult(function(box) { addEl(box, 'p', 'Could not look up that lot. Please try again.', 'lot-status'); }); });
+}
+
+document.getElementById('lot-lookup-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  lookUpLot(document.getElementById('lot-lookup-input').value);
+});
+if (lotFromUrl()) lookUpLot(lotFromUrl());
 
 function populateMostPopular() {
   const featured = ['Semaglutide', 'Tesamorelin', 'BPC-157', 'GHK-Cu'];
