@@ -1022,6 +1022,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <table class="products-table">
       <thead>
         <tr>
+          <th>Code</th>
           <th>Name</th>
           <th>Price</th>
           <th>Stock</th>
@@ -3270,6 +3271,17 @@ function renderProductsCategoryOptions() {
     categories.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
 }
 
+// Permanent 3-digit product code (internal, for lot numbers -- see the
+// backend's lib/productCode.js). Read-only everywhere: assigned once when a
+// non-kit product is created and never changed. A kit has no code of its
+// own and shows its backing vial's, marked inherited.
+function productCodeHtml(p) {
+  if (p.product_code_resolved == null) return '<span style="color:var(--gray);">—</span>';
+  return p.product_code_inherited
+    ? '<span style="color:var(--gray);" title="Inherited from this kit\'s backing vial">' + p.product_code_resolved + ' <span style="font-size:0.7rem;">(inherited)</span></span>'
+    : '<strong>' + p.product_code_resolved + '</strong>';
+}
+
 function renderProductsRows() {
   var category = document.getElementById('products-category-filter').value;
   var status = document.getElementById('products-status-filter').value;
@@ -3290,7 +3302,7 @@ function renderProductsRows() {
     .sort(function(a, b) { return a.name.localeCompare(b.name); });
   var tbody = document.getElementById('products-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--gray);padding:20px;">No products.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">No products.</td></tr>';
     return;
   }
   tbody.innerHTML = filtered.map(function(p) {
@@ -3300,6 +3312,7 @@ function renderProductsRows() {
     // picking one out is to edit it, not to expand-then-click again.
     var startExpanded = !!singleId && p.id === singleId;
     return '<tr data-product-id="' + p.id + '">' +
+        '<td style="white-space:nowrap;">' + productCodeHtml(p) + '</td>' +
         '<td>' + escapeHtml(p.name) + (p.on_sale ? ' <span style="color:var(--green);font-weight:700;font-size:0.72rem;">ON SALE</span>' : '') + '</td>' +
         '<td><input type="number" step="0.01" min="0" class="product-row-price-input" value="' + p.price + '"></td>' +
         '<td><select class="product-row-stock-select">' +
@@ -3310,7 +3323,15 @@ function renderProductsRows() {
         '<td><button type="button" class="product-edit-toggle-btn" data-product-id="' + p.id + '">' + (startExpanded ? 'Hide Details' : 'Edit Details') + '</button></td>' +
       '</tr>' +
       '<tr class="product-detail-row' + (startExpanded ? ' show' : '') + '" data-product-id="' + p.id + '">' +
-        '<td colspan="5" class="product-detail-cell">' +
+        '<td colspan="6" class="product-detail-cell">' +
+          '<label>Product Code</label>' +
+          '<p style="margin:0;">' + productCodeHtml(p) + '</p>' +
+          '<p class="fulfillment-section-note" style="margin:4px 0 0;">' +
+            (p.product_code_inherited
+              ? 'A kit has no code of its own; this is its backing vial\'s code. '
+              : 'Permanent and read-only: assigned when the product was created, never changed or reused. ') +
+            'Internal only (lot numbers), never shown on the storefront.' +
+          '</p>' +
           '<label>Display Name</label>' +
           '<input type="text" class="product-detail-name" value="' + escapeHtml(p.name) + '">' +
           '<p class="fulfillment-section-note" style="margin:4px 0 0;">' +
@@ -3404,7 +3425,7 @@ function loadProductsList() {
       renderProductsRows();
     })
     .catch(function(err) {
-      document.getElementById('products-tbody').innerHTML = '<tr><td colspan="5" style="color:#c0392b;padding:20px;">Could not load products (' + escapeHtml(err && err.message ? err.message : 'network error') + '). Reopen the tab to retry.</td></tr>';
+      document.getElementById('products-tbody').innerHTML = '<tr><td colspan="6" style="color:#c0392b;padding:20px;">Could not load products (' + escapeHtml(err && err.message ? err.message : 'network error') + '). Reopen the tab to retry.</td></tr>';
     });
 }
 
