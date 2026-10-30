@@ -742,6 +742,15 @@ function isEffectivelyOutOfStock(product) {
   return !!vial && vial.stock_status === 'out_of_stock';
 }
 
+// Safety net for the upsell grids' Add to Cart buttons (Suggested
+// Essentials, Kits Available): out-of-stock items are already left out of
+// those grids, but a click is still checked against the live catalog
+// before anything goes in the cart.
+function isAddableProductId(productId) {
+  var p = allProducts.find(function(x) { return x.id === productId; });
+  return !!p && !isEffectivelyOutOfStock(p);
+}
+
 // Extracts the leading number from a dosage/pack-size string for sorting
 // (e.g. "10mg" -> 10, "5-Pack" -> 5). Unparsable values sort last instead
 // of throwing.
@@ -920,8 +929,14 @@ function buildEssentialCardHtml(p) {
   '</div>';
 }
 
+// Out-of-stock essentials are left out (own flag or, for a kit, its backing
+// vial -- isEffectivelyOutOfStock()), and the section disappears if none
+// are left. Shown regardless of the viewed product's own stock -- it's
+// upsell for other items.
 function buildSuggestedEssentialsSection(product, products) {
-  var matches = findSuggestedEssentials(product, products);
+  var matches = findSuggestedEssentials(product, products).filter(function(p) {
+    return !isEffectivelyOutOfStock(p);
+  });
   if (matches.length === 0) return '';
   return '<div class="product-section">' +
     '<h2>Suggested Essentials</h2>' +
@@ -980,8 +995,15 @@ function buildKitCardHtml(p) {
   '</div>';
 }
 
+// Hidden entirely, heading included, while the product being viewed is out
+// of stock, and never lists a kit that's out of stock itself (own flag or
+// its backing vial -- isEffectivelyOutOfStock()); hidden too if that leaves
+// no kits. Switching size reloads the page, so this re-runs for every size.
 function buildKitsAvailableSection(product, products) {
-  var matches = findRelatedKits(product, products);
+  if (isEffectivelyOutOfStock(product)) return '';
+  var matches = findRelatedKits(product, products).filter(function(k) {
+    return !isEffectivelyOutOfStock(k);
+  });
   if (matches.length === 0) return '';
   return '<div class="buy-col-kits">' +
     '<h2>Kits Available</h2>' +
@@ -1595,7 +1617,9 @@ function wireProductInteractions(product, trailIds, siblings) {
     essentialsGrid.addEventListener('click', function(e) {
       var addBtn = e.target.closest('[data-add-essential-id]');
       if (addBtn) {
-        if (flashAddedFeedback(addBtn)) addToCart(addBtn.getAttribute('data-add-essential-id'));
+        var essentialId = addBtn.getAttribute('data-add-essential-id');
+        if (!isAddableProductId(essentialId)) return;
+        if (flashAddedFeedback(addBtn)) addToCart(essentialId);
         return;
       }
       var card = e.target.closest('.essential-card');
@@ -1614,7 +1638,9 @@ function wireProductInteractions(product, trailIds, siblings) {
     kitsGrid.addEventListener('click', function(e) {
       var addBtn = e.target.closest('[data-add-kit-id]');
       if (addBtn) {
-        if (flashAddedFeedback(addBtn)) addToCart(addBtn.getAttribute('data-add-kit-id'));
+        var kitId = addBtn.getAttribute('data-add-kit-id');
+        if (!isAddableProductId(kitId)) return;
+        if (flashAddedFeedback(addBtn)) addToCart(kitId);
         return;
       }
       var card = e.target.closest('.essential-card');
