@@ -117,7 +117,7 @@ header{
 .tag-pill{ position:absolute; top:10px; right:10px; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
 .sale-badge{ position:absolute; top:10px; left:10px; background:#c0392b; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
 .oos-badge{ position:absolute; top:10px; left:10px; background:var(--gray); color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
-.card.out-of-stock .buy-btn, .card.out-of-stock .add-btn{ opacity:0.5; cursor:not-allowed; }
+.card.out-of-stock .add-btn{ opacity:0.5; cursor:not-allowed; }
 .vial{ width:100%; aspect-ratio:1/1; border-radius:4px; background:#fff; margin-bottom:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid var(--line); }
 .vial img{ width:100%; height:100%; object-fit:contain; }
 .card h3{ font-weight:700; font-size:1rem; margin-bottom:4px; color:#141414; text-align:center; }
@@ -858,9 +858,13 @@ function buildCardHtml(group) {
     priceLabel = '$XX';
   }
   // Out of stock takes the sale badge's top-left slot (a sale on something
-  // that can't be bought isn't worth advertising). The buttons stay in the
-  // card so the layout doesn't shift; the click handler below is what
-  // actually stops them adding to the cart.
+  // that can't be bought isn't worth advertising). Matches product.html's
+  // out-of-stock state: Add to Cart stays as a disabled "Out of Stock", and
+  // Buy Now's slot becomes an enabled notify button (the shared
+  // /js/stock-notify.js modal). Labelled "Notify Me" here rather than
+  // product.html/shop.html's "Notify When In Stock" so it fits on one line
+  // in this row's narrow 168px cards. The click handler below is what
+  // stops either one adding to the cart.
   const oos = !!group.outOfStock;
   return '<div class="card' + (oos ? ' out-of-stock' : '') + '" data-tag="' + group.category + '" data-product-id="' + group.baseId + '"' + (oos ? ' data-out-of-stock="true"' : '') + '>' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
@@ -870,7 +874,7 @@ function buildCardHtml(group) {
     '<h3>' + group.name + '</h3>' +
     '<div class="price-row">' +
       '<span class="price">' + priceLabel + '</span>' +
-      '<span class="buy-btn" style="background:' + meta.color + '"' + (oos ? ' aria-disabled="true"' : '') + '>' + (oos ? 'Out of Stock' : 'Buy Now') + '</span>' +
+      '<span class="buy-btn" style="background:' + meta.color + '">' + (oos ? 'Notify Me' : 'Buy Now') + '</span>' +
       '<span class="add-btn" style="border-color:' + meta.color + '; color:' + meta.color + ';"' + (oos ? ' aria-disabled="true"' : '') + '>' + (oos ? 'Out of Stock' : 'Add to Cart') + '</span>' +
     '</div>' +
   '</div>';
@@ -1100,7 +1104,13 @@ document.addEventListener('click', (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
-    if (card.dataset.outOfStock === 'true') return;
+    // Out of stock: "Notify Me" -- signs up for the same
+    // product the card's buttons are tied to (for a kit, the kit's own id,
+    // same as product.html). Never adds to the cart or opens the page.
+    if (card.dataset.outOfStock === 'true') {
+      window.openStockNotify(productId);
+      return;
+    }
     addToCart(productId);
     window.location.href = '/checkout.html';
     return;
@@ -1256,6 +1266,10 @@ reconcileCartWithServer();
 <link rel="stylesheet" href="/css/chat-widget.css?v=20260930-3">
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script src="/js/chat-widget.js?v=20260930-3" data-wait-for-auth></script>
+
+<!-- "Notify When In Stock" modal -- shared markup/CSS/JS, see /js/stock-notify.js. -->
+<link rel="stylesheet" href="/css/stock-notify.css?v=20261029-1">
+<script src="/js/stock-notify.js?v=20261029-1"></script>
 
 </body>
 </html>

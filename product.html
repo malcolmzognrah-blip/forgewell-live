@@ -191,16 +191,6 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .btn-buy{flex:1; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
 .btn-add:disabled{opacity:0.5; cursor:not-allowed; pointer-events:none;}
 
-#notify-modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;}
-#notify-modal-overlay.active{display:flex;}
-#notify-modal{background:#fff; border-radius:12px; max-width:380px; width:90%; padding:28px 24px; position:relative; text-align:center;}
-#notify-modal-close{position:absolute; top:10px; right:14px; background:none; border:none; font-size:22px; color:var(--gray); cursor:pointer; line-height:1;}
-#notify-modal h3{color:var(--navy); margin:0 0 8px; font-size:1.15rem;}
-#notify-modal p{color:var(--gray); font-size:0.85rem; margin:0 0 16px;}
-#notify-modal-input{width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.9rem; margin-bottom:8px; box-sizing:border-box;}
-#notify-modal-error{color:#c0392b; font-size:0.78rem; min-height:16px; margin-bottom:6px;}
-#notify-modal-submit{width:100%; padding:12px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}
-
 .trust-note{font-size:0.75rem; color:var(--gray); margin-top:20px; padding-top:16px; border-top:1px solid var(--line); margin-bottom:10px;}
 .trust-badges{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; margin-bottom:6px;}
 .trust-badge{display:flex; align-items:center; gap:8px; font-size:0.75rem; color:var(--gray);}
@@ -1252,28 +1242,9 @@ function renderProduct(product, siblings) {
   // check for non-kits, so this is a strict superset of the old check).
   var isOutOfStock = isEffectivelyOutOfStock(product);
   // "Notify When In Stock" takes over the Buy Now button's slot (see
-  // buy-buttons markup below) rather than being a separate button, so this
-  // only needs to build the modal itself.
-  var notifyModalHtml = '';
-  if (isOutOfStock) {
-    notifyModalHtml =
-      '<div id="notify-modal-overlay">' +
-        '<div id="notify-modal">' +
-          '<button type="button" id="notify-modal-close" aria-label="Close">&times;</button>' +
-          '<div id="notify-modal-step-form">' +
-            '<h3>Notify Me</h3>' +
-            '<p>We&rsquo;ll email you when this item is back in stock.</p>' +
-            '<input type="email" id="notify-modal-input" placeholder="you@example.com">' +
-            '<div id="notify-modal-error"></div>' +
-            '<button type="button" id="notify-modal-submit">Notify Me</button>' +
-          '</div>' +
-          '<div id="notify-modal-step-success" style="display:none;">' +
-            '<h3>You&rsquo;re All Set</h3>' +
-            '<p>We&rsquo;ll email you when this item is back in stock.</p>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-  }
+  // buy-buttons markup below) rather than being a separate button. Its
+  // modal is the shared one in /js/stock-notify.js (also used by the
+  // shop.html/home.html cards) -- see wireProductInteractions().
 
   // Full-width section below product-main, placed after Suggested Essentials
   // (not inside buy-col) -- uses .product-section like Suggested Essentials
@@ -1311,7 +1282,6 @@ function renderProduct(product, siblings) {
             '<button class="btn-buy" id="buy-now-btn">' + (isOutOfStock ? 'Notify When In Stock' : 'Buy Now') + '</button>' +
           '</div>' +
           ingredientProfileHtml +
-          notifyModalHtml +
           kitsAvailableHtml +
           '<div class="coa-list" id="coa-list" style="display:none;"></div>' +
           '<div id="coa-viewer-overlay">' +
@@ -1505,9 +1475,12 @@ function wireProductInteractions(product, trailIds, siblings) {
   document.getElementById('buy-now-btn').addEventListener('click', function() {
     // Out of stock: this button's slot/label is repurposed as "Notify When
     // In Stock" (see renderProduct) -- open the modal instead of checking out.
-    if (product.stock_status === 'out_of_stock') {
-      var overlay = document.getElementById('notify-modal-overlay');
-      if (overlay) overlay.classList.add('active');
+    // Same isEffectivelyOutOfStock() check the label uses: checking only the
+    // product's own flag here let a kit that's out of stock via its backing
+    // vial show "Notify When In Stock" but add itself to the cart and go to
+    // checkout when clicked. Signs up for the kit's own id either way.
+    if (isEffectivelyOutOfStock(product)) {
+      window.openStockNotify(product.id);
       return;
     }
     var qty = parseInt(qtyInput.value, 10) || 1;
@@ -1651,49 +1624,6 @@ function wireProductInteractions(product, trailIds, siblings) {
       }
     });
   }
-
-  // Only exists in the DOM when the product is out_of_stock (see renderProduct).
-  var notifyOverlay = document.getElementById('notify-modal-overlay');
-  if (notifyOverlay) {
-    var notifyInput = document.getElementById('notify-modal-input');
-    var notifyError = document.getElementById('notify-modal-error');
-    var notifyFormStep = document.getElementById('notify-modal-step-form');
-    var notifySuccessStep = document.getElementById('notify-modal-step-success');
-
-    document.getElementById('notify-modal-close').addEventListener('click', function() {
-      notifyOverlay.classList.remove('active');
-    });
-    notifyOverlay.addEventListener('click', function(e) {
-      if (e.target === notifyOverlay) notifyOverlay.classList.remove('active');
-    });
-    document.getElementById('notify-modal-submit').addEventListener('click', function() {
-      var email = notifyInput.value.trim();
-      if (!email || email.indexOf('@') === -1) {
-        notifyError.textContent = 'Please enter a valid email address.';
-        return;
-      }
-      notifyError.textContent = '';
-      fetch('/api/stock-notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id, email: email }),
-      })
-        .then(function(res) {
-          return res.json().then(function(data) { return { ok: res.ok, data: data }; });
-        })
-        .then(function(result) {
-          if (!result.ok) {
-            notifyError.textContent = result.data.error || 'Something went wrong, please try again.';
-            return;
-          }
-          notifyFormStep.style.display = 'none';
-          notifySuccessStep.style.display = '';
-        })
-        .catch(function() {
-          notifyError.textContent = 'Something went wrong, please try again.';
-        });
-    });
-  }
 }
 
 // Base reference records for blend/kit products -- intentionally $0, never
@@ -1766,6 +1696,10 @@ let productsReady = initProductPage();
 <link rel="stylesheet" href="/css/chat-widget.css?v=20260930-3">
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script src="/js/chat-widget.js?v=20260930-3"></script>
+
+<!-- "Notify When In Stock" modal -- shared markup/CSS/JS, see /js/stock-notify.js. -->
+<link rel="stylesheet" href="/css/stock-notify.css?v=20261029-1">
+<script src="/js/stock-notify.js?v=20261029-1"></script>
 
 </body>
 </html>

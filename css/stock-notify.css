@@ -1,0 +1,13 @@
+/* "Notify When In Stock" modal -- see /js/stock-notify.js. Moved verbatim
+ * from product.html; relies on the --navy/--gray/--line variables every
+ * including page already defines in its own :root. Bump ?v= on both
+ * includes in every page whenever this file or the JS changes. */
+#notify-modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;}
+#notify-modal-overlay.active{display:flex;}
+#notify-modal{background:#fff; border-radius:12px; max-width:380px; width:90%; padding:28px 24px; position:relative; text-align:center;}
+#notify-modal-close{position:absolute; top:10px; right:14px; background:none; border:none; font-size:22px; color:var(--gray); cursor:pointer; line-height:1;}
+#notify-modal h3{color:var(--navy); margin:0 0 8px; font-size:1.15rem;}
+#notify-modal p{color:var(--gray); font-size:0.85rem; margin:0 0 16px;}
+#notify-modal-input{width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font-family:'Quicksand',sans-serif; font-size:0.9rem; margin-bottom:8px; box-sizing:border-box;}
+#notify-modal-error{color:#c0392b; font-size:0.78rem; min-height:16px; margin-bottom:6px;}
+#notify-modal-submit{width:100%; padding:12px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:'Quicksand',sans-serif;}

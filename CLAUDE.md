@@ -124,6 +124,21 @@ the panel is hidden, capped at "9+", and clears on open and on End Chat.
 **Any change to `chat-widget.js` or `chat-widget.css` must bump `?v=` on both includes in all 19
 pages in the same commit**. Otherwise returning visitors keep a stale cached copy.
 
+### "Notify When In Stock" modal — shared files, not inlined
+
+The third exception to the no-shared-JS rule. `/js/stock-notify.js` + `/css/stock-notify.css` inject
+the back-in-stock signup modal into `<body>` on first use and expose `window.openStockNotify(productId)`.
+It's the only signup implementation: `product.html`'s out-of-stock "Notify When In Stock" button and the
+same button on out-of-stock `shop.html`/`home.html` cards all call it. Guests just give an email; it POSTs
+`{ productId, email }` to `/api/stock-notify`. A kit signs up under the kit's own id even when it's only
+out of stock via its backing vial; the backend's job holds the email until the kit is really buyable.
+Included at the end of `<body>` on those three pages, right after the chat widget:
+```html
+<link rel="stylesheet" href="/css/stock-notify.css?v=20261029-1">
+<script src="/js/stock-notify.js?v=20261029-1"></script>
+```
+**Any change to either file must bump `?v=` on both includes in all three pages in the same commit.**
+
 ### Product pages are rendered dynamically
 
 `shop.html` fetches the live catalog from `GET /api/products` and renders cards into `#grid`
