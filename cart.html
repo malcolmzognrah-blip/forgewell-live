@@ -148,6 +148,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .qty-stepper{ display:flex; align-items:center; border:1.5px solid var(--line); border-radius:6px; overflow:hidden; }
 .qty-stepper button{ width:32px; height:32px; background:#fff; border:none; cursor:pointer; font-size:1rem; color:var(--navy); font-family:'Quicksand',sans-serif; }
 .qty-stepper button:hover{ background:var(--panel); }
+.qty-stepper button:disabled{ opacity:0.5; cursor:not-allowed; pointer-events:none; }
 .qty-stepper input{ width:38px; text-align:center; border:none; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.85rem; }
 .cart-remove-link{ background:none; border:none; color:#C0447A; font-size:0.8rem; cursor:pointer; padding:0; font-family:'Quicksand',sans-serif; text-decoration:underline; }
 .cart-item-line-total{ font-weight:700; color:var(--navy-dark); font-size:0.95rem; white-space:nowrap; }
@@ -210,6 +211,9 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .cart-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .cart-checkout-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .cart-checkout-btn:hover{ background:var(--navy-dark); }
+.cart-checkout-btn:disabled{ opacity:0.5; cursor:not-allowed; pointer-events:none; }
+.cart-item-oos-badge{ display:inline-block; background:var(--gray); color:#fff; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:8px; letter-spacing:0.03em; text-transform:uppercase; margin-left:6px; vertical-align:middle; }
+.cart-oos-msg{ font-size:0.78rem; color:#c0392b; margin:0 0 10px; }
 .cart-continue-shopping-link{ display:block; text-align:center; margin-top:14px; color:var(--navy); font-size:0.8rem; text-decoration:none; }
 .cart-continue-shopping-link:hover{ text-decoration:underline; }
 
@@ -268,6 +272,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <span>Order Total</span>
           <span id="cart-page-total">$0.00</span>
         </div>
+        <p id="cart-oos-msg" class="cart-oos-msg" style="display:none;">Some items in your cart are out of stock. Remove them to continue to checkout.</p>
         <button type="button" id="cart-checkout-btn" class="cart-checkout-btn">Proceed to Checkout</button>
         <a href="/shop.html" class="cart-continue-shopping-link">&larr; Continue Shopping</a>
       </div>
@@ -632,6 +637,19 @@ function resolveKitImagePath(p) {
   return vial ? resolveImagePath(vial.image_path) : null;
 }
 
+// Same "own flag OR backing vial's flag" rule product.html's
+// isEffectivelyOutOfStock() and routes/checkout.js's server-side check
+// apply (copied verbatim from shop.html's version). Flags out-of-stock
+// cart lines and blocks the checkout button while any are present --
+// checkout.js would reject them anyway, this just says so up front.
+function isEffectivelyOutOfStock(p) {
+  if (p.stock_status === 'out_of_stock') return true;
+  if (p.category !== 'kit' || !p.base_product_id) return false;
+  const base = p.base_product_id;
+  const vial = allProducts.find(v => v.category !== 'kit' && (v.id === base || v.id.indexOf(base + '-') === 0) && v.dosage === p.dosage);
+  return !!vial && vial.stock_status === 'out_of_stock';
+}
+
 function saveCart() {
   localStorage.setItem('forgewell_cart', JSON.stringify(cart));
   updateCartIcon();
@@ -766,9 +784,15 @@ function renderCartPage() {
 
   const list = document.getElementById('cart-items-list');
   list.innerHTML = '';
+  // Stays false until loadProducts() fills allProducts (and if that fetch
+  // fails), so checkout is never blocked on missing data -- the server
+  // still enforces stock either way.
+  let hasOutOfStock = false;
   cart.forEach(item => {
     const product = allProducts.find(p => p.id === item.productId);
     const imgUrl = product ? resolveKitImagePath(product) : null;
+    const outOfStock = !!product && isEffectivelyOutOfStock(product);
+    if (outOfStock) hasOutOfStock = true;
     const lineTotal = item.price * item.qty;
     const productLink = '/product.html?id=' + encodeURIComponent(item.productId);
     // item.price is already the sale-aware price stored at add-to-cart
@@ -791,12 +815,13 @@ function renderCartPage() {
       '</a>' +
       '<div class="cart-item-info">' +
         '<a href="' + productLink + '" class="cart-item-name">' + item.name + '</a>' +
-        '<div class="cart-item-unit-price">$' + item.price.toFixed(2) + ' each' + saleBadgeHtml + '</div>' +
+        '<div class="cart-item-unit-price">$' + item.price.toFixed(2) + ' each' +
+          (outOfStock ? '<span class="cart-item-oos-badge">Out of Stock</span>' : saleBadgeHtml) + '</div>' +
         '<div class="cart-item-controls">' +
           '<div class="qty-stepper">' +
             '<button type="button" class="cart-qty-minus" data-product-id="' + item.productId + '">-</button>' +
             '<input type="text" class="cart-qty-input" value="' + item.qty + '" readonly>' +
-            '<button type="button" class="cart-qty-plus" data-product-id="' + item.productId + '">+</button>' +
+            '<button type="button" class="cart-qty-plus" data-product-id="' + item.productId + '"' + (outOfStock ? ' disabled' : '') + '>+</button>' +
           '</div>' +
           '<button type="button" class="cart-remove-link" data-product-id="' + item.productId + '">Remove</button>' +
         '</div>' +
@@ -804,6 +829,8 @@ function renderCartPage() {
       '<div class="cart-item-line-total">$' + lineTotal.toFixed(2) + '</div>';
     list.appendChild(row);
   });
+  document.getElementById('cart-checkout-btn').disabled = hasOutOfStock;
+  document.getElementById('cart-oos-msg').style.display = hasOutOfStock ? '' : 'none';
 
   // Shipping is intentionally not shown or calculated here anymore -- it
   // depends on the shipping address, which isn't collected until
@@ -1120,7 +1147,7 @@ document.getElementById('cart-coupon-apply-btn').addEventListener('click', funct
 });
 
 document.getElementById('cart-checkout-btn').addEventListener('click', function() {
-  if (cart.length === 0) return;
+  if (cart.length === 0 || this.disabled) return;
   window.location.href = '/checkout.html';
 });
 

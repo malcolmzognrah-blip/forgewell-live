@@ -144,6 +144,8 @@ header{
 .badge{ position:absolute; top:10px; left:10px; background:#141414; color:#fff; font-size:0.55rem; font-weight:700; padding:3px 8px; border-radius:12px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
 .tag-pill{ position:absolute; top:10px; right:10px; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
 .sale-badge{ position:absolute; top:10px; left:10px; background:#c0392b; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
+.oos-badge{ position:absolute; top:10px; left:10px; background:var(--gray); color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
+.card.out-of-stock .buy-btn, .card.out-of-stock .add-btn{ opacity:0.5; cursor:not-allowed; }
 .vial{ width:100%; aspect-ratio:1/1; border-radius:4px; background:#fff; margin-bottom:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid var(--line); }
 .vial img{ width:100%; height:100%; object-fit:contain; }
 .card h3{ font-weight:700; font-size:1rem; margin-bottom:4px; color:#141414; text-align:center; }
@@ -411,7 +413,7 @@ function saveShopState() {
 const SORT_MODES = ['az', 'za', 'price_low', 'price_high', 'popular', 'sales'];
 
 // Applied after the category filter and before pagination -- everything
-// needed (inStock/onSale/popularityRank/lowestPrice/name) was already computed
+// needed (outOfStock/onSale/popularityRank/lowestPrice/name) was already computed
 // per-group in renderShopGrid()'s grouping step, so this never re-fetches
 // or re-groups, just re-orders the already-loaded list.
 function sortGroupList(list, mode) {
@@ -537,12 +539,13 @@ function resolveKitImagePath(p) {
 
 // Same "own flag OR backing vial's flag" rule product.html's
 // isEffectivelyOutOfStock() and routes/checkout.js's server-side check
-// already apply -- this file's own inStock aggregation (used only by the
-// "In Stock Only" filter checkbox; there's no per-card out-of-stock
-// badge/disabling here for any product, kit or not) was checking just the
-// kit's own flag, so that filter could show a kit as in-stock while its
-// backing vial (and therefore the kit itself, everywhere else on the
-// site) was actually unavailable.
+// already apply. Sets each card's outOfStock flag, which follows only the
+// tier the card's buttons act on (baseId) -- see renderShopGrid(). That one
+// flag drives the "Out of Stock" badge, the disabled Buy Now/Add to Cart,
+// and the "In Stock Only" filter, so the three never disagree. (The filter
+// once checked just a kit's own flag, so it could list a kit as in-stock
+// while its backing vial -- and therefore the kit itself, everywhere else
+// on the site -- was actually unavailable.)
 function isEffectivelyOutOfStock(p) {
   if (p.stock_status === 'out_of_stock') return true;
   if (p.category !== 'kit' || !p.base_product_id) return false;
@@ -865,15 +868,21 @@ function buildCardHtml(group) {
   } else {
     priceLabel = '$XX';
   }
-  return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
+  // Out of stock takes the sale badge's top-left slot (a sale on something
+  // that can't be bought isn't worth advertising). The buttons stay in the
+  // card so the layout doesn't shift; the click handler below is what
+  // actually stops them adding to the cart.
+  const oos = !!group.outOfStock;
+  return '<div class="card' + (oos ? ' out-of-stock' : '') + '" data-tag="' + group.category + '" data-product-id="' + group.baseId + '"' + (oos ? ' data-out-of-stock="true"' : '') + '>' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
-    (group.onSale ? '<div class="sale-badge">' + (group.salePercent != null ? group.salePercent + '% OFF' : 'Sale') + '</div>' : '') +
+    (oos ? '<div class="oos-badge">Out of Stock</div>'
+      : group.onSale ? '<div class="sale-badge">' + (group.salePercent != null ? group.salePercent + '% OFF' : 'Sale') + '</div>' : '') +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +
     '<h3>' + group.name + '</h3>' +
     '<div class="price-row">' +
       '<span class="price">' + priceLabel + '</span>' +
-      '<span class="buy-btn" style="background:' + meta.color + '">Buy Now</span>' +
-      '<span class="add-btn" style="border-color:' + meta.color + '; color:' + meta.color + ';">Add to Cart</span>' +
+      '<span class="buy-btn" style="background:' + meta.color + '"' + (oos ? ' aria-disabled="true"' : '') + '>' + (oos ? 'Out of Stock' : 'Buy Now') + '</span>' +
+      '<span class="add-btn" style="border-color:' + meta.color + '; color:' + meta.color + ';"' + (oos ? ' aria-disabled="true"' : '') + '>' + (oos ? 'Out of Stock' : 'Add to Cart') + '</span>' +
     '</div>' +
   '</div>';
 }
@@ -896,9 +905,9 @@ async function renderShopGrid() {
 
   // Group by base label (size-tier variants collapse into one card, linking
   // to the lowest-priced tier by default), excluding component-only records.
-  // inStock/onSale/unitsSold are family-level aggregates for the sort/filter
+  // onSale/unitsSold are family-level aggregates for the sort/filter
   // controls, not just the representative (cheapest) tier's own values --
-  // a family counts as in-stock or on-sale if ANY tier is, and unitsSold is
+  // a family counts as on-sale if ANY tier is, and unitsSold is
   // summed across every tier, since the card represents the whole family,
   // not one arbitrary row within it (same reasoning already applied to
   // "cheapest tier wins the card" for price/dosage/lot below).
@@ -912,13 +921,12 @@ async function renderShopGrid() {
       groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
         lowestPrice: p.effectivePrice, highestPrice: p.effectivePrice, lowestRegularPrice: p.price,
         lot: p.lot, dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
-        inStock: !isEffectivelyOutOfStock(p), onSale: !!p.onSaleNow,
+        onSale: !!p.onSaleNow,
         salePercent: p.onSaleNow ? p.sale_percent : null, unitsSold: p.units_sold || 0,
         popularityRank: p.popularity_rank ?? null };
     } else {
       groups[base].count += 1;
       groups[base].multi = true;
-      groups[base].inStock = groups[base].inStock || !isEffectivelyOutOfStock(p);
       groups[base].onSale = groups[base].onSale || !!p.onSaleNow;
       groups[base].unitsSold += (p.units_sold || 0);
       // Every tier carries its family's rank; min() just guards against a
@@ -950,6 +958,14 @@ async function renderShopGrid() {
         groups[base].highestPrice = p.effectivePrice;
       }
     }
+  });
+
+  // A card's buttons add baseId (the cheapest tier) to the cart, so the
+  // card's out-of-stock state follows that one tier, not the whole family.
+  // The "In Stock Only" filter uses the same flag, so a card showing
+  // "Out of Stock" is never listed under it.
+  Object.values(groups).forEach(g => {
+    g.outOfStock = isEffectivelyOutOfStock(products.find(p => p.id === g.baseId));
   });
 
   // The "no image, no listing" rule above only checks that image_path is a
@@ -1080,7 +1096,7 @@ async function renderProductsPage() {
   let filtered = currentCategoryFilter === 'all'
     ? productGroupList
     : productGroupList.filter(g => g.category === currentCategoryFilter);
-  if (inStockOnlyFilter) filtered = filtered.filter(g => g.inStock);
+  if (inStockOnlyFilter) filtered = filtered.filter(g => !g.outOfStock);
   if (currentSearchQuery) filtered = filtered.filter(g => g.name.toLowerCase().includes(currentSearchQuery));
   filtered = sortGroupList(filtered, currentSortMode);
 
@@ -1332,6 +1348,7 @@ document.addEventListener('click', (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
+    if (card.dataset.outOfStock === 'true') return;
     if (flashAddedFeedback(e.target)) addToCart(productId);
     return;
   }
@@ -1342,6 +1359,7 @@ document.addEventListener('click', (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
+    if (card.dataset.outOfStock === 'true') return;
     addToCart(productId);
     window.location.href = '/checkout.html';
     return;

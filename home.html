@@ -116,6 +116,8 @@ header{
 .badge{ position:absolute; top:10px; left:10px; background:#141414; color:#fff; font-size:0.55rem; font-weight:700; padding:3px 8px; border-radius:12px; letter-spacing:0.03em; text-transform:uppercase; z-index:2; }
 .tag-pill{ position:absolute; top:10px; right:10px; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
 .sale-badge{ position:absolute; top:10px; left:10px; background:#c0392b; color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
+.oos-badge{ position:absolute; top:10px; left:10px; background:var(--gray); color:#fff; font-size:0.5rem; font-weight:700; padding:3px 8px; border-radius:10px; letter-spacing:0.03em; text-transform:uppercase; text-align:center; min-width:34px; z-index:2; }
+.card.out-of-stock .buy-btn, .card.out-of-stock .add-btn{ opacity:0.5; cursor:not-allowed; }
 .vial{ width:100%; aspect-ratio:1/1; border-radius:4px; background:#fff; margin-bottom:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid var(--line); }
 .vial img{ width:100%; height:100%; object-fit:contain; }
 .card h3{ font-weight:700; font-size:1rem; margin-bottom:4px; color:#141414; text-align:center; }
@@ -536,6 +538,18 @@ function resolveKitImagePath(p) {
   return vial ? resolveImagePath(vial.image_path) : null;
 }
 
+// Same "own flag OR backing vial's flag" rule product.html's
+// isEffectivelyOutOfStock() and routes/checkout.js's server-side check
+// apply (copied verbatim from shop.html's version). Drives each Most
+// Popular card's "Out of Stock" badge and disabled Buy Now/Add to Cart.
+function isEffectivelyOutOfStock(p) {
+  if (p.stock_status === 'out_of_stock') return true;
+  if (p.category !== 'kit' || !p.base_product_id) return false;
+  const base = p.base_product_id;
+  const vial = allProducts.find(v => v.category !== 'kit' && (v.id === base || v.id.indexOf(base + '-') === 0) && v.dosage === p.dosage);
+  return !!vial && vial.stock_status === 'out_of_stock';
+}
+
 async function catalogSearchJump(query) {
   query = query.trim().toLowerCase();
   if (!query) return;
@@ -843,15 +857,21 @@ function buildCardHtml(group) {
   } else {
     priceLabel = '$XX';
   }
-  return '<div class="card" data-tag="' + group.category + '" data-product-id="' + group.baseId + '">' +
+  // Out of stock takes the sale badge's top-left slot (a sale on something
+  // that can't be bought isn't worth advertising). The buttons stay in the
+  // card so the layout doesn't shift; the click handler below is what
+  // actually stops them adding to the cart.
+  const oos = !!group.outOfStock;
+  return '<div class="card' + (oos ? ' out-of-stock' : '') + '" data-tag="' + group.category + '" data-product-id="' + group.baseId + '"' + (oos ? ' data-out-of-stock="true"' : '') + '>' +
     '<div class="tag-pill" style="background:' + meta.color + '">' + meta.label + '</div>' +
-    (group.onSale ? '<div class="sale-badge">' + (group.salePercent != null ? group.salePercent + '% OFF' : 'Sale') + '</div>' : '') +
+    (oos ? '<div class="oos-badge">Out of Stock</div>'
+      : group.onSale ? '<div class="sale-badge">' + (group.salePercent != null ? group.salePercent + '% OFF' : 'Sale') + '</div>' : '') +
     '<div class="vial"><img src="' + group.imgUrl + '" alt="' + group.name + '" loading="lazy" onerror="this.closest(\'.card\').remove()"></div>' +
     '<h3>' + group.name + '</h3>' +
     '<div class="price-row">' +
       '<span class="price">' + priceLabel + '</span>' +
-      '<span class="buy-btn" style="background:' + meta.color + '">Buy Now</span>' +
-      '<span class="add-btn" style="border-color:' + meta.color + '; color:' + meta.color + ';">Add to Cart</span>' +
+      '<span class="buy-btn" style="background:' + meta.color + '"' + (oos ? ' aria-disabled="true"' : '') + '>' + (oos ? 'Out of Stock' : 'Buy Now') + '</span>' +
+      '<span class="add-btn" style="border-color:' + meta.color + '; color:' + meta.color + ';"' + (oos ? ' aria-disabled="true"' : '') + '>' + (oos ? 'Out of Stock' : 'Add to Cart') + '</span>' +
     '</div>' +
   '</div>';
 }
@@ -914,6 +934,7 @@ async function renderHomeMostPopular() {
       lot: p.lot, dosage: p.dosage, onSale: !!p.onSaleNow,
       salePercent: p.onSaleNow ? p.sale_percent : null,
       imgUrl: resolveKitImagePath(p), multi: false,
+      outOfStock: isEffectivelyOutOfStock(p),
     }))
     .filter(g => g.imgUrl); // still respect the image-matching display rule
   popularEl.innerHTML = picks.map(g => buildCardHtml(g)).join('');
@@ -1068,6 +1089,7 @@ document.addEventListener('click', (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
+    if (card.dataset.outOfStock === 'true') return;
     if (flashAddedFeedback(e.target)) addToCart(productId);
     return;
   }
@@ -1078,6 +1100,7 @@ document.addEventListener('click', (e) => {
       alert('Product not loaded yet — try refreshing the page.');
       return;
     }
+    if (card.dataset.outOfStock === 'true') return;
     addToCart(productId);
     window.location.href = '/checkout.html';
     return;
