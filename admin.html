@@ -1056,21 +1056,20 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <div class="costs-namekey" id="costs-pf-namekey-row" hidden>Wholesaler name (remembered from uploads): <strong id="costs-pf-namekey"></strong> <button type="button" class="costs-link" id="costs-pf-namekey-clear">Unlink</button></div>
           <button type="button" class="fulfillment-btn" id="costs-pf-save">Save Cost Fields</button>
         </fieldset>
-        <h4 class="costs-h4">Batches</h4>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-batches-table"><thead><tr><th>Lot</th><th>Received</th><th>Vials purchased</th><th>Cost / vial</th><th>Lab cost</th><th>Lab / vial</th><th>Current</th><th></th></tr></thead><tbody></tbody></table></div>
-        <fieldset class="costs-fieldset" id="costs-batch-form">
-          <legend id="costs-batch-form-title">Add a batch</legend>
+        <h4 class="costs-h4">Lots</h4>
+        <p class="fulfillment-section-note">Lots are created only in Products &gt; Lots &amp; Labels, which generates the lot number. Enter or correct each lot's costs here; a lot with no cost or vial count yet is marked "needs review" on new orders.</p>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-batches-table"><thead><tr><th>Lot</th><th>Received</th><th>Expiry</th><th>Vials purchased</th><th>Cost / vial</th><th>Lab cost</th><th>Lab / vial</th><th>Current</th><th></th></tr></thead><tbody></tbody></table></div>
+        <fieldset class="costs-fieldset" id="costs-batch-form" hidden>
+          <legend id="costs-batch-form-title">Edit lot costs</legend>
           <div class="costs-grid">
-            <label>Lot<input type="text" id="costs-bf-lot"></label>
-            <label>Received (YYYY-MM-DD)<input type="date" id="costs-bf-received"></label>
             <label>Vials purchased<input type="text" inputmode="numeric" id="costs-bf-vials"></label>
-            <label>Cost per vial ($)<input type="text" inputmode="decimal" id="costs-bf-cost" placeholder="empty = product's current cost"></label>
+            <label>Cost per vial ($)<input type="text" inputmode="decimal" id="costs-bf-cost"></label>
             <label>Lab analysis cost ($)<input type="text" inputmode="decimal" id="costs-bf-lab" placeholder="0.00"></label>
             <label>Notes<input type="text" id="costs-bf-notes"></label>
           </div>
-          <label class="costs-radio"><input type="checkbox" id="costs-bf-current" checked> Make this the current batch (new orders are assigned to it)</label>
-          <button type="button" class="fulfillment-btn" id="costs-bf-save">Add Batch</button>
-          <button type="button" class="costs-btn-secondary" id="costs-bf-cancel" hidden>Cancel Edit</button>
+          <label class="costs-radio"><input type="checkbox" id="costs-bf-current"> Current lot (new orders are costed with it)</label>
+          <button type="button" class="fulfillment-btn" id="costs-bf-save">Save Costs</button>
+          <button type="button" class="costs-btn-secondary" id="costs-bf-cancel">Cancel</button>
         </fieldset>
       </div>
     </div>
@@ -1107,7 +1106,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
             <label>Notes<input type="text" id="lots-nf-notes"></label>
           </div>
           <p class="fulfillment-section-note" id="lots-nf-preview" style="margin-top:10px;"></p>
-          <label class="costs-radio"><input type="checkbox" id="lots-nf-current" checked> Make this the current batch for order costing (until its cost is filled in under Costs &amp; Batches, new orders for it are marked "needs review")</label>
+          <label class="costs-radio"><input type="checkbox" id="lots-nf-current" checked> Make this the current lot for order costing (until its cost is filled in under Costs &amp; Batches, new orders for it are marked "needs review")</label>
           <button type="button" class="fulfillment-btn" id="lots-nf-save">Create Lot</button>
         </fieldset>
         <fieldset class="costs-fieldset">
@@ -1148,9 +1147,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </fieldset>
     </div>
     <div class="admin-sub" id="products-sub-upload">
-      <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit, the wholesaler SKU mapping and new batches -- never retail prices, names, descriptions or stock, and never creates products.</p>
+      <p class="fulfillment-section-note">CSV only (save an Excel price list as CSV). Updates wholesale cost, vials per unit and the wholesaler SKU mapping -- never retail prices, names, descriptions or stock, and never creates products or lots (create lots in Lots &amp; Labels, then enter their costs in Costs &amp; Batches).</p>
       <p class="fulfillment-section-note">wholesaler_sku is optional: leave it blank, or leave the column out. A row without a SKU is matched by the wholesaler's product name + dosage once you've confirmed it for a product; after that, the same name matches automatically.</p>
-      <p class="fulfillment-section-note">The Apex price list can be uploaded as exported (CSV), with no changes -- it's detected automatically. Apex rows update costs only (no batches); vials per unit keeps the product's current value (1 if it has none) and can be changed per row before applying.</p>
+      <p class="fulfillment-section-note">The Apex price list can be uploaded as exported (CSV), with no changes -- it's detected automatically. Apex rows update costs only; vials per unit keeps the product's current value (1 if it has none) and can be changed per row before applying.</p>
       <button type="button" class="costs-btn-secondary" id="costs-upload-template">Download CSV Template</button>
       <div class="costs-upload-row">
         <input type="file" id="costs-upload-file" accept=".csv,text/csv">
@@ -1161,7 +1160,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         <p class="costs-format" id="costs-upload-format"></p>
         <ul class="costs-list" id="costs-upload-notices"></ul>
         <div class="costs-counts" id="costs-upload-counts"></div>
-        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU (optional) / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Batch</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
+        <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-table"><thead><tr><th>Row</th><th>Wholesaler SKU (optional) / file product</th><th>Status</th><th>Our product</th><th>Changes</th><th>Decision</th></tr></thead><tbody></tbody></table></div>
         <details class="costs-ignored-rows" id="costs-upload-ignored" hidden>
           <summary>Ignored rows (<span id="costs-upload-ignored-count">0</span>) -- on the ignore list, not changed</summary>
           <div class="costs-table-wrap"><table class="products-table costs-table" id="costs-upload-ignored-table"><thead><tr><th>Row</th><th>File product</th><th>Details</th></tr></thead><tbody></tbody></table></div>
@@ -5588,17 +5587,15 @@ function renderLotsTable() {
   tbody.innerHTML = lots.map(function(l) {
     var cost = l.wholesale_cost_cents_per_vial != null && l.vials_purchased != null
       ? escapeHtml(String(l.vials_purchased)) + ' @ ' + costsMoney(l.wholesale_cost_cents_per_vial)
-      : costsChip('cost needed', 'warn');
+      : costsChip('needs review', 'warn');
     var coa = l.coaStatus === 'attached' ? costsChip('attached', 'good') + ' <a href="/' + escapeHtml(l.coa_path) + '" target="_blank" rel="noopener">PDF</a>'
-      : l.coaStatus === 'pending' ? costsChip('pending', 'warn') : costsChip('no lot number', 'muted');
-    var actions = l.lot_number
-      ? '<button type="button" class="costs-link" data-lot-print="' + escapeHtml(l.id) + '">Print labels</button>' +
-        '<button type="button" class="costs-link" data-lot-expiry="' + escapeHtml(l.id) + '">Edit expiry</button>' +
-        '<a class="costs-link" href="/L/' + escapeHtml(l.lot_number) + '" target="_blank" rel="noopener">Public page</a>'
-      : '<button type="button" class="costs-link" data-lot-assign="' + escapeHtml(l.id) + '">Assign lot number</button>';
-    return '<tr><td><strong>' + escapeHtml(l.lot_number || '--') + '</strong>' + (l.is_current ? ' ' + costsChip('current', 'muted') : '') + '</td>' +
+      : costsChip('pending', 'warn');
+    var actions = '<button type="button" class="costs-link" data-lot-print="' + escapeHtml(l.id) + '">Print labels</button>' +
+      '<button type="button" class="costs-link" data-lot-expiry="' + escapeHtml(l.id) + '">Edit expiry</button>' +
+      '<a class="costs-link" href="/L/' + escapeHtml(l.lot_number) + '" target="_blank" rel="noopener">Public page</a>';
+    return '<tr><td><strong>' + escapeHtml(l.lot_number) + '</strong>' + (l.is_current ? ' ' + costsChip('current', 'muted') : '') + '</td>' +
       '<td>' + escapeHtml(l.received_at || '--') + '</td><td>' + escapeHtml(l.expires_on || '--') + '</td>' +
-      '<td>' + escapeHtml(l.supplier_lot && l.supplier_lot !== l.lot_number ? l.supplier_lot : '') + '</td>' +
+      '<td>' + escapeHtml(l.supplier_lot || '') + '</td>' +
       '<td>' + cost + '</td><td>' + coa + '</td><td class="lots-actions">' + actions + '</td></tr>';
   }).join('');
 }
@@ -5651,21 +5648,6 @@ function editLotExpiry(lotId) {
   if (v === null) return;
   costsApi('PATCH', '/lots/' + encodeURIComponent(lotId), { expiresOn: v.trim() })
     .then(function(l) { loadLots('Expiry for ' + l.lot_number + ' is now ' + l.expires_on + '.'); })
-    .catch(function(err) { costsShowError('lots-status', err); });
-}
-
-function assignLotNumber(batchId) {
-  var batch = lotsState.data.lots.filter(function(l) { return l.id === batchId; })[0];
-  var received = window.prompt('Date this stock was received (YYYY-MM-DD) -- it becomes part of the lot number:', batch.received_at || lotsState.data.today);
-  if (received === null) return;
-  var body = { receivedAt: received.trim() };
-  if (!lotsState.data.owner.shelfLifeMonths) {
-    var exp = window.prompt('No shelf life is set for this product. Expiry date (YYYY-MM-DD):', '');
-    if (exp === null) return;
-    body.expiresOn = exp.trim();
-  }
-  costsApi('POST', '/batches/' + encodeURIComponent(batchId) + '/lot-number', body)
-    .then(function(l) { loadLots('Batch ' + (l.supplier_lot || '') + ' is now lot ' + l.lot_number + '.'); })
     .catch(function(err) { costsShowError('lots-status', err); });
 }
 
@@ -5820,7 +5802,6 @@ document.getElementById('lots-table').addEventListener('click', function(e) {
   if (!b) return;
   if (b.hasAttribute('data-lot-print')) openLotPrint(b.getAttribute('data-lot-print'));
   else if (b.hasAttribute('data-lot-expiry')) editLotExpiry(b.getAttribute('data-lot-expiry'));
-  else if (b.hasAttribute('data-lot-assign')) assignLotNumber(b.getAttribute('data-lot-assign'));
 });
 document.getElementById('lots-print-preset').addEventListener('change', refreshLotPrintPreview);
 document.getElementById('lots-print-mode').addEventListener('change', refreshLotPrintPreview);
@@ -6175,41 +6156,44 @@ function loadCostsBatches() {
   var p = costsSelectedProduct();
   if (!p) return;
   var tbody = document.querySelector('#costs-batches-table tbody');
-  tbody.innerHTML = '<tr><td colspan="8">Loading batches…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9">Loading lots…</td></tr>';
   costsApi('GET', '/products/' + encodeURIComponent(p.id) + '/batches')
     .then(function(data) {
       costsBatches = data.batches;
-      if (!data.batches.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--gray);">No batches yet. Orders for this product use its current wholesale cost and record "lab cost missing (no batch)".</td></tr>'; return; }
+      if (!data.batches.length) { tbody.innerHTML = '<tr><td colspan="9" style="color:var(--gray);">No lots yet -- create one in Products &gt; Lots &amp; Labels. Until then, orders for this product use its current wholesale cost and record "lab cost missing (no batch)".</td></tr>'; return; }
       tbody.innerHTML = data.batches.map(function(b) {
         var share = b.vials_purchased ? Math.round(b.lab_analysis_cost_cents / b.vials_purchased) : null;
+        // A lot can be created before its cost is known (Lots & Labels).
+        var needsReview = b.vials_purchased == null || b.wholesale_cost_cents_per_vial == null;
         return '<tr>' +
-          '<td>' + escapeHtml(b.lot) + (b.lot_number && b.lot_number !== b.lot ? '<div style="font-size:0.72rem;">Lot ' + escapeHtml(b.lot_number) + '</div>' : '') + (b.notes ? '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(b.notes) + '</div>' : '') + '</td>' +
-          '<td>' + (b.received_at ? escapeHtml(String(b.received_at).slice(0, 10)) : '--') + '</td>' +
-          // A lot can be created before its cost is known (Lots & Labels).
-          '<td>' + (b.vials_purchased != null ? b.vials_purchased : costsChip('needed', 'warn')) + '</td>' +
-          '<td>' + (b.wholesale_cost_cents_per_vial != null ? costsMoney(b.wholesale_cost_cents_per_vial) : costsChip('needed', 'warn')) + '</td>' +
+          '<td><strong>' + escapeHtml(b.lot_number) + '</strong>' + (needsReview ? ' ' + costsChip('needs review', 'warn') : '') +
+            (b.supplier_lot ? '<div style="color:var(--gray);font-size:0.72rem;">Supplier lot ' + escapeHtml(b.supplier_lot) + '</div>' : '') +
+            (b.notes ? '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(b.notes) + '</div>' : '') + '</td>' +
+          '<td>' + escapeHtml(b.received_at || '--') + '</td>' +
+          '<td>' + escapeHtml(b.expires_on || '--') + '</td>' +
+          '<td>' + (b.vials_purchased != null ? b.vials_purchased : costsChip('missing', 'warn')) + '</td>' +
+          '<td>' + (b.wholesale_cost_cents_per_vial != null ? costsMoney(b.wholesale_cost_cents_per_vial) : costsChip('missing', 'warn')) + '</td>' +
           '<td>' + costsMoney(b.lab_analysis_cost_cents) + '</td>' +
           '<td>' + costsMoney(share) + '</td>' +
           '<td>' + (b.is_current ? costsChip('Current', 'good') : '') + '</td>' +
           '<td style="white-space:nowrap;">' +
-            '<button type="button" class="costs-link" data-batch-edit="' + escapeHtml(b.id) + '">Edit</button>' +
+            '<button type="button" class="costs-link" data-batch-edit="' + escapeHtml(b.id) + '">Edit costs</button>' +
             (b.is_current ? '' : ' · <button type="button" class="costs-link" data-batch-current="' + escapeHtml(b.id) + '">Make current</button>') +
           '</td></tr>';
       }).join('');
     })
     .catch(function(err) {
       if (err.loggedOut) return;
-      tbody.innerHTML = '<tr><td colspan="8" style="color:#c0392b;">Could not load batches: ' + escapeHtml(err.message) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="color:#c0392b;">Could not load lots: ' + escapeHtml(err.message) + '</td></tr>';
     });
 }
 
+// Edit-only: lots are created in Lots & Labels, never here.
 function resetBatchForm() {
   costsBatchEditing = null;
-  ['costs-bf-lot', 'costs-bf-received', 'costs-bf-vials', 'costs-bf-cost', 'costs-bf-lab', 'costs-bf-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
-  document.getElementById('costs-bf-current').checked = true;
-  document.getElementById('costs-batch-form-title').textContent = 'Add a batch';
-  document.getElementById('costs-bf-save').textContent = 'Add Batch';
-  document.getElementById('costs-bf-cancel').hidden = true;
+  ['costs-bf-vials', 'costs-bf-cost', 'costs-bf-lab', 'costs-bf-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('costs-bf-current').checked = false;
+  document.getElementById('costs-batch-form').hidden = true;
 }
 
 document.getElementById('costs-product-select').addEventListener('change', renderCostsProductDetail);
@@ -6243,22 +6227,19 @@ document.querySelector('#costs-batches-table tbody').addEventListener('click', f
     var b = costsBatches.filter(function(x) { return x.id === editId; })[0];
     if (!b) return;
     costsBatchEditing = b.id;
-    document.getElementById('costs-bf-lot').value = b.lot;
-    document.getElementById('costs-bf-received').value = b.received_at ? String(b.received_at).slice(0, 10) : '';
     document.getElementById('costs-bf-vials').value = b.vials_purchased != null ? b.vials_purchased : '';
     document.getElementById('costs-bf-cost').value = costsCentsToInput(b.wholesale_cost_cents_per_vial);
     document.getElementById('costs-bf-lab').value = costsCentsToInput(b.lab_analysis_cost_cents);
     document.getElementById('costs-bf-notes').value = b.notes || '';
     document.getElementById('costs-bf-current').checked = b.is_current;
-    document.getElementById('costs-batch-form-title').textContent = 'Edit batch ' + b.lot + ' (orders already costed keep the values they were costed with)';
-    document.getElementById('costs-bf-save').textContent = 'Save Batch';
-    document.getElementById('costs-bf-cancel').hidden = false;
+    document.getElementById('costs-batch-form-title').textContent = 'Edit costs for lot ' + b.lot_number + ' (orders already costed keep the values they were costed with)';
+    document.getElementById('costs-batch-form').hidden = false;
     document.getElementById('costs-batch-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   if (currentId) {
     costsSetStatus('costs-batches-status', 'Updating…');
     costsApi('PATCH', '/batches/' + encodeURIComponent(currentId), { makeCurrent: true })
-      .then(function() { costsSetStatus('costs-batches-status', 'Current batch changed. New orders are assigned to it.', 'success'); loadCostsBatches(); })
+      .then(function() { costsSetStatus('costs-batches-status', 'Current lot changed. New orders are costed with it.', 'success'); loadCostsBatches(); })
       .catch(function(err) { costsShowError('costs-batches-status', err); });
   }
 });
@@ -6266,28 +6247,18 @@ document.querySelector('#costs-batches-table tbody').addEventListener('click', f
 document.getElementById('costs-bf-cancel').addEventListener('click', resetBatchForm);
 
 document.getElementById('costs-bf-save').addEventListener('click', function() {
-  var p = costsSelectedProduct();
-  if (!p) return;
-  var lot = document.getElementById('costs-bf-lot').value.trim();
+  if (!costsBatchEditing) return;
   var vialsRaw = document.getElementById('costs-bf-vials').value.trim();
   var cost = costsDollarsToCents(document.getElementById('costs-bf-cost').value);
   var lab = costsDollarsToCents(document.getElementById('costs-bf-lab').value);
-  if (!lot) { costsSetStatus('costs-batches-status', 'Lot is required.', 'error'); return; }
-  if (!/^\d+$/.test(vialsRaw) || Number(vialsRaw) < 1) { costsSetStatus('costs-batches-status', 'Vials purchased must be a whole number of at least 1.', 'error'); return; }
+  if (vialsRaw !== '' && (!/^\d+$/.test(vialsRaw) || Number(vialsRaw) < 1)) { costsSetStatus('costs-batches-status', 'Vials purchased must be a whole number of at least 1, or empty.', 'error'); return; }
   if (cost === null || lab === null) { costsSetStatus('costs-batches-status', 'Costs must be dollar amounts like 3.50, or empty.', 'error'); return; }
-  var body = { lot: lot, vialsPurchased: Number(vialsRaw), labAnalysisCostCents: lab === '' ? 0 : lab, receivedAt: document.getElementById('costs-bf-received').value || null, notes: document.getElementById('costs-bf-notes').value.trim() || null };
+  var body = { labAnalysisCostCents: lab === '' ? 0 : lab, notes: document.getElementById('costs-bf-notes').value.trim() || null, makeCurrent: document.getElementById('costs-bf-current').checked };
+  if (vialsRaw !== '') body.vialsPurchased = Number(vialsRaw);
   if (cost !== '') body.wholesaleCostCentsPerVial = cost;
-  var request;
-  if (costsBatchEditing) {
-    body.makeCurrent = document.getElementById('costs-bf-current').checked;
-    request = costsApi('PATCH', '/batches/' + encodeURIComponent(costsBatchEditing), body);
-  } else {
-    body.makeCurrent = document.getElementById('costs-bf-current').checked;
-    request = costsApi('POST', '/products/' + encodeURIComponent(p.id) + '/batches', body);
-  }
   costsSetStatus('costs-batches-status', 'Saving…');
-  request
-    .then(function(b) { costsSetStatus('costs-batches-status', 'Batch ' + b.lot + ' saved.', 'success'); resetBatchForm(); loadCostsBatches(); })
+  costsApi('PATCH', '/batches/' + encodeURIComponent(costsBatchEditing), body)
+    .then(function(b) { costsSetStatus('costs-batches-status', 'Costs saved for lot ' + b.lot_number + '.', 'success'); resetBatchForm(); loadCostsBatches(); })
     .catch(function(err) { costsShowError('costs-batches-status', err); });
 });
 
@@ -6377,9 +6348,6 @@ function renderUploadPreview(data) {
   document.querySelector('#costs-upload-table tbody').innerHTML = data.rows.filter(function(r) { return r.status !== 'ignored'; }).map(function(r) {
     var product = r.product ? escapeHtml(r.product.id) + (r.match === 'name_key' ? '<div style="color:var(--gray);font-size:0.72rem;">Matched by wholesaler name</div>' : '') : r.suggestion ? 'Suggested: <strong>' + escapeHtml(r.suggestion.id) + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(r.suggestion.name + ' / ' + (r.suggestion.dosage || '')) + '</div>' : '--';
     var changes = (r.changes || []).map(describeUploadChange).join('<br>') || (r.status === 'error' ? '' : '--');
-    var batch = !r.batch ? (r.batchInput ? '' : '--') : r.batch.action === 'create'
-      ? 'New lot <strong>' + escapeHtml(r.batch.lot) + '</strong> (' + r.batch.vialsPurchased + ' vials, lab ' + costsMoney(r.batch.labCents) + ')' + (r.batch.replacesCurrentLot ? '<br>replaces current lot ' + escapeHtml(r.batch.replacesCurrentLot) : '')
-      : 'Lot ' + escapeHtml(r.batch.lot) + ' already recorded';
     var notes = (r.errors && r.errors.length ? '<ul class="costs-list bad">' + r.errors.map(function(e) { return '<li>' + escapeHtml(e) + '</li>'; }).join('') + '</ul>' : '') +
       (r.warnings && r.warnings.length ? '<ul class="costs-list warn">' + r.warnings.map(function(w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '') +
       (r.notices && r.notices.length ? '<ul class="costs-list">' + r.notices.map(function(w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>' : '');
@@ -6394,7 +6362,7 @@ function renderUploadPreview(data) {
     }
     return '<tr><td>' + r.rowNumber + '</td>' +
       '<td>' + uploadFileProductCell(r) + '</td>' +
-      '<td>' + uploadStatusChip(r.status) + '</td><td>' + product + '</td><td>' + changes + notes + '</td><td>' + batch + '</td><td>' + decision + '</td></tr>';
+      '<td>' + uploadStatusChip(r.status) + '</td><td>' + product + '</td><td>' + changes + notes + '</td><td>' + decision + '</td></tr>';
   }).join('');
   document.getElementById('costs-upload-preview-area').hidden = false;
 }
@@ -6469,7 +6437,7 @@ document.getElementById('costs-upload-apply').addEventListener('click', function
         if (r.result === 'skipped' && reason === 'Skipped by admin.') {
           reason = previewStatus[r.rowNumber] === 'no_change' ? 'No changes to apply.' : previewStatus[r.rowNumber] === 'needs_confirmation' ? 'Suggested match not confirmed.' : 'Not selected.';
         }
-        var details = reason ? escapeHtml(reason) : r.batch ? (r.batch.action === 'created' ? 'New current batch ' + escapeHtml(r.batch.lot) : 'Lot ' + escapeHtml(r.batch.lot) + ' already recorded') : '';
+        var details = reason ? escapeHtml(reason) : '';
         var fileProduct = uploadFileProductCell(previewRow[r.rowNumber] || { sku: r.sku });
         return '<tr><td>' + r.rowNumber + '</td><td>' + fileProduct + '</td><td>' + chip + '</td><td>' + escapeHtml(r.productId || '') + '</td><td>' + details + '</td></tr>';
       }).join('');
@@ -6575,7 +6543,7 @@ function renderOrderCosts() {
     costsApi('GET', '/products/' + encodeURIComponent(sel.getAttribute('data-product')) + '/batches')
       .then(function(data) {
         sel.innerHTML = '<option value="">' + (line.autoBatchId ? 'Auto-assigned batch' : 'No batch (product default)') + '</option>' + data.batches.map(function(bt) {
-          return '<option value="' + escapeHtml(bt.id) + '"' + (line.batchSource === 'override' && line.batchId === bt.id ? ' selected' : '') + '>' + escapeHtml(bt.lot) + ' (' + costsMoney(bt.wholesale_cost_cents_per_vial) + '/vial)</option>';
+          return '<option value="' + escapeHtml(bt.id) + '"' + (line.batchSource === 'override' && line.batchId === bt.id ? ' selected' : '') + '>' + escapeHtml(bt.lot_number) + ' (' + costsMoney(bt.wholesale_cost_cents_per_vial) + '/vial)</option>';
         }).join('');
       })
       .catch(function(err) { if (!err.loggedOut) sel.innerHTML = '<option value="">Could not load batches</option>'; });
