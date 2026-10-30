@@ -13,20 +13,14 @@
 // browser; for this script, install a Quicksand TTF -- static or variable --
 // into ~/.local/share/fonts and run `fc-cache -f`).
 //
+// Purity is the product's purity SPECIFICATION (products.purity_spec), the
+// same wording the vial labels print: "98" -> "≥98% PURITY". It is never a
+// test result. Empty, '00' or 0 -> no purity line (there used to be a '00'
+// default, which drew "00% Purity" on several tier images).
+//
 // Usage:
-//   node generate-dosage-images.js "BPC-157|10mg|99" "CJC-1295/Ipamorelin|High|97.5"
-//   node generate-dosage-images.js "Cagrilintide|5mg"   (purity omitted -> '00',
-//                                                         matching the products
-//                                                         table's own default)
-//   node generate-dosage-images.js "Bacteriostatic Water|30mL|"   (purity field
-//                                                         present but EMPTY ->
-//                                                         omits the purity line
-//                                                         entirely, for products
-//                                                         with no COA-derived
-//                                                         purity data at all --
-//                                                         distinct from omitting
-//                                                         the field, which still
-//                                                         defaults to '00')
+//   node generate-dosage-images.js "BPC-157|10mg|98" "CJC-1295/Ipamorelin|High|98"
+//   node generate-dosage-images.js "Bacteriostatic Water|30mL"   (no purity line)
 // '|' rather than ':' -- at least one real product name contains a literal
 // colon ("BCAA 2:1:1"), which would misparse as name/dosage/purity fields.
 // Writes images/<slug>.webp per product given, and prints a
@@ -241,18 +235,18 @@ function parseArg(arg) {
   const parts = arg.split('|');
   const name = parts[0];
   const dosage = parts[1] || '';
-  // Omitting the purity field entirely (2 pipe-separated segments) keeps
-  // the documented '00' default, unchanged for every existing product this
-  // has already been run for. A THIRD segment that's explicitly empty
-  // ("Name|Dosage|") means the caller is saying "this product has no
-  // COA-derived purity data at all" -- purity: null, so generate() omits
-  // the purity line from the image entirely rather than rendering a fake
-  // placeholder value.
-  const purity = parts.length >= 3 ? (parts[2] || null) : '00';
+  // No third segment, or an empty one -> no purity line.
+  const purity = parts[2] || null;
   return { name, dosage, purity };
 }
 
-async function generate({ name, dosage, purity, slugSuffix = '' }) {
+// "98" -> "≥98% PURITY" (the specification); empty / '00' / 0 -> null.
+function purityText(purity) {
+  if (purity == null || purity === '' || !(Number(purity) > 0)) return null;
+  return `≥${String(Number(purity))}% PURITY`;
+}
+
+async function generate({ name, dosage, purity, slugSuffix = '', outDir = OUT_DIR }) {
   const base = await sharp(TEMPLATE)
     .resize(CANVAS, CANVAS, { kernel: 'lanczos3' })
     .toBuffer();
@@ -277,13 +271,11 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
     })));
   }
 
-  // Same "omit entirely rather than fake it" rule as the dosage box above --
-  // purity: null (an explicitly-empty third CLI segment, or an object-call
-  // caller passing null/'' directly) skips the line altogether instead of
-  // rendering a placeholder "00% Purity" on a product with no COA-derived
-  // purity data at all.
-  const purityBuf = purity ? Buffer.from(textSvg({
-    text: `${purity}% Purity`, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
+  // Same "omit entirely rather than fake it" rule as the dosage box above:
+  // no specification -> no purity line.
+  const pText = purityText(purity);
+  const purityBuf = pText ? Buffer.from(textSvg({
+    text: pText, yCenter: PURITY.yCenter, fontSize: PURITY.fontSize,
     color: TEXT_COLOR, weight: PURITY.weight,
   })) : null;
 
@@ -293,7 +285,7 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
   // image_path -- every product then needs an explicit DB update to go
   // live, never a silent one from a filename that happened to match.
   const slug = slugify(name, dosage) + slugSuffix;
-  const outPath = path.join(OUT_DIR, slug + '.webp');
+  const outPath = path.join(outDir, slug + '.webp');
   await sharp(base)
     .composite([
       ...nameBufs.map((buf) => ({ input: buf })),
@@ -304,7 +296,7 @@ async function generate({ name, dosage, purity, slugSuffix = '' }) {
     .toFile(outPath);
 
   let mode = dosage ? layout.mode : `${layout.mode}+no-dosage-box`;
-  if (!purity) mode += '+no-purity';
+  if (!pText) mode += '+no-purity';
   return { name, dosage, purity, mode, outPath, imagePathForDb: 'images/' + slug + '.png' };
 }
 
@@ -334,4 +326,4 @@ if (require.main === module) {
   main().catch(e => { console.error(e); process.exit(1); });
 }
 
-module.exports = { generate, slugify };
+module.exports = { generate, slugify, purityText };

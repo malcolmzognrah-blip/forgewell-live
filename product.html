@@ -1203,15 +1203,24 @@ function renderProduct(product, siblings) {
   // the few kits with no resolvable vial.
   var coaSourceProduct = (product.category === 'kit' ? findBackingVial(product) : null) || product;
 
+  // "Spec ≥98% · Tested 99.17%", "≥98% (specification)", or just the tested value.
+  function purityText(spec, tested) {
+    var s = spec != null && Number(spec) > 0 ? '≥' + String(Number(spec)) + '%' : null;
+    if (s && tested) return 'Spec ' + s + ' · Tested ' + tested;
+    return s ? s + ' (specification)' : (tested || null);
+  }
+
   // Current-Batch Specifications + Analytical Results together make up the
   // Quality & Testing section (see render below) -- both are sourced from
   // product_specs, a denormalized snapshot of whichever product_coas row is
   // latest by batch_date (kept in sync by the backend on every COA
-  // upload/edit/delete). Product and Application are always present, and
-  // spec_purity always has a '99%' fallback baked into the API's join even
-  // before any real COA exists, so both tables always render at least one
-  // row; every other field follows the same "only show it if present" rule
-  // techFields used, so a product with no COA yet just omits those rows.
+  // upload/edit/delete). Product and Application are always present; every
+  // other field follows the same "only show it if present" rule techFields
+  // used, so a product with no COA yet just omits those rows.
+  // Purity states the SPECIFICATION (purity_spec, "≥98%" -- what the vial
+  // label and product image say), plus the latest COA's tested value when
+  // that COA recorded one (spec_purity is null otherwise -- no more '99%'
+  // fallback).
   var batchSpecRows = '';
   var batchSpecFields = [
     ['Product', product.name],
@@ -1225,7 +1234,7 @@ function renderProduct(product, siblings) {
 
   var analyticalRows = '';
   var analyticalFields = [
-    ['Purity (HPLC-UV)', coaSourceProduct.spec_purity],
+    ['Purity (HPLC-UV)', purityText(coaSourceProduct.purity_spec != null ? coaSourceProduct.purity_spec : product.purity_spec, coaSourceProduct.spec_purity)],
     ['Endotoxin Threshold', coaSourceProduct.spec_endotoxin_threshold],
     ['Microbial Analysis (PCR)', coaSourceProduct.spec_microbial_analysis],
     ['Fentanyl Screen', coaSourceProduct.spec_fentanyl_screen],
@@ -1342,8 +1351,7 @@ function renderProduct(product, siblings) {
     // spec_has_coa reflects whether product_specs.source_coa_id is actually
     // set -- i.e. a real COA upload produced this row -- rather than
     // inferring "no real data" from which spec_* fields happen to be
-    // non-null (spec_purity always defaults to '99%' even with zero COAs,
-    // so that alone can't be the signal). A product with no COA ever
+    // non-null. A product with no COA ever
     // uploaded gets no Quality & Testing section at all, not one full of
     // placeholder values.
     (coaSourceProduct.spec_has_coa ?

@@ -213,6 +213,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
 .lot-result h2{ margin:0 0 4px; }
 .lot-result .lot-meta{ color:var(--gray); font-size:0.85rem; margin:0 0 12px; }
 .lot-result .lot-status{ font-size:0.95rem; color:#333; margin:0; }
+.lot-result .lot-purity{ font-size:0.9rem; font-weight:700; color:var(--navy); margin:6px 0 0; }
 .lot-result .lot-coa-btn{ display:inline-block; margin-top:6px; padding:11px 18px; background:var(--navy); color:#fff; border-radius:8px; font-weight:700; text-decoration:none; }
 .lot-result.notfound{ background:#fff; }
 .draft-banner{ background:#FDECD2; border:1px solid #E8B96A; color:#7A4E12; font-size:0.8rem; font-weight:700; padding:12px 16px; border-radius:8px; margin-bottom:24px; }
@@ -693,6 +694,8 @@ function lookUpLot(raw) {
         addEl(box, 'p', 'Lot ' + d.lotNumber + (d.dosage ? ' · ' + d.dosage : ''), 'lot-meta');
         if (d.status === 'attached' && d.coa) {
           addEl(box, 'p', 'Third-party tested' + (d.coa.batchDate ? ' · COA dated ' + d.coa.batchDate : '') + '.', 'lot-status');
+          // Tested purity only when it was recorded with the COA; otherwise the PDF says it.
+          if (d.coa.testedPurity) addEl(box, 'p', 'Purity: ' + (d.puritySpec ? 'Spec ' + d.puritySpec + ' · ' : '') + 'Tested ' + d.coa.testedPurity, 'lot-purity');
           var a = addEl(box, 'a', 'View Certificate of Analysis (PDF)', 'lot-coa-btn');
           a.href = d.coa.url; a.target = '_blank'; a.rel = 'noopener';
         } else {

@@ -43,11 +43,12 @@
 // 5-Pack and 10-Pack row of a given dosage tier.
 //
 // Usage:
-//   node generate-kit-images.js "BPC-157|10mg|99"
-//   node generate-kit-images.js "CJC/IPA Blend|10mg/10mg"   (purity omitted -> '00')
+//   node generate-kit-images.js "BPC-157|10mg|98"          (purity = specification -> "≥98% PURITY")
+//   node generate-kit-images.js "CJC/IPA Blend|10mg/10mg"   (no purity -> no purity line)
 
 const sharp = require('sharp');
 const path = require('path');
+const { purityText } = require('./generate-dosage-images.js');
 
 const TEMPLATE = path.join(__dirname, '..', 'images', '_templates', 'kit-template.png');
 const OUT_DIR = path.join(__dirname, '..', 'images');
@@ -353,7 +354,7 @@ function slugify(name, dosage) {
 
 function parseArg(arg) {
   const [name, dosage, purity] = arg.split('|');
-  return { name, dosage: dosage || '', purity: purity || '00' };
+  return { name, dosage: dosage || '', purity: purity || null };   // no purity -> no line
 }
 
 // Builds the <g clip-path="..."> block for one vial: name/dosage/purity
@@ -417,10 +418,12 @@ async function vialLabelGroup({ vialIndex, clipId, name, dosage, purity, opacity
     });
   }
 
-  const purityEl = textEl({
-    text: `${purity}% Purity`, centerX, yCenter: tier.purity.yCenter, fontSize: tier.purity.fontSize,
+  // Purity specification, same wording as generate-dosage-images.js / the labels.
+  const pText = purityText(purity);
+  const purityEl = pText ? textEl({
+    text: pText, centerX, yCenter: tier.purity.yCenter, fontSize: tier.purity.fontSize,
     color: TEXT_COLOR, weight: tier.purity.weight,
-  });
+  }) : '';
 
   const innerSide = INNER_EDGE_SIDE[vialIndex];
   let visibilityDefs, visibilityAttr;
@@ -512,7 +515,7 @@ async function main() {
 
   console.log('\nGenerated files:');
   for (const r of results) {
-    console.log(`  ${r.name.padEnd(24)} ${r.dosage.padEnd(10)} purity:${r.purity.padEnd(6)} ${r.mode.padEnd(16)} ${r.outPath}`);
+    console.log(`  ${r.name.padEnd(24)} ${r.dosage.padEnd(10)} purity:${String(r.purity || "-").padEnd(6)} ${r.mode.padEnd(16)} ${r.outPath}`);
   }
 }
 
