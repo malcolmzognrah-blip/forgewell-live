@@ -238,7 +238,7 @@ table.tech-table th{width:220px; color:var(--gray); font-weight:700;}
   <h1>Certificates of Analysis</h1>
   <p>Every Forgewell vial is labelled with a lot number and a QR code. Scan the QR code, or enter the lot number below, to see that lot&rsquo;s third-party test results.</p>
   <form class="lot-lookup" id="lot-lookup-form" novalidate>
-    <input type="text" id="lot-lookup-input" placeholder="e.g. FW-111-261030-01" aria-label="Lot number" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40">
+    <input type="text" id="lot-lookup-input" placeholder="e.g. FW11126103001" aria-label="Lot number" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40">
     <button type="submit">Look up</button>
   </form>
   <p class="lot-hint">The lot number is printed on the vial label, after &ldquo;LOT&rdquo;.</p>
@@ -675,7 +675,9 @@ function addEl(parent, tag, text, cls) {
 }
 
 function lookUpLot(raw) {
-  var lot = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+  // Lot numbers are FW + 11 digits (FW11126103001); ignore any spaces or
+  // dashes typed in (FW-111-261030-01, fw 111 261030 01). The server does the same.
+  var lot = String(raw || '').toUpperCase().replace(/[\s\-\u2010-\u2015\u2212]+/g, '');
   if (!lot) return;
   document.getElementById('lot-lookup-input').value = lot;
   showLotResult(function(box) { addEl(box, 'p', 'Looking up ' + lot + '…', 'lot-status'); });

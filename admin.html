@@ -1121,7 +1121,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         </fieldset>
         <fieldset class="costs-fieldset">
           <legend>Preview full label (sample)</legend>
-          <p class="fulfillment-section-note">The complete label with a placeholder lot (FW-XXX-YYMMDD-01, MM/YYYY). No lot is created and no lot number is used. For checking the design only -- not for printing on vials.</p>
+          <p class="fulfillment-section-note">The complete label with a placeholder lot (FWXXXYYMMDDNN, MM/YYYY). No lot is created and no lot number is used. For checking the design only -- not for printing on vials.</p>
           <div class="costs-grid">
             <label>Label preset<select class="costs-select" id="lots-sample-preset"></select></label>
             <label class="costs-radio" style="align-self:end;"><input type="checkbox" id="lots-sample-mark" checked> SAMPLE corner mark</label>
@@ -5527,7 +5527,7 @@ function showProductsSub(name) {
 }
 
 // ---------- Products > Lots & Labels ----------
-// Lots (FW-{product code}-{YYMMDD received}-{NN}), their COA status, label
+// Lots (FW{product code}{YYMMDD received}{NN}, e.g. FW11126103001), their COA status, label
 // printing (preset + mode + quantity), static artwork, label presets and the
 // stock guard. Backend: routes/adminLots.js. Every label is checked for
 // readability server-side before a PDF is produced.
