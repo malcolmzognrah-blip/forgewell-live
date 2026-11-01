@@ -213,6 +213,20 @@ table.inbox-table tr.unread td{ font-weight:700; color:var(--navy-dark); }
 .fulfillment-radio-row{ display:flex; gap:16px; margin-top:6px; }
 .fulfillment-radio-row label{ display:flex; align-items:center; gap:6px; font-size:0.82rem; font-weight:400; color:#333; margin:0; cursor:pointer; }
 .fulfillment-checkbox-row{ display:flex; align-items:center; gap:7px; margin-top:14px; font-size:0.82rem; font-weight:700; color:var(--gray); cursor:pointer; }
+.ship-panel{ max-width:760px; }
+.ship-summary{ border:1.5px solid var(--line); border-radius:8px; padding:10px 14px; margin:4px 0 16px; font-size:0.82rem; background:#fff; }
+.ship-summary.bad{ border-color:#c0392b; background:#fdecea; color:#8e2a1f; }
+.ship-summary.warn{ border-color:#9A6B1E; background:#FFF8EC; color:#7a5414; }
+.ship-carrier{ border:1.5px solid var(--line); border-radius:8px; margin-bottom:14px; background:#fff; }
+.ship-carrier.off{ background:var(--panel); }
+.ship-carrier-head{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); font-weight:700; color:var(--navy-dark); }
+.ship-carrier-head .costs-chip{ margin-left:auto; }
+.ship-service{ display:flex; align-items:center; gap:10px; padding:7px 14px 7px 34px; font-size:0.82rem; }
+.ship-service + .ship-service{ border-top:1px solid #f0f1f4; }
+.ship-service .ship-tier{ color:var(--gray); font-size:0.72rem; }
+.ship-service .costs-chip{ margin-left:auto; }
+.ship-service.locked{ color:var(--gray); }
+.ship-panel input[type="checkbox"]{ width:16px; height:16px; margin:0; }
 .fulfillment-section{ margin-bottom:28px; padding-bottom:24px; border-bottom:1px solid var(--line); }
 .fulfillment-section:last-child{ border-bottom:none; padding-bottom:0; margin-bottom:0; }
 .fulfillment-section h3{ font-size:0.95rem; color:var(--navy-dark); margin:0 0 4px; }
@@ -554,6 +568,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="content-subtab active" id="orders-subtab-list">Orders</button>
     <button type="button" class="content-subtab" id="orders-subtab-import">3PL Import</button>
     <button type="button" class="content-subtab" id="orders-subtab-fulfillment">Fulfillment Report</button>
+    <button type="button" class="content-subtab" id="orders-subtab-shipping">Shipping</button>
   </div>
 
   <div class="content-subview active" id="orders-subview-list">
@@ -670,6 +685,15 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       <button type="button" class="fulfillment-btn" id="fulfillment-schedule-save-btn">Save Settings</button>
       <p class="fulfillment-status" id="fulfillment-schedule-status"></p>
     </div>
+  </div>
+
+  <div class="content-subview ship-panel" id="orders-subview-shipping">
+    <p class="fulfillment-section-note">Which carriers and services checkout offers. A service shows at checkout only if it <strong>and</strong> its carrier are on. Changes apply to the next quote; orders already placed keep their carrier and service, and keep tracking as before.</p>
+    <p class="fulfillment-section-note" id="ship-free-note"></p>
+    <div id="ship-summary" class="ship-summary"></div>
+    <div id="ship-carriers"></div>
+    <button type="button" class="fulfillment-btn" id="ship-save-btn">Save Shipping Settings</button>
+    <p class="costs-status" id="ship-status"></p>
   </div>
   </div>
 
@@ -2747,10 +2771,10 @@ function showOrdersTab() {
 // sub-tab instead of duplicated, see showOrdersFulfillmentSubtab() below
 // for the loadFulfillmentSchedule() call that move brings with it.
 function showOrdersSubtab(subtabId, subviewId) {
-  ['orders-subtab-list', 'orders-subtab-import', 'orders-subtab-fulfillment'].forEach(function(id) {
+  ['orders-subtab-list', 'orders-subtab-import', 'orders-subtab-fulfillment', 'orders-subtab-shipping'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['orders-subview-list', 'orders-subview-import', 'orders-subview-fulfillment'].forEach(function(id) {
+  ['orders-subview-list', 'orders-subview-import', 'orders-subview-fulfillment', 'orders-subview-shipping'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(subtabId).classList.add('active');
@@ -3608,6 +3632,128 @@ function showInboxTab() {
 // ============================================================
 // Fulfillment report
 // ============================================================
+
+// ============================================================
+// Orders › Shipping -- carrier/service on/off switches (backend
+// lib/shipping/settings.js). A service is offered at checkout only if it
+// and its carrier are on. Saving a state with nothing offered, or no
+// standard (ground) service, asks first (the backend also refuses it
+// without confirm: true).
+// ============================================================
+var shipState = { loaded: null };
+
+function showOrdersShippingSubtab() {
+  showOrdersSubtab('orders-subtab-shipping', 'orders-subview-shipping');
+  loadShippingSettings();
+}
+
+function loadShippingSettings(message) {
+  if (!message) costsSetStatus('ship-status', 'Loading…');
+  costsApi('GET', '/shipping-settings')
+    .then(function(d) {
+      shipState.loaded = d;
+      renderShippingSettings(d);
+      costsSetStatus('ship-status', message || '', message ? 'success' : '');
+    })
+    .catch(function(err) { costsShowError('ship-status', err); });
+}
+
+function renderShippingSettings(d) {
+  var threshold = d.freeShippingThreshold;
+  document.getElementById('ship-free-note').innerHTML =
+    '<b>Free shipping</b> (' + (threshold != null ? 'orders of $' + escapeHtml(String(threshold)) + ' or more' : 'no threshold set') +
+    ', and free-shipping coupons) uses the cheapest enabled ground service: the cheapest of FedEx/UPS ground that is on here, plus USPS Ground Advantage when USPS is on. Expedited services are never free.';
+  document.getElementById('ship-carriers').innerHTML = d.carriers.map(function(c) {
+    return '<div class="ship-carrier" data-carrier="' + escapeHtml(c.carrier) + '">' +
+      '<label class="ship-carrier-head"><input type="checkbox" data-ship-carrier="' + escapeHtml(c.carrier) + '"' + (c.enabled ? ' checked' : '') + '> ' + escapeHtml(c.carrier) +
+        (c.credentialsSet ? '' : ' <span class="costs-chip warn" title="Its API credentials are not set in the backend .env, so it returns no rates even when on.">No credentials in .env</span>') +
+        '<span class="costs-chip" data-ship-carrier-chip></span></label>' +
+      c.services.map(function(sv) {
+        var key = c.carrier + '|' + sv.service;
+        return '<label class="ship-service' + (sv.locked ? ' locked' : '') + '">' +
+          '<input type="checkbox" data-ship-service="' + escapeHtml(key) + '"' + (sv.enabled ? ' checked' : '') + (sv.locked ? ' disabled' : '') + '> ' +
+          '<span>' + escapeHtml(sv.label) + ' <span class="ship-tier">' + (sv.tier === 'standard' ? 'standard (ground)' : 'expedited') + '</span>' +
+          (sv.locked ? '<br><span class="ship-tier">Locked off: ' + escapeHtml(sv.lockedReason || '') + '</span>' : '') + '</span>' +
+          '<span class="costs-chip" data-ship-service-chip="' + escapeHtml(key) + '"></span>' +
+        '</label>';
+      }).join('') +
+    '</div>';
+  }).join('');
+  renderShippingPreview();
+}
+
+// What the switches on screen would offer (same rule as the backend).
+function shippingFormState() {
+  var d = shipState.loaded, carriers = {}, services = {}, offered = [];
+  d.carriers.forEach(function(c) {
+    carriers[c.carrier] = document.querySelector('input[data-ship-carrier="' + c.carrier + '"]').checked;
+    c.services.forEach(function(sv) {
+      var key = c.carrier + '|' + sv.service;
+      services[key] = document.querySelector('input[data-ship-service="' + CSS.escape(key) + '"]').checked;
+      if (carriers[c.carrier] && services[key] && !sv.locked) offered.push({ key: key, label: sv.label, tier: sv.tier });
+    });
+  });
+  return { carriers: carriers, services: services, offered: offered };
+}
+
+function renderShippingPreview() {
+  if (!shipState.loaded) return;
+  var f = shippingFormState();
+  document.querySelectorAll('#ship-carriers .ship-carrier').forEach(function(el) {
+    var on = f.carriers[el.dataset.carrier];
+    el.classList.toggle('off', !on);
+    var chip = el.querySelector('[data-ship-carrier-chip]');
+    chip.textContent = on ? 'On' : 'Off'; chip.className = 'costs-chip ' + (on ? 'good' : 'muted');
+  });
+  Object.keys(f.services).forEach(function(key) {
+    var chip = document.querySelector('[data-ship-service-chip="' + CSS.escape(key) + '"]');
+    var shown = f.offered.some(function(o) { return o.key === key; });
+    chip.textContent = shown ? 'Offered' : 'Not offered';
+    chip.className = 'costs-chip ' + (shown ? 'good' : 'muted');
+  });
+  var standard = f.offered.filter(function(o) { return o.tier === 'standard'; });
+  var fast = f.offered.filter(function(o) { return o.tier === 'fast'; });
+  var box = document.getElementById('ship-summary');
+  if (!f.offered.length) {
+    box.className = 'ship-summary bad';
+    box.textContent = 'Nothing is switched on: checkout will show "Shipping is temporarily unavailable" and no order can be placed.';
+  } else if (!standard.length) {
+    box.className = 'ship-summary warn';
+    box.textContent = 'No standard (ground) service is on: free shipping can\'t apply and every customer pays for expedited shipping. Offered: ' + fast.map(function(o) { return o.label; }).join(', ') + '.';
+  } else {
+    box.className = 'ship-summary';
+    box.innerHTML = '<b>Standard at checkout:</b> ' + (f.carriers.USPS && f.services['USPS|USPS_GROUND_ADVANTAGE'] ? 'USPS Ground Advantage + ' : '') +
+      'the cheapest of ' + escapeHtml(standard.filter(function(o) { return o.key.indexOf('USPS|') !== 0; }).map(function(o) { return o.label; }).join(', ') || '(no FedEx/UPS ground on)') +
+      '. <b>Expedited:</b> ' + fast.length + ' service(s).';
+  }
+}
+
+function saveShippingSettings(confirmed) {
+  var f = shippingFormState();
+  var standard = f.offered.filter(function(o) { return o.tier === 'standard'; });
+  if (!confirmed && !f.offered.length) {
+    if (!confirm('This turns off every shipping service. Checkout will show "Shipping is temporarily unavailable" and no order can be placed until something is turned back on. Save anyway?')) return;
+    confirmed = true;
+  } else if (!confirmed && !standard.length) {
+    if (!confirm('No standard (ground) service will be on: free shipping can\'t apply and every customer must pay for expedited shipping. Save anyway?')) return;
+    confirmed = true;
+  }
+  costsSetStatus('ship-status', 'Saving…');
+  costsApi('PUT', '/shipping-settings', { carriers: f.carriers, services: f.services, confirm: !!confirmed })
+    .then(function(d) {
+      shipState.loaded = d;
+      renderShippingSettings(d);
+      costsSetStatus('ship-status', 'Saved. Checkout now offers ' + d.offered.length + ' service(s).', 'success');
+    })
+    .catch(function(err) {
+      if (err.data && err.data.needsConfirm && !confirmed) {
+        if (confirm(err.message + ' Save anyway?')) saveShippingSettings(true);
+        else costsSetStatus('ship-status', 'Not saved.');
+        return;
+      }
+      costsShowError('ship-status', err);
+    });
+}
 
 function showOrdersFulfillmentSubtab() {
   showOrdersSubtab('orders-subtab-fulfillment', 'orders-subview-fulfillment');
@@ -7196,6 +7342,7 @@ var ADMIN_HASH_ROUTES = {
   'products-batches': function() { showProductsTab('batches'); },
   'products-upload': function() { showProductsTab('upload'); },
   emails: function() { showOutboxTab(); },
+  shipping: function() { showOrdersTab(); showOrdersShippingSubtab(); },
 };
 function routeAdminHash() {
   var hash = location.hash.replace(/^#/, '').toLowerCase();
@@ -7218,6 +7365,9 @@ document.getElementById('orders-subtab-import').addEventListener('click', functi
   showOrdersSubtab('orders-subtab-import', 'orders-subview-import');
 });
 document.getElementById('orders-subtab-fulfillment').addEventListener('click', showOrdersFulfillmentSubtab);
+document.getElementById('orders-subtab-shipping').addEventListener('click', showOrdersShippingSubtab);
+document.getElementById('ship-carriers').addEventListener('change', renderShippingPreview);
+document.getElementById('ship-save-btn').addEventListener('click', function() { saveShippingSettings(false); });
 document.getElementById('tab-payments').addEventListener('click', showPaymentsTab);
 document.getElementById('payments-subtab-payram').addEventListener('click', function() {
   showPaymentsSubtab('payments-subtab-payram', 'payments-subview-payram');

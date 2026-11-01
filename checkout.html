@@ -354,6 +354,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .checkout-total-row{ display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; color:var(--navy-dark); padding-top:14px; border-top:1px solid var(--line); margin-top:4px; margin-bottom:16px; }
 .checkout-place-order-btn{ width:100%; padding:14px; background:var(--navy); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.95rem; cursor:pointer; font-family:'Quicksand',sans-serif; }
 .checkout-place-order-btn:hover{ background:var(--navy-dark); }
+.checkout-shipping-unavailable{ margin:10px 0 0; padding:10px 12px; border:1.5px solid #c0392b; border-radius:8px; background:#fdecea; color:#8e2a1f; font-size:0.85rem; font-weight:600; }
 /* Set via the native disabled property (checkout.html's
    beginShippingCalculation()/endShippingCalculationError()/fetchShippingRates()
    -- not a class toggle), so :disabled is the correct selector here. The
@@ -488,6 +489,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           </div>
         </div>
         <p class="fulfillment-section-note" id="carrier-partial-notice" style="display:none;">Showing available rates — one carrier is temporarily unavailable.</p>
+        <p class="checkout-shipping-unavailable" id="shipping-unavailable-notice" role="alert" style="display:none;"></p>
       </div>
     </div>
 
@@ -1379,7 +1381,10 @@ function renderOrderSummary() {
   // client-side total in the meantime.
   const freeShippingEl = document.getElementById('free-shipping-message');
   if (freeShippingEl) {
-    if (currentFreeShippingThreshold == null || currentFreeShippingTotal == null) {
+    // Also hidden when no standard option is on offer (shipping switched
+    // off in admin, or no ground service on): free shipping only ever
+    // applies to standard, so "free standard shipping" would be wrong.
+    if (currentFreeShippingThreshold == null || currentFreeShippingTotal == null || currentStandardRates.length === 0) {
       freeShippingEl.style.display = 'none';
     } else if (currentCouponFreeShipping) {
       // CONFIRMED LIVE BUG, now fixed: this branch was missing entirely,
@@ -1742,6 +1747,7 @@ if (cart.length === 0) {
     document.getElementById('shipping-standard-list').innerHTML = loadingHtml;
     document.getElementById('shipping-fast-list').innerHTML = loadingHtml;
     document.getElementById('carrier-partial-notice').style.display = 'none';
+    document.getElementById('shipping-unavailable-notice').style.display = 'none';
     document.getElementById('checkout-place-order-btn').disabled = true;
   }
 
@@ -1804,6 +1810,24 @@ if (cart.length === 0) {
         renderShippingMethods();
         renderOrderSummary();
         shippingCalculationInFlight = false;
+        // Nothing to ship with: every service is switched off in admin
+        // (shippingUnavailable), or no carrier had an option for this
+        // address. Say so and keep Place Order disabled rather than letting
+        // the order fail on submit.
+        var noOptions = currentStandardRates.length === 0 && currentFastRates.length === 0;
+        var unavailableEl = document.getElementById('shipping-unavailable-notice');
+        if (data.shippingUnavailable || noOptions) {
+          unavailableEl.textContent = data.shippingUnavailable
+            ? (data.unavailableMessage || 'Shipping is temporarily unavailable. Please try again later.')
+            : 'No shipping options are available for this address right now. Please check the address, or try again later.';
+          unavailableEl.style.display = '';
+          var none = '<p class="fulfillment-section-note">No options available.</p>';
+          document.getElementById('shipping-standard-list').innerHTML = none;
+          document.getElementById('shipping-fast-list').innerHTML = none;
+          document.getElementById('checkout-place-order-btn').disabled = true;
+          return;
+        }
+        unavailableEl.style.display = 'none';
         document.getElementById('checkout-place-order-btn').disabled = false;
       })
       .catch(function(err) {
@@ -2682,6 +2706,9 @@ if (cart.length === 0) {
         alert(data.error || 'Checkout failed — please try again.');
         console.error('Checkout failed:', data);
         reEnable();
+        // The chosen shipping service was switched off (or shipping is
+        // unavailable) since the options loaded: fetch the current ones.
+        if (data.shippingUnavailable || /shipping method is no longer available/i.test(data.error || '')) fetchShippingRates();
         return;
       }
 
