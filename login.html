@@ -749,6 +749,20 @@ updateCartIcon();
   forgotLink.addEventListener('click', function() { showForgotForm(); });
   backToLoginLink.addEventListener('click', function(e) { e.preventDefault(); hideForgotForm(); });
 
+  // index.html's "Forgot password?" link lands here with ?forgot=1, carrying
+  // any email already typed there in sessionStorage (read once, then cleared).
+  if (new URLSearchParams(window.location.search).get('forgot') === '1') {
+    var carriedEmail = '';
+    try {
+      carriedEmail = sessionStorage.getItem('forgewell_forgot_email') || '';
+      sessionStorage.removeItem('forgewell_forgot_email');
+    } catch (err) {}
+    showForgotForm();
+    var forgotEmailInput = document.getElementById('forgot-email');
+    forgotEmailInput.value = carriedEmail;
+    forgotEmailInput.focus();
+  }
+
   function showSuccess(customer) {
     // Updates the header's account icon (Sign In -> Hi, [name]) immediately
     // rather than leaving it stale until the next page load/navigation --

@@ -99,6 +99,8 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
 .auth-submit-btn:disabled{ opacity:0.6; cursor:default; }
 .auth-error{ color:#c0392b; font-size:0.8rem; margin-top:10px; display:none; text-align:center; }
 .auth-error.show{ display:block; }
+.forgot-password-link{ display:block; text-align:center; margin-top:14px; color:var(--navy); font-weight:700; text-decoration:none; font-size:0.8rem; font-family:'Quicksand',sans-serif; }
+.forgot-password-link:hover{ text-decoration:underline; }
 .google-signin-btn{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; box-sizing:border-box; padding:12px; background:#fff; color:#3c4043; border:1.5px solid var(--line); border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; font-family:'Quicksand',sans-serif; text-decoration:none; }
 .google-signin-btn:hover{ background:var(--panel); }
 .auth-divider{ display:flex; align-items:center; gap:12px; margin:18px 0; color:var(--gray); font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
@@ -181,6 +183,7 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
           <div class="cf-turnstile turnstile-widget" data-sitekey="0x4AAAAAAE5EWgKwd5A5KMKs"></div>
           <button type="submit" class="auth-submit-btn" id="login-submit-btn">Log In</button>
           <p class="auth-error" id="login-error"></p>
+          <a href="/login.html?forgot=1" class="forgot-password-link" id="forgot-password-link">Forgot password?</a>
         </form>
 
         <form class="auth-form" id="signup-form">
@@ -420,6 +423,17 @@ body{ background:var(--bg); color:#1a1a1a; font-family:'Quicksand',sans-serif; f
   function proceedToSite(){
     window.location.href = '/home.html';
   }
+
+  // The reset form lives on login.html (?forgot=1 opens it). Whatever's
+  // already typed in the email box goes along via sessionStorage rather than
+  // the URL, so the address doesn't end up in server logs or history.
+  document.getElementById('forgot-password-link').addEventListener('click', function() {
+    var typed = document.getElementById('login-email').value.trim();
+    try {
+      if (typed) sessionStorage.setItem('forgewell_forgot_email', typed);
+      else sessionStorage.removeItem('forgewell_forgot_email');
+    } catch (err) {}
+  });
 
   loginForm.addEventListener('submit', function(e){
     e.preventDefault();
