@@ -770,6 +770,28 @@ function calculateCartTotals(cartItems, coupon) {
   };
 }
 
+// Quantities (POST /api/products/availability): the server only says how
+// many are available for a line that asks for more than that -- product
+// pages never show counts, but here the customer needs "Only N available".
+// productId -> available units, for short lines only. Checkout re-checks
+// (and reserves) server-side regardless.
+let cartShortages = {};
+let cartAvailabilityKey = '';
+function checkCartAvailability() {
+  const key = JSON.stringify(cart.map(i => [i.productId, i.qty]));
+  if (!cart.length || key === cartAvailabilityKey) return;
+  cartAvailabilityKey = key;
+  fetch('/api/products/availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: cart.map(i => ({ productId: i.productId, qty: i.qty })) }) })
+    .then(r => (r.ok ? r.json() : null))
+    .then(d => {
+      if (!d || key !== cartAvailabilityKey) return;
+      const next = {};
+      d.items.forEach(it => { if (!it.ok && it.available > 0) next[it.productId] = it.available; });
+      if (JSON.stringify(next) !== JSON.stringify(cartShortages)) { cartShortages = next; renderCartPage(); }
+    })
+    .catch(() => {});
+}
+
 function renderCartPage() {
   const emptyState = document.getElementById('cart-page-empty');
   const content = document.getElementById('cart-page-content');
@@ -787,12 +809,14 @@ function renderCartPage() {
   // Stays false until loadProducts() fills allProducts (and if that fetch
   // fails), so checkout is never blocked on missing data -- the server
   // still enforces stock either way.
-  let hasOutOfStock = false;
+  let hasOutOfStock = false, hasShortage = false;
   cart.forEach(item => {
     const product = allProducts.find(p => p.id === item.productId);
     const imgUrl = product ? resolveKitImagePath(product) : null;
     const outOfStock = !!product && isEffectivelyOutOfStock(product);
     if (outOfStock) hasOutOfStock = true;
+    const onlyAvailable = !outOfStock && cartShortages[item.productId] != null && cartShortages[item.productId] < item.qty ? cartShortages[item.productId] : null;
+    if (onlyAvailable != null) hasShortage = true;
     const lineTotal = item.price * item.qty;
     const productLink = '/product.html?id=' + encodeURIComponent(item.productId);
     // item.price is already the sale-aware price stored at add-to-cart
@@ -817,11 +841,12 @@ function renderCartPage() {
         '<a href="' + productLink + '" class="cart-item-name">' + item.name + '</a>' +
         '<div class="cart-item-unit-price">$' + item.price.toFixed(2) + ' each' +
           (outOfStock ? '<span class="cart-item-oos-badge">Out of Stock</span>' : saleBadgeHtml) + '</div>' +
+        (onlyAvailable != null ? '<div class="cart-oos-msg" style="margin:4px 0 0;">Only ' + onlyAvailable + ' available -- reduce the quantity to continue.</div>' : '') +
         '<div class="cart-item-controls">' +
           '<div class="qty-stepper">' +
             '<button type="button" class="cart-qty-minus" data-product-id="' + item.productId + '">-</button>' +
             '<input type="text" class="cart-qty-input" value="' + item.qty + '" readonly>' +
-            '<button type="button" class="cart-qty-plus" data-product-id="' + item.productId + '"' + (outOfStock ? ' disabled' : '') + '>+</button>' +
+            '<button type="button" class="cart-qty-plus" data-product-id="' + item.productId + '"' + (outOfStock || (cartShortages[item.productId] != null && item.qty >= cartShortages[item.productId]) ? ' disabled' : '') + '>+</button>' +
           '</div>' +
           '<button type="button" class="cart-remove-link" data-product-id="' + item.productId + '">Remove</button>' +
         '</div>' +
@@ -829,8 +854,11 @@ function renderCartPage() {
       '<div class="cart-item-line-total">$' + lineTotal.toFixed(2) + '</div>';
     list.appendChild(row);
   });
-  document.getElementById('cart-checkout-btn').disabled = hasOutOfStock;
-  document.getElementById('cart-oos-msg').style.display = hasOutOfStock ? '' : 'none';
+  document.getElementById('cart-checkout-btn').disabled = hasOutOfStock || hasShortage;
+  const oosMsg = document.getElementById('cart-oos-msg');
+  oosMsg.textContent = hasOutOfStock ? 'Some items in your cart are out of stock. Remove them to continue to checkout.' : 'Some quantities are more than we have available. Reduce them to continue to checkout.';
+  oosMsg.style.display = hasOutOfStock || hasShortage ? '' : 'none';
+  checkCartAvailability();
 
   // Shipping is intentionally not shown or calculated here anymore -- it
   // depends on the shipping address, which isn't collected until

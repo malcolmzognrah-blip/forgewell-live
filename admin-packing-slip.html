@@ -41,6 +41,10 @@ main{ max-width:680px; margin:0 auto; padding:32px 24px 60px; }
 .meta-block .row span:first-child{ color:var(--gray); }
 
 table.items-table{ width:100%; border-collapse:collapse; font-size:0.9rem; }
+.pick-lot{ font-family:monospace; font-weight:700; font-size:0.95rem; color:var(--navy-dark); white-space:nowrap; }
+.pick-lot .exp{ font-family:'Quicksand',sans-serif; font-weight:400; font-size:0.75rem; color:var(--gray); }
+.pick-warn{ color:#c0392b; font-weight:700; }
+.pick-box{ display:inline-block; width:12px; height:12px; border:1.5px solid #222; border-radius:2px; vertical-align:middle; margin-right:6px; }
 table.items-table th{ text-align:left; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.03em; color:var(--gray); border-bottom:1px solid var(--line); padding:6px 8px; }
 table.items-table td{ padding:8px; border-bottom:1px solid var(--line); }
 table.items-table th:last-child, table.items-table td:last-child{ text-align:right; }
@@ -108,9 +112,25 @@ function formatShippingMethod(order) {
   return '—';
 }
 
+// Pick from lot: the lot(s) inventory allocated to each line (routes/admin.js
+// GET /orders/:id -> allocations), so the packer takes the right vials and
+// the order stays traceable for recalls. A kit line is N vials of its vial.
+function pickLotCell(order, lineIndex) {
+  var allocs = (order.allocations || []).filter(function(a) { return a.line_index === lineIndex && a.status === 'committed'; });
+  if (allocs.length) {
+    return allocs.map(function(a) {
+      return '<div class="pick-lot"><span class="pick-box"></span>' + escapeForHtml(a.lot_number) + ' &times; ' + a.vials + ' vial' + (a.vials === 1 ? '' : 's') +
+        ' <span class="exp">exp ' + escapeForHtml(a.expires_on) + '</span></div>';
+    }).join('');
+  }
+  if (order.inventory_status === 'awaiting_stock') return '<span class="pick-warn">AWAITING STOCK -- do not ship</span>';
+  if (order.inventory_status === 'pre_inventory') return '<span class="exp">(before lot tracking)</span>';
+  return '<span class="pick-warn">No lot allocated</span>';
+}
+
 function renderSlip(order) {
-  var items = (order.line_items || []).map(function(item) {
-    return '<tr><td>' + escapeForHtml(item.name) + '</td><td>' + escapeForHtml(String(item.qty)) + '</td></tr>';
+  var items = (order.line_items || []).map(function(item, i) {
+    return '<tr><td>' + escapeForHtml(item.name) + '</td><td>' + escapeForHtml(String(item.qty)) + '</td><td>' + pickLotCell(order, i) + '</td></tr>';
   }).join('');
 
   document.getElementById('slip-root').innerHTML =
@@ -138,7 +158,7 @@ function renderSlip(order) {
     '</div>' +
     '<div class="slip-section">' +
       '<h2>Items</h2>' +
-      '<table class="items-table"><thead><tr><th>Product</th><th>Qty</th></tr></thead><tbody>' + items + '</tbody></table>' +
+      '<table class="items-table"><thead><tr><th>Product</th><th>Qty</th><th>Pick from lot</th></tr></thead><tbody>' + items + '</tbody></table>' +
     '</div>';
 }
 

@@ -2671,6 +2671,14 @@ if (cart.length === 0) {
           reEnable();
           return;
         }
+        // Stock changed since the cart was filled (409 with unavailableItems:
+        // "Only 2 of X available"): say so, then back to the cart, which
+        // shows the per-line "Only N available" and blocks checkout until fixed.
+        if (res.status === 409 && Array.isArray(data.unavailableItems)) {
+          alert(data.error + '\n\nPlease update your cart.');
+          window.location.href = '/cart.html';
+          return;
+        }
         alert(data.error || 'Checkout failed — please try again.');
         console.error('Checkout failed:', data);
         reEnable();
