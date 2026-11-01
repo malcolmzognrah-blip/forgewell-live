@@ -374,6 +374,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .lots-check{ font-size:0.8rem; margin:8px 0 0; }
 .lots-check.bad{ color:#c0392b; }
 .lots-actions{ white-space:nowrap; }
+.presets-actions{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0 14px; }
+.presets-actions .fulfillment-btn{ margin:0; }
 .email-alert-banner.warn{ background:#FFF8EC; color:#7a5414; border-color:#9A6B1E; }
 .email-alert-actions{ display:flex; gap:8px; flex-wrap:wrap; }
 .email-alert-actions button{ margin:0; padding:7px 12px; }
@@ -1210,7 +1212,11 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </div>
       <h4 class="costs-h4">Label presets</h4>
       <div class="costs-table-wrap"><table class="products-table costs-table" id="presets-table"><thead><tr><th>Preset</th><th>Vial</th><th>Size (mm)</th><th>Layout</th><th>Wrap seam</th><th>Clearance</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
-      <fieldset class="costs-fieldset" id="presets-form">
+      <div class="presets-actions">
+        <button type="button" class="fulfillment-btn" id="presets-add-btn">Add Preset</button>
+        <span class="costs-status" id="presets-status"></span>
+      </div>
+      <fieldset class="costs-fieldset" id="presets-form" hidden>
         <legend id="presets-form-title">Add a preset</legend>
         <div class="costs-grid">
           <label>Key (a-z, 0-9, -)<input type="text" id="pf-key" placeholder="e.g. 10ml-65x35"></label>
@@ -1227,10 +1233,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
         </div>
         <label class="costs-radio"><input type="checkbox" id="pf-short"> Short disclaimer ("RUO" / "NOT FOR HUMAN USE")</label>
         <label class="costs-radio"><input type="checkbox" id="pf-verified" checked> Verified (size measured on a real vial)</label>
-        <label class="costs-radio"><input type="checkbox" id="pf-default" checked> Default for its vial size</label>
+        <label class="costs-radio"><input type="checkbox" id="pf-default"> Default for its vial size</label>
+        <p class="fulfillment-section-note" id="pf-default-note" hidden></p>
         <label class="costs-radio"><input type="checkbox" id="pf-active" checked> Active</label>
-        <button type="button" class="fulfillment-btn" id="pf-save">Add Preset</button>
-        <button type="button" class="costs-btn-secondary" id="pf-cancel" hidden>Cancel Edit</button>
+        <button type="button" class="fulfillment-btn" id="pf-save">Save Preset</button>
+        <button type="button" class="costs-btn-secondary" id="pf-cancel">Cancel</button>
+        <p class="costs-status" id="pf-status" role="alert"></p>
       </fieldset>
       <fieldset class="costs-fieldset">
         <legend>Stock guard</legend>
@@ -6409,24 +6417,58 @@ function renderPresetsTable() {
   }).join('');
 }
 
+// The preset form is closed until "Add Preset" or a row's "Edit" opens it.
+// Its own status line (#pf-status) shows validation and server errors right
+// under the Save button -- the Lots & Labels status line at the top of the
+// page is usually scrolled far out of view by the time you reach here.
 function resetPresetForm() {
   presetEditId = null;
+  document.getElementById('presets-form').hidden = true;
+  document.getElementById('presets-add-btn').hidden = false;
   document.getElementById('presets-form-title').textContent = 'Add a preset';
-  document.getElementById('pf-save').textContent = 'Add Preset';
-  document.getElementById('pf-cancel').hidden = true;
   document.getElementById('pf-key').disabled = false;
   [['pf-key', ''], ['pf-name', ''], ['pf-vial', ''], ['pf-width', ''], ['pf-height', ''], ['pf-layout', 'full'], ['pf-seam-mode', 'gap'],
     ['pf-seam-mm', '0'], ['pf-end-clear', '1.5'], ['pf-back-share', '0.50'], ['pf-notes', '']].forEach(function(f) { document.getElementById(f[0]).value = f[1]; });
   document.getElementById('pf-short').checked = false;
-  ['pf-verified', 'pf-default', 'pf-active'].forEach(function(f) { document.getElementById(f).checked = true; });
+  // Not the default unless chosen: every vial size already has one, and
+  // ticking this replaces it.
+  document.getElementById('pf-default').checked = false;
+  ['pf-verified', 'pf-active'].forEach(function(f) { document.getElementById(f).checked = true; });
+  costsSetStatus('pf-status', '');
+  updatePresetDefaultNote();
+}
+
+function openPresetForm() {
+  var form = document.getElementById('presets-form');
+  form.hidden = false;
+  document.getElementById('presets-add-btn').hidden = true;
+  costsSetStatus('presets-status', '');
+  updatePresetDefaultNote();
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function openNewPresetForm() {
+  resetPresetForm();
+  openPresetForm();
+  document.getElementById('pf-key').focus();
+}
+
+// "Replaces X as the default for 3 mL" when Default is ticked and another
+// active preset holds it.
+function updatePresetDefaultNote() {
+  var note = document.getElementById('pf-default-note');
+  var size = Number(document.getElementById('pf-vial').value) || null;
+  var current = size && lotsState.presets.filter(function(p) { return p.vial_size_ml === size && p.is_default && p.active && p.id !== presetEditId; })[0];
+  var show = document.getElementById('pf-default').checked && document.getElementById('pf-active').checked && current;
+  note.hidden = !show;
+  note.textContent = show ? 'This replaces ' + current.name + ' as the default for ' + size + ' mL vials.' : '';
 }
 
 function editPreset(id) {
   var p = lotsState.presets.filter(function(x) { return x.id === id; })[0];
   presetEditId = id;
   document.getElementById('presets-form-title').textContent = 'Edit preset ' + p.name;
-  document.getElementById('pf-save').textContent = 'Save Preset';
-  document.getElementById('pf-cancel').hidden = false;
+  costsSetStatus('pf-status', '');
   document.getElementById('pf-key').value = p.key;
   document.getElementById('pf-key').disabled = true;
   document.getElementById('pf-name').value = p.name;
@@ -6443,7 +6485,7 @@ function editPreset(id) {
   document.getElementById('pf-verified').checked = !!p.verified;
   document.getElementById('pf-default').checked = !!p.is_default;
   document.getElementById('pf-active').checked = !!p.active;
-  document.getElementById('presets-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  openPresetForm();
 }
 
 function savePreset() {
@@ -6459,14 +6501,31 @@ function savePreset() {
     notes: document.getElementById('pf-notes').value.trim() || null,
   };
   if (!presetEditId) body.key = document.getElementById('pf-key').value.trim();
+  // Same rules as the server, checked here first so the message names the field.
+  var problem = (!presetEditId && !/^[a-z0-9-]{1,40}$/.test(body.key)) ? 'Key: use 1-40 lowercase letters, digits or dashes (e.g. 3ml-50x25).'
+    : !body.name ? 'Name is required.'
+    : !(body.width_mm >= 20 && body.width_mm <= 200) ? 'Width must be 20-200 mm.'
+    : !(body.height_mm >= 10 && body.height_mm <= 100) ? 'Height must be 10-100 mm.'
+    : !(body.seam_mm >= 0 && body.seam_mm < 100) ? 'Seam gap / overlap must be 0-99 mm.'
+    : !(body.end_clear_mm >= 0.5 && body.end_clear_mm <= 10) ? 'Clearance must be 0.5-10 mm.'
+    : !(body.back_share >= 0.4 && body.back_share <= 0.6) ? 'Back panel share must be 0.40-0.60.'
+    : null;
+  if (problem) { costsSetStatus('pf-status', problem, 'error'); return; }
+  var btn = document.getElementById('pf-save');
+  btn.disabled = true;
+  costsSetStatus('pf-status', 'Saving…');
   var req = presetEditId ? costsApi('PATCH', '/label-presets/' + presetEditId, body) : costsApi('POST', '/label-presets', body);
   req.then(function(p) {
     resetPresetForm();
     return loadLotPresets().then(function() {
-      costsSetStatus('lots-status', 'Preset ' + p.name + ' saved.', 'success');
+      var replaced = (p.replacedDefault || []).map(function(r) { return r.name; });
+      costsSetStatus('presets-status', 'Preset ' + p.name + ' saved.' + (replaced.length ? ' It is now the default instead of ' + replaced.join(', ') + '.' : ''), 'success');
       if (lotsState.data) { document.getElementById('lots-art-preset').innerHTML = presetOptions(lotsState.data.owner.vialSizeMl); document.getElementById('lots-sample-preset').innerHTML = presetOptions(lotsState.data.owner.vialSizeMl); refreshLotSample(); }
     });
-  }).catch(function(err) { costsShowError('lots-status', err); });
+  }).catch(function(err) {
+    costsShowError('pf-status', err);
+    document.getElementById('pf-status').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }).then(function() { btn.disabled = false; });
 }
 
 document.getElementById('lots-product-select').addEventListener('change', function() { lotsState.productId = this.value; loadLots(); });
@@ -6497,6 +6556,8 @@ document.getElementById('presets-table').addEventListener('click', function(e) {
 });
 document.getElementById('pf-save').addEventListener('click', savePreset);
 document.getElementById('pf-cancel').addEventListener('click', resetPresetForm);
+document.getElementById('presets-add-btn').addEventListener('click', openNewPresetForm);
+['pf-vial', 'pf-default', 'pf-active'].forEach(function(id) { document.getElementById(id).addEventListener('change', updatePresetDefaultNote); });
 document.getElementById('lots-guard').addEventListener('change', function() {
   var box = this, want = box.checked;
   costsApi('PUT', '/lot-settings', { requireCoaForInStock: want })
