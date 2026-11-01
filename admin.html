@@ -136,6 +136,7 @@ table.orders-table tr:hover{ background:var(--panel); }
 .job-status-pill.success{ background:#DCF3E0; color:#1F7A34; }
 .job-status-pill.no_action{ background:var(--line); color:var(--gray); }
 .job-status-pill.error{ background:#FADBD8; color:#c0392b; }
+.job-status-pill.partial{ background:#FDECD2; color:#9A6B1E; }
 .job-card-header{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
 .job-card-name{ font-weight:700; font-size:0.95rem; color:var(--navy-dark); }
 .job-card-last-run{ font-size:0.78rem; color:var(--gray); }
@@ -359,6 +360,15 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .lots-check{ font-size:0.8rem; margin:8px 0 0; }
 .lots-check.bad{ color:#c0392b; }
 .lots-actions{ white-space:nowrap; }
+.email-alert-banner.warn{ background:#FFF8EC; color:#7a5414; border-color:#9A6B1E; }
+.email-alert-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+.email-alert-actions button{ margin:0; padding:7px 12px; }
+#view-outbox > .fulfillment-section-note{ max-width:900px; }
+.outbox-table{ min-width:980px; }
+.outbox-table td{ vertical-align:top; font-size:0.8rem; }
+.outbox-error{ color:#8e2a1f; font-size:0.75rem; word-break:break-word; max-width:360px; }
+.outbox-sub{ color:var(--gray); font-size:0.72rem; }
+.outbox-pager{ display:flex; gap:10px; align-items:center; font-size:0.8rem; margin:10px 0; }
 .inv-badge{ display:inline-block; min-width:18px; padding:1px 6px; margin-left:6px; border-radius:100px; background:#c0392b; color:#fff; font-size:0.66rem; font-weight:700; line-height:1.5; text-align:center; vertical-align:middle; }
 .inv-cards{ display:flex; flex-wrap:wrap; gap:12px; margin:6px 0 16px; }
 .inv-card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:150px; }
@@ -514,6 +524,13 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <div><strong>QuickBooks needs to be reconnected. Card payments are offline.</strong><span id="qbo-reconnect-banner-reason"></span></div>
     <a href="/api/admin/quickbooks/connect" class="qbo-connect-btn">Reconnect QuickBooks</a>
   </div>
+  <div class="qbo-reconnect-banner email-alert-banner" id="email-alert-banner" role="alert" hidden>
+    <div><strong id="email-alert-title"></strong><span id="email-alert-detail"></span></div>
+    <div class="email-alert-actions">
+      <button type="button" class="costs-btn-secondary" id="email-alert-resume-btn" hidden>Try sending now</button>
+      <button type="button" class="costs-btn-secondary" id="email-alert-view-btn">View emails</button>
+    </div>
+  </div>
   <div class="admin-tabs">
     <button type="button" class="admin-tab active" id="tab-orders">Orders</button>
     <button type="button" class="admin-tab" id="tab-payments">Payments</button>
@@ -522,6 +539,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     <button type="button" class="admin-tab" id="tab-inbox">Inbox</button>
     <button type="button" class="admin-tab" id="tab-products">Products<span class="inv-badge" id="products-tab-badge" hidden></span></button>
     <button type="button" class="admin-tab" id="tab-content">Content</button>
+    <button type="button" class="admin-tab" id="tab-outbox">Emails<span class="inv-badge" id="outbox-tab-badge" hidden></span></button>
     <button type="button" class="admin-tab" id="tab-emails">Email Templates</button>
     <button type="button" class="admin-tab" id="tab-coupons">Coupons</button>
     <button type="button" class="admin-tab" id="tab-credit">Store Credit</button>
@@ -1620,8 +1638,36 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
     </table>
   </div>
 
+  <div class="admin-view" id="view-outbox">
+    <p class="fulfillment-section-note">Every email the site sends is queued here first, then sent. A failed send is retried (after 3 min, 15 min, 1 h and 6 h, up to 5 tries); if SendGrid itself refuses (credits used up, bad key, rate limit), sending pauses and everything waits instead of failing. No email is ever sent twice: "Retry now" is only offered for emails that haven't gone out.</p>
+    <div class="inv-cards" id="outbox-cards"></div>
+    <p class="inv-stock" id="outbox-provider"></p>
+    <div class="filters">
+      <select id="outbox-filter-status">
+        <option value="">All</option>
+        <option value="waiting">Waiting to send</option>
+        <option value="attention">Needs attention</option>
+        <option value="sent">Sent</option>
+        <option value="expired">Too old to send</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <select id="outbox-filter-kind"><option value="">All emails</option></select>
+      <input type="text" id="outbox-filter-q" placeholder="Search recipient or subject...">
+      <button type="button" id="outbox-filter-btn">Search</button>
+      <button type="button" id="outbox-resume-btn">Resume sending now</button>
+    </div>
+    <p class="costs-status" id="outbox-status"></p>
+    <div class="costs-table-wrap">
+    <table class="products-table costs-table outbox-table">
+      <thead><tr><th>Queued</th><th>Email</th><th>To</th><th>Status</th><th>Tries</th><th>Last error / next try</th><th></th></tr></thead>
+      <tbody id="outbox-tbody"></tbody>
+    </table>
+    </div>
+    <div class="outbox-pager" id="outbox-pager"></div>
+  </div>
+
   <div class="admin-view coa-panel" id="view-jobs">
-    <p class="fulfillment-section-note">The six scheduled jobs in lib/jobs.js (backend repo) -- each shares one 3-minute poll tick and writes a job_runs row every time it checks in, whether or not it found anything to do. Read-only.</p>
+    <p class="fulfillment-section-note">The scheduled jobs in lib/jobs.js (backend repo) -- they share one 3-minute poll tick and write a job_runs row every time they check in, whether or not they found anything to do. "Partial" means some emails failed; "error" on Email Outbox means sending is paused. Read-only.</p>
     <div class="content-subtabs" id="jobs-subtabs"></div>
     <div id="jobs-subviews"></div>
   </div>
@@ -1886,6 +1932,7 @@ function showAdmin(username) {
   loadOrders();
   refreshInventoryBadge();
   checkQuickBooksBanner();
+  refreshEmailStatus();
   routeAdminHash();
   // A re-login lands back on whatever view was open; refresh the
   // QuickBooks card if that's Payments, so it can't show a stale result
@@ -2678,10 +2725,10 @@ function showLogin() {
 // -- Promotions -- was added) -- deactivates every tab/view, then
 // activates just the requested pair.
 function showAdminTab(tabId, viewId) {
-  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat', 'tab-affiliate'].forEach(function(id) {
+  ['tab-orders', 'tab-payments', 'tab-coas', 'tab-promo', 'tab-inbox', 'tab-products', 'tab-content', 'tab-outbox', 'tab-emails', 'tab-coupons', 'tab-credit', 'tab-audit', 'tab-jobs', 'tab-livechat', 'tab-affiliate'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
-  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat', 'view-affiliate'].forEach(function(id) {
+  ['view-orders', 'view-payments', 'view-coas', 'view-promo', 'view-inbox', 'view-products', 'view-content', 'view-outbox', 'view-emails', 'view-coupons', 'view-credit', 'view-audit', 'view-jobs', 'view-livechat', 'view-affiliate'].forEach(function(id) {
     document.getElementById(id).classList.remove('active');
   });
   document.getElementById(tabId).classList.add('active');
@@ -3215,16 +3262,26 @@ function showAuditTab() {
 // mapping to keep in sync as jobs are added/renamed, at the cost of a
 // slightly verbose URL param.
 var JOB_DEFINITIONS = [
-  { name: 'processPendingStockNotifications', label: 'Stock Notifications', description: 'Emails customers who asked to be notified once a product is back in stock.' },
-  { name: 'processDueScheduledEmails', label: 'Scheduled Promo Emails', description: 'Sends a "Schedule for later" newsletter/promo campaign once its scheduled time arrives.' },
-  { name: 'processScheduledFulfillmentReport', label: 'Daily Fulfillment Report', description: 'Emails the configured recipient the daily unshipped-orders report at the configured time.' },
-  { name: 'processAbandonedCarts', label: 'Abandoned Cart Reminders', description: 'Emails a signed-in customer whose cart has sat untouched for a few hours.' },
+  { name: 'processEmailOutbox', label: 'Email Outbox', description: 'Sends queued emails (new ones and retries), after the other jobs each tick. "error" while SendGrid is refusing and sending is paused; "partial" when some emails failed. See the Emails tab.' },
+  { name: 'processPendingStockNotifications', label: 'Stock Notifications', description: 'Queues an email for customers who asked to be notified once a product is back in stock.' },
+  { name: 'processDueScheduledEmails', label: 'Scheduled Promo Emails', description: 'Queues a "Schedule for later" newsletter/promo campaign (one email per subscriber) once its scheduled time arrives.' },
+  { name: 'processScheduledFulfillmentReport', label: 'Daily Fulfillment Report', description: 'Queues the daily unshipped-orders report to the configured recipient at the configured time.' },
+  { name: 'processAbandonedCarts', label: 'Abandoned Cart Reminders', description: 'Queues one reminder for a signed-in customer whose cart has sat untouched for a few hours (skipped once a cart is more than 7 days old).' },
+  { name: 'processInventory', label: 'Inventory', description: 'Releases expired checkout reservations every tick; queues the daily inventory alerts email when there is something in it.' },
   { name: 'processCarrierTrackingChecks', label: 'Carrier Tracking Check', description: 'Checks UPS/FedEx for shipped orders and auto-marks them delivered once confirmed.' },
   { name: 'processJobRunsCleanup', label: 'Job Runs Cleanup', description: 'Deletes job_runs rows older than the retention window (default 7 days) -- once per day, gated by its own last successful run in this same table.' },
 ];
 
 function jobStatusPillHtml(status) {
   return '<span class="job-status-pill ' + escapeHtml(status) + '">' + escapeHtml(status.replace('_', ' ')) + '</span>';
+}
+
+// Runs recorded before the 'partial' status existed said 'success' even
+// when emails failed; show those as partial too.
+function jobRunDisplayStatus(r) {
+  var d = r.details || {};
+  if (r.status === 'success' && ((d.failed || 0) > 0 || (d.recipientsFailed || 0) > 0)) return 'partial';
+  return r.status;
 }
 
 // One sub-tab per JOB_DEFINITIONS entry, built dynamically rather than
@@ -3307,11 +3364,11 @@ function loadJobRuns() {
           return;
         }
         var last = runs[0];
-        lastRunEl.innerHTML = 'Last run: ' + formatDate(last.started_at) + ' &mdash; ' + jobStatusPillHtml(last.status);
+        lastRunEl.innerHTML = 'Last run: ' + formatDate(last.started_at) + ' &mdash; ' + jobStatusPillHtml(jobRunDisplayStatus(last));
         tbody.innerHTML = runs.map(function(r) {
           return '<tr>' +
             '<td style="white-space:nowrap;">' + formatDate(r.started_at) + '</td>' +
-            '<td>' + jobStatusPillHtml(r.status) + '</td>' +
+            '<td>' + jobStatusPillHtml(jobRunDisplayStatus(r)) + '</td>' +
             '<td style="font-size:0.78rem; word-break:break-all;"><code>' + escapeHtml(JSON.stringify(r.details || {})) + '</code></td>' +
           '</tr>';
         }).join('');
@@ -3329,6 +3386,185 @@ function showJobsTab() {
   showAdminTab('tab-jobs', 'view-jobs');
   loadJobRuns();
 }
+
+// ============================================================
+// Emails -- the email outbox (backend lib/emailOutbox.js): the admin-wide
+// "email is failing" banner, and the Emails tab with Retry now / Cancel /
+// Resume sending now. The banner is the alert channel that still works
+// when email itself is down; it's refreshed on login, every 2 minutes
+// while admin is open, and after any action here.
+// ============================================================
+var OUTBOX_PAGE_SIZE = 50;
+var outboxState = { offset: 0, kindsLoaded: false };
+var OUTBOX_STATUS_LABELS = {
+  pending: ['Waiting', 'warn'], failed: ['Retrying', 'warn'], sending: ['Sending', 'warn'], sent: ['Sent', 'good'],
+  gave_up: ['Gave up', 'bad'], uncertain: ['May have been delivered', 'bad'], expired: ['Too old to send', 'muted'], cancelled: ['Cancelled', 'muted'],
+};
+
+function outboxShortError(msg) {
+  msg = String(msg || '');
+  // SendGrid's error JSON -> just its message text.
+  var m = msg.match(/"message":"([^"]+)"/);
+  var prefix = msg.match(/^SendGrid send failed \((\d+)\)/);
+  if (m) return (prefix ? prefix[1] + ' ' : '') + m[1];
+  return msg.length > 220 ? msg.slice(0, 220) + '…' : msg;
+}
+
+function refreshEmailStatus() {
+  return costsApi('GET', '/email-outbox/status')
+    .then(function(st) { renderEmailBanner(st); return st; })
+    .catch(function() { return null; });
+}
+
+function renderEmailBanner(st) {
+  var banner = document.getElementById('email-alert-banner');
+  var badge = document.getElementById('outbox-tab-badge');
+  var failing = st.paused || st.failingSince;
+  var badgeCount = st.needsAttention + (failing ? st.waiting : 0);
+  badge.textContent = badgeCount; badge.hidden = !badgeCount;
+  badge.title = st.waiting + ' waiting, ' + st.needsAttention + ' need attention';
+  document.getElementById('email-alert-resume-btn').hidden = !failing;
+  if (failing) {
+    banner.classList.remove('warn');
+    document.getElementById('email-alert-title').textContent = 'Email sending is failing. Customer emails are queued, not lost.';
+    document.getElementById('email-alert-detail').textContent = ' ' +
+      (st.lastFailureMessage ? 'SendGrid: ' + outboxShortError(st.lastFailureMessage) + '. ' : '') +
+      'Failing since ' + formatDate(st.failingSince || st.lastFailureAt) + '; ' + st.waiting + ' email(s) waiting.' +
+      (st.paused ? ' Sending is paused; next automatic try ' + formatDate(st.pausedUntil) + '.' : '') +
+      (st.needsAttention ? ' ' + st.needsAttention + ' need attention.' : '');
+    banner.hidden = false;
+  } else if (st.needsAttention) {
+    banner.classList.add('warn');
+    document.getElementById('email-alert-title').textContent = st.needsAttention + ' email(s) could not be sent and need a decision.';
+    document.getElementById('email-alert-detail').textContent = ' Open Emails, filter "Needs attention": retry or dismiss each.';
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
+function renderOutboxCards(st) {
+  var cards = [
+    ['Waiting to send', st.waiting, st.waiting > 0 && (st.paused || st.failingSince)],
+    ['Need attention', st.needsAttention, st.needsAttention > 0],
+    ['Sent', st.counts.sent, false],
+    ['Too old to send', st.counts.expired, false],
+  ];
+  document.getElementById('outbox-cards').innerHTML = cards.map(function(c) {
+    return '<div class="inv-card' + (c[2] ? ' alert' : '') + '"><strong>' + c[1] + '</strong><span>' + escapeHtml(c[0]) + '</span></div>';
+  }).join('');
+  var p = document.getElementById('outbox-provider');
+  if (st.paused || st.failingSince) {
+    p.innerHTML = '<b>SendGrid:</b> failing since ' + escapeHtml(formatDate(st.failingSince || st.lastFailureAt)) +
+      (st.paused ? ', sending paused until ' + escapeHtml(formatDate(st.pausedUntil)) : '') +
+      '. Last error: ' + escapeHtml(outboxShortError(st.lastFailureMessage)) +
+      '. Once it is fixed (e.g. credits topped up), use "Resume sending now", or wait for the next automatic try.';
+  } else {
+    p.innerHTML = '<b>SendGrid:</b> working' + (st.lastSuccessAt ? ', last email sent ' + escapeHtml(formatDate(st.lastSuccessAt)) : '') + '.';
+  }
+}
+
+function loadOutbox(message) {
+  refreshEmailStatus().then(function(st) { if (st) renderOutboxCards(st); });
+  var params = new URLSearchParams();
+  var status = document.getElementById('outbox-filter-status').value;
+  var kind = document.getElementById('outbox-filter-kind').value;
+  var q = document.getElementById('outbox-filter-q').value.trim();
+  if (status) params.set('status', status);
+  if (kind) params.set('kind', kind);
+  if (q) params.set('q', q);
+  params.set('limit', OUTBOX_PAGE_SIZE);
+  params.set('offset', outboxState.offset);
+  if (!message) costsSetStatus('outbox-status', 'Loading…');
+  costsApi('GET', '/email-outbox?' + params.toString())
+    .then(function(d) {
+      costsSetStatus('outbox-status', message || '', message ? 'success' : '');
+      if (!outboxState.kindsLoaded) {
+        var sel = document.getElementById('outbox-filter-kind');
+        Object.keys(d.kinds).forEach(function(k) {
+          var o = document.createElement('option'); o.value = k; o.textContent = d.kinds[k]; sel.appendChild(o);
+        });
+        outboxState.kindsLoaded = true;
+      }
+      document.getElementById('outbox-tbody').innerHTML = d.emails.map(outboxRowHtml).join('') ||
+        '<tr><td colspan="7" style="color:var(--gray);padding:20px;">No emails' + (status || kind || q ? ' match these filters' : ' yet') + '.</td></tr>';
+      var from = d.total ? outboxState.offset + 1 : 0;
+      var to = Math.min(outboxState.offset + OUTBOX_PAGE_SIZE, d.total);
+      document.getElementById('outbox-pager').innerHTML = d.total > OUTBOX_PAGE_SIZE
+        ? '<button type="button" class="costs-link" data-outbox-page="-1"' + (outboxState.offset ? '' : ' disabled') + '>Newer</button>' +
+          '<span>' + from + '–' + to + ' of ' + d.total + '</span>' +
+          '<button type="button" class="costs-link" data-outbox-page="1"' + (to < d.total ? '' : ' disabled') + '>Older</button>'
+        : (d.total ? '<span>' + d.total + ' email(s)</span>' : '');
+    })
+    .catch(function(err) { costsShowError('outbox-status', err); });
+}
+
+function outboxRowHtml(e) {
+  var st = OUTBOX_STATUS_LABELS[e.status] || [e.status, 'muted'];
+  var detail = '';
+  if (e.last_error) detail += '<div class="outbox-error">' + escapeHtml(outboxShortError(e.last_error)) + '</div>';
+  if (e.status === 'sent') detail += '<div class="outbox-sub">Sent ' + escapeHtml(formatDate(e.sent_at)) + '</div>';
+  if (e.status === 'pending' || e.status === 'failed') {
+    detail += '<div class="outbox-sub">Next try ' + escapeHtml(formatDate(e.next_attempt_at)) + (e.expires_at ? '; dropped after ' + escapeHtml(formatDate(e.expires_at)) : '') + '</div>';
+  }
+  var tries = e.attempts + ' / ' + e.max_attempts + (e.provider_failures ? '<div class="outbox-sub">+' + e.provider_failures + ' while SendGrid was down</div>' : '');
+  var actions = [];
+  if (e.status !== 'sent' && e.status !== 'sending' && !(e.kind === 'password_reset' && (e.status === 'expired' || e.status === 'cancelled'))) {
+    actions.push('<button type="button" class="costs-link" data-outbox-retry="' + e.id + '" data-outbox-uncertain="' + (e.status === 'uncertain' ? '1' : '') + '">Retry now</button>');
+  }
+  if (['pending', 'failed'].indexOf(e.status) >= 0) actions.push('<button type="button" class="costs-link" data-outbox-cancel="' + e.id + '">Cancel</button>');
+  if (['gave_up', 'uncertain', 'expired'].indexOf(e.status) >= 0) actions.push('<button type="button" class="costs-link" data-outbox-cancel="' + e.id + '" data-outbox-dismiss="1">Dismiss</button>');
+  return '<tr>' +
+    '<td style="white-space:nowrap;">' + escapeHtml(formatDate(e.created_at)) + '</td>' +
+    '<td>' + escapeHtml(e.kind_label) + '<div class="outbox-sub">' + escapeHtml(e.subject) + '</div></td>' +
+    '<td>' + escapeHtml(e.recipient) + '</td>' +
+    '<td><span class="costs-chip ' + st[1] + '">' + escapeHtml(st[0]) + '</span></td>' +
+    '<td>' + tries + '</td>' +
+    '<td>' + detail + '</td>' +
+    '<td class="lots-actions">' + actions.join('') + '</td>' +
+  '</tr>';
+}
+
+function outboxRetry(id, uncertain) {
+  if (uncertain && !confirm('This email may already have been delivered (the connection broke after it was sent). Check SendGrid\'s Activity Feed first. Send it again anyway?')) return;
+  costsSetStatus('outbox-status', 'Sending…');
+  costsApi('POST', '/email-outbox/' + id + '/retry')
+    .then(function(r) {
+      var label = (OUTBOX_STATUS_LABELS[r.status] || [r.status])[0];
+      loadOutbox(r.status === 'sent' ? 'Sent.' : 'Not sent (' + label + ')' + (r.lastError ? ': ' + outboxShortError(r.lastError) : '.'));
+    })
+    .catch(function(err) { costsShowError('outbox-status', err); });
+}
+
+function outboxCancel(id, dismiss) {
+  if (!confirm(dismiss ? 'Dismiss this email? It will not be sent.' : 'Cancel this email? It will not be sent.')) return;
+  costsApi('POST', '/email-outbox/' + id + '/cancel')
+    .then(function() { loadOutbox(dismiss ? 'Dismissed.' : 'Cancelled.'); })
+    .catch(function(err) { costsShowError('outbox-status', err); });
+}
+
+function outboxResume(statusElId) {
+  if (statusElId) costsSetStatus(statusElId, 'Trying SendGrid…');
+  return costsApi('POST', '/email-outbox/resume')
+    .then(function(r) {
+      renderEmailBanner(r.status);
+      var msg = r.paused
+        ? 'SendGrid is still refusing: ' + outboxShortError(r.status.lastFailureMessage) + '. Paused again.'
+        : (r.attempted ? 'Sent ' + r.sent + ' of ' + r.attempted + ' waiting email(s).' : 'Nothing was due to send.');
+      if (statusElId) loadOutbox(msg); else alert(msg);
+    })
+    .catch(function(err) { if (statusElId) costsShowError(statusElId, err); else alert(err.message); });
+}
+
+function showOutboxTab() {
+  showAdminTab('tab-outbox', 'view-outbox');
+  outboxState.offset = 0;
+  loadOutbox();
+}
+
+setInterval(function() {
+  if (document.getElementById('admin-wrap').style.display === 'block') refreshEmailStatus();
+}, 120000);
 
 // No data fetch here, unlike the other show*Tab() functions above --
 // the conversation list arrives continuously via the /admin socket's
@@ -4609,7 +4845,7 @@ document.getElementById('email-campaign-send-btn').addEventListener('click', fun
         statusEl.classList.add('show', 'error');
         return;
       }
-      statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' customer(s).';
+      statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' customer(s).' + (r.d.queued ? ' ' + r.d.queued + ' queued to retry (see Emails).' : '');
       statusEl.classList.add('show', 'success');
       loadEmailCampaignHistory();
     })
@@ -4879,7 +5115,7 @@ document.getElementById('credit-campaign-send-btn').addEventListener('click', fu
         statusEl.classList.add('show', 'error');
         return;
       }
-      statusEl.textContent = 'Issued credit to ' + r.d.issued + ' customer(s), emailed ' + r.d.sent + ' of ' + r.d.total + '.';
+      statusEl.textContent = 'Issued credit to ' + r.d.issued + ' customer(s), emailed ' + r.d.sent + ' of ' + r.d.total + '.' + (r.d.queued ? ' ' + r.d.queued + ' email(s) queued to retry (see Emails).' : '');
       statusEl.classList.add('show', 'success');
       loadCreditCampaignHistory();
     })
@@ -6959,6 +7195,7 @@ var ADMIN_HASH_ROUTES = {
   'products-catalog': function() { showProductsTab('catalog'); },
   'products-batches': function() { showProductsTab('batches'); },
   'products-upload': function() { showProductsTab('upload'); },
+  emails: function() { showOutboxTab(); },
 };
 function routeAdminHash() {
   var hash = location.hash.replace(/^#/, '').toLowerCase();
@@ -7013,6 +7250,32 @@ document.getElementById('tab-inbox').addEventListener('click', showInboxTab);
 document.getElementById('tab-products').addEventListener('click', showProductsTab);
 document.getElementById('tab-content').addEventListener('click', showContentTab);
 document.getElementById('tab-emails').addEventListener('click', showEmailsTab);
+document.getElementById('tab-outbox').addEventListener('click', showOutboxTab);
+document.getElementById('email-alert-view-btn').addEventListener('click', function() {
+  var st = document.getElementById('outbox-filter-status');
+  if (document.getElementById('email-alert-banner').classList.contains('warn')) st.value = 'attention';
+  else st.value = 'waiting';
+  showOutboxTab();
+});
+document.getElementById('email-alert-resume-btn').addEventListener('click', function() {
+  if (document.getElementById('view-outbox').classList.contains('active')) outboxResume('outbox-status');
+  else outboxResume(null);
+});
+document.getElementById('outbox-filter-btn').addEventListener('click', function() { outboxState.offset = 0; loadOutbox(); });
+document.getElementById('outbox-filter-status').addEventListener('change', function() { outboxState.offset = 0; loadOutbox(); });
+document.getElementById('outbox-filter-kind').addEventListener('change', function() { outboxState.offset = 0; loadOutbox(); });
+document.getElementById('outbox-filter-q').addEventListener('keydown', function(e) { if (e.key === 'Enter') { outboxState.offset = 0; loadOutbox(); } });
+document.getElementById('outbox-resume-btn').addEventListener('click', function() { outboxResume('outbox-status'); });
+document.getElementById('view-outbox').addEventListener('click', function(e) {
+  var t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.outboxRetry) outboxRetry(t.dataset.outboxRetry, t.dataset.outboxUncertain === '1');
+  else if (t.dataset.outboxCancel) outboxCancel(t.dataset.outboxCancel, t.dataset.outboxDismiss === '1');
+  else if (t.dataset.outboxPage) {
+    outboxState.offset = Math.max(0, outboxState.offset + Number(t.dataset.outboxPage) * OUTBOX_PAGE_SIZE);
+    loadOutbox();
+  }
+});
 
 document.getElementById('email-subtab-order-confirmation').addEventListener('click', function() {
   showEmailsSubtab('email-subtab-order-confirmation', 'email-subview-order-confirmation');
@@ -8296,7 +8559,7 @@ document.getElementById('promo-send-btn').addEventListener('click', function() {
         statusEl.classList.add('show', 'error');
         return;
       }
-      statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' subscriber(s).';
+      statusEl.textContent = 'Sent to ' + r.d.sent + ' of ' + r.d.total + ' subscriber(s).' + (r.d.queued ? ' ' + r.d.queued + ' queued to retry (see Emails).' : '');
       statusEl.classList.add('show', 'success');
     })
     .catch(function() {
