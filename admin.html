@@ -374,6 +374,9 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .lots-check{ font-size:0.8rem; margin:8px 0 0; }
 .lots-check.bad{ color:#c0392b; }
 .lots-actions{ white-space:nowrap; }
+.product-detail-checkbox-row{ display:flex !important; align-items:center; gap:8px; }
+.product-detail-checkbox-row input{ width:auto !important; margin:0; }
+.pf-hint{ display:block; font-weight:400; font-size:0.72rem; color:var(--gray); margin-top:4px; line-height:1.35; }
 .presets-actions{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0 14px; }
 .presets-actions .fulfillment-btn{ margin:0; }
 .email-alert-banner.warn{ background:#FFF8EC; color:#7a5414; border-color:#9A6B1E; }
@@ -1165,6 +1168,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
             <label>Mode<select class="costs-select" id="lots-print-mode"><option value="full">Full colour (colour label printer)</option><option value="overprint">Overprint only (thermal printer, pre-printed stock)</option></select></label>
             <label>Quantity (1-500)<input type="number" min="1" max="500" step="1" id="lots-print-qty" value="1"></label>
           </div>
+          <label class="costs-radio"><input type="checkbox" id="lots-print-letter"> Test print on letter paper: one label at actual size in the middle of a US Letter page, with crop marks and a 10 mm ruler (print at 100% / Actual size)</label>
           <p class="costs-warn" id="lots-print-warning" hidden></p>
           <div class="lots-preview" id="lots-print-preview"></div>
           <p class="lots-check" id="lots-print-check"></p>
@@ -1208,6 +1212,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <div class="lots-preview" id="lots-sample-preview"></div>
           <p class="lots-check" id="lots-sample-check"></p>
           <button type="button" class="fulfillment-btn" id="lots-sample-open">Open Sample PDF</button>
+          <button type="button" class="costs-btn-secondary" id="lots-sample-letter">Test print on letter paper</button>
         </fieldset>
       </div>
       <h4 class="costs-h4">Label presets</h4>
@@ -1227,11 +1232,12 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <label>Layout<select class="costs-select" id="pf-layout"><option value="full">Full (logo, storage, website)</option><option value="compact">Compact (LOT / EXP / QR only)</option></select></label>
           <label>Seam<select class="costs-select" id="pf-seam-mode"><option value="gap">Gap (label shorter than the vial)</option><option value="overlap">Overlap (ends overlap)</option></select></label>
           <label>Seam gap / overlap (mm)<input type="text" inputmode="decimal" id="pf-seam-mm" value="0"></label>
-          <label>Clearance from label ends (mm)<input type="text" inputmode="decimal" id="pf-end-clear" value="1.5"></label>
+          <label>Clearance from label ends (mm, 0.5-10)<input type="number" min="0.5" max="10" step="0.1" id="pf-end-clear" value="1.5"><span class="pf-hint">How far text and artwork stay from the two label ends (the wrap seam). The QR always keeps its quiet zone at least 2 mm from the ends, whatever this is.</span></label>
           <label>Back panel share (0.40-0.60)<input type="text" inputmode="decimal" id="pf-back-share" value="0.50"></label>
           <label>Notes<input type="text" id="pf-notes"></label>
         </div>
         <label class="costs-radio"><input type="checkbox" id="pf-short"> Short disclaimer ("RUO" / "NOT FOR HUMAN USE")</label>
+        <label class="costs-radio"><input type="checkbox" id="pf-hide-purity"> Hide purity: no purity line on any label printed with this preset (the website still shows it)</label>
         <label class="costs-radio"><input type="checkbox" id="pf-verified" checked> Verified (size measured on a real vial)</label>
         <label class="costs-radio"><input type="checkbox" id="pf-default"> Default for its vial size</label>
         <p class="fulfillment-section-note" id="pf-default-note" hidden></p>
@@ -3943,6 +3949,8 @@ function renderProductsRows() {
                 '<input type="text" class="product-detail-label-dosage" value="' + escapeHtml(p.label_dosage_text || '') + '" placeholder="default: from the dosage, e.g. 10MG / 10MG">' +
                 '<label>Volume (mL, optional)</label>' +
                 '<input type="number" min="0.01" step="0.01" class="product-detail-volume-ml" value="' + (p.volume_ml != null ? Number(p.volume_ml) : '') + '" placeholder="for products with no amount, e.g. waters">' +
+                '<label class="product-detail-checkbox-row"><input type="checkbox" class="product-detail-show-purity"' + (p.label_show_purity === false ? '' : ' checked') + '> Show purity on label</label>' +
+                '<p class="fulfillment-section-note" style="margin:4px 0 0;">Unticked: no purity line on this product\'s labels (a preset can also hide it). The website keeps showing the purity spec.</p>' +
               '</div>' +
             '</div>'
           )) +
@@ -6339,7 +6347,7 @@ function refreshLotPrintPreview() {
       var ok = c.pass && (mode !== 'overprint' || c.overprintOk);
       checkEl.className = 'lots-check' + (ok ? '' : ' bad');
       checkEl.innerHTML = ok
-        ? 'Readable: lot ' + m.lotPt + 'pt, expiry ' + m.expiryPt + 'pt, smallest text ' + m.minBodyPt + 'pt, QR ' + m.qrMm + ' mm (' + m.qrModuleMm + ' mm/module).' +
+        ? 'Readable: lot ' + m.lotPt + 'pt, expiry ' + m.expiryPt + 'pt, smallest text ' + m.minBodyPt + 'pt, QR ' + m.qrMm + ' mm (' + m.qrModuleMm + ' mm/module), ' + m.qrEndMm + ' mm from the label end, decodes.' +
           (mode === 'overprint' ? ' Overprint clearance ' + m.overprintClearMm + ' mm.' : '') + ' Shown 4x enlarged.'
         : 'Not printable at this preset: ' + escapeHtml(c.fails.concat(mode === 'overprint' ? c.overprintFails : []).join('; '));
       if (d.warning) { warnEl.textContent = d.warning; warnEl.hidden = false; }
@@ -6351,11 +6359,12 @@ function refreshLotPrintPreview() {
 function openLotPdf() {
   var preset = document.getElementById('lots-print-preset').value;
   var mode = document.getElementById('lots-print-mode').value;
+  var letter = document.getElementById('lots-print-letter').checked;
   var qty = Number(document.getElementById('lots-print-qty').value);
-  if (!Number.isInteger(qty) || qty < 1 || qty > 500) { costsSetStatus('lots-status', 'Quantity must be a whole number from 1 to 500.', 'error'); return; }
+  if (!letter && (!Number.isInteger(qty) || qty < 1 || qty > 500)) { costsSetStatus('lots-status', 'Quantity must be a whole number from 1 to 500.', 'error'); return; }
   var p = lotsState.presets.filter(function(x) { return String(x.id) === preset; })[0];
   if (p && !p.verified && !window.confirm('"' + p.name + '" is UNVERIFIED (placeholder size). Print anyway?')) return;
-  window.open('/api/admin/lots/' + encodeURIComponent(lotsState.printLotId) + '/labels.pdf?preset=' + encodeURIComponent(preset) + '&mode=' + mode + '&qty=' + qty, '_blank');
+  window.open('/api/admin/lots/' + encodeURIComponent(lotsState.printLotId) + '/labels.pdf?preset=' + encodeURIComponent(preset) + '&mode=' + mode + (letter ? '&paper=letter' : '&qty=' + qty), '_blank');
 }
 
 function openArtworkPdf(proof) {
@@ -6378,6 +6387,7 @@ function refreshLotSample() {
   var previewEl = document.getElementById('lots-sample-preview'), checkEl = document.getElementById('lots-sample-check');
   var warnEl = document.getElementById('lots-sample-warning'), openBtn = document.getElementById('lots-sample-open');
   openBtn.disabled = true;
+  document.getElementById('lots-sample-letter').disabled = true;
   warnEl.hidden = true;
   if (!lotsState.productId) return;
   if (!preset) { previewEl.innerHTML = ''; checkEl.className = 'lots-check'; checkEl.textContent = 'Choose a label preset.'; return; }
@@ -6391,10 +6401,11 @@ function refreshLotSample() {
       var c = d.check, m = c.worstCase ? c.worstCase.metrics : c.metrics;
       checkEl.className = 'lots-check' + (c.pass ? '' : ' bad');
       checkEl.innerHTML = c.pass
-        ? 'Sample only. Real lots on this preset: lot number ' + m.lotPt + 'pt (widest lot number), smallest text ' + m.minBodyPt + 'pt, QR ' + m.qrGrid + 'x' + m.qrGrid + ' = ' + m.qrMm + ' mm (' + m.qrModuleMm + ' mm/module). Shown 4x enlarged.'
-        : 'Real lots would not be readable at this preset: ' + escapeHtml(c.fails.join('; '));
+        ? 'Sample only. Real lots on this preset: lot number ' + m.lotPt + 'pt (widest lot number), smallest text ' + m.minBodyPt + 'pt, QR ' + m.qrGrid + 'x' + m.qrGrid + ' = ' + m.qrMm + ' mm (' + m.qrModuleMm + ' mm/module), ' + m.qrEndMm + ' mm from the label end, decodes. Shown 4x enlarged.'
+        : 'Not printable at this preset: ' + escapeHtml(c.fails.join('; '));
       if (d.warning) { warnEl.textContent = d.warning; warnEl.hidden = false; }
-      openBtn.disabled = false;
+      openBtn.disabled = !c.pass;
+      document.getElementById('lots-sample-letter').disabled = !c.pass;
     })
     .catch(function(err) { previewEl.innerHTML = ''; checkEl.className = 'lots-check bad'; checkEl.textContent = err.message; });
 }
@@ -6405,7 +6416,7 @@ var presetEditId = null;
 function renderPresetsTable() {
   var tbody = document.querySelector('#presets-table tbody');
   tbody.innerHTML = lotsState.presets.map(function(p) {
-    var status = (p.active ? '' : costsChip('inactive', 'muted') + ' ') + (p.verified ? costsChip('verified', 'good') : costsChip('UNVERIFIED', 'bad')) + (p.is_default ? ' ' + costsChip('default', 'muted') : '');
+    var status = (p.active ? '' : costsChip('inactive', 'muted') + ' ') + (p.verified ? costsChip('verified', 'good') : costsChip('UNVERIFIED', 'bad')) + (p.is_default ? ' ' + costsChip('default', 'muted') : '') + (p.hide_purity ? ' ' + costsChip('no purity', 'muted') : '');
     return '<tr><td><strong>' + escapeHtml(p.name) + '</strong><div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(p.key) + '</div></td>' +
       '<td>' + (p.vial_size_ml ? p.vial_size_ml + ' mL' : '--') + '</td>' +
       '<td>' + Number(p.width_mm) + ' x ' + Number(p.height_mm) + '</td>' +
@@ -6430,6 +6441,7 @@ function resetPresetForm() {
   [['pf-key', ''], ['pf-name', ''], ['pf-vial', ''], ['pf-width', ''], ['pf-height', ''], ['pf-layout', 'full'], ['pf-seam-mode', 'gap'],
     ['pf-seam-mm', '0'], ['pf-end-clear', '1.5'], ['pf-back-share', '0.50'], ['pf-notes', '']].forEach(function(f) { document.getElementById(f[0]).value = f[1]; });
   document.getElementById('pf-short').checked = false;
+  document.getElementById('pf-hide-purity').checked = false;
   // Not the default unless chosen: every vial size already has one, and
   // ticking this replaces it.
   document.getElementById('pf-default').checked = false;
@@ -6482,6 +6494,7 @@ function editPreset(id) {
   document.getElementById('pf-back-share').value = Number(p.back_share).toFixed(2);
   document.getElementById('pf-notes').value = p.notes || '';
   document.getElementById('pf-short').checked = !!p.short_disclaimer;
+  document.getElementById('pf-hide-purity').checked = !!p.hide_purity;
   document.getElementById('pf-verified').checked = !!p.verified;
   document.getElementById('pf-default').checked = !!p.is_default;
   document.getElementById('pf-active').checked = !!p.active;
@@ -6496,7 +6509,7 @@ function savePreset() {
     width_mm: num('pf-width'), height_mm: num('pf-height'),
     layout: document.getElementById('pf-layout').value, seam_mode: document.getElementById('pf-seam-mode').value,
     seam_mm: num('pf-seam-mm'), end_clear_mm: num('pf-end-clear'), back_share: num('pf-back-share'),
-    short_disclaimer: document.getElementById('pf-short').checked, verified: document.getElementById('pf-verified').checked,
+    short_disclaimer: document.getElementById('pf-short').checked, hide_purity: document.getElementById('pf-hide-purity').checked, verified: document.getElementById('pf-verified').checked,
     is_default: document.getElementById('pf-default').checked, active: document.getElementById('pf-active').checked,
     notes: document.getElementById('pf-notes').value.trim() || null,
   };
@@ -6549,6 +6562,12 @@ document.getElementById('lots-sample-preset').addEventListener('change', refresh
 document.getElementById('lots-sample-mark').addEventListener('change', refreshLotSample);
 document.getElementById('lots-sample-open').addEventListener('click', function() {
   window.open('/api/admin/products/' + encodeURIComponent(lotsState.productId) + '/label-sample.pdf' + lotSampleQuery(), '_blank');
+});
+document.getElementById('lots-sample-letter').addEventListener('click', function() {
+  window.open('/api/admin/products/' + encodeURIComponent(lotsState.productId) + '/label-sample.pdf' + lotSampleQuery() + '&paper=letter', '_blank');
+});
+document.getElementById('lots-print-letter').addEventListener('change', function() {
+  document.getElementById('lots-print-qty').disabled = this.checked;   // the test print is one label
 });
 document.getElementById('presets-table').addEventListener('click', function(e) {
   var b = e.target.closest('[data-preset-edit]');
@@ -7607,6 +7626,7 @@ document.getElementById('products-tbody').addEventListener('click', function(e) 
     body.label_dosage_text = detailRow2.querySelector('.product-detail-label-dosage').value || null;
     body.volume_ml = detailRow2.querySelector('.product-detail-volume-ml').value || null;
     body.storage_text = detailRow2.querySelector('.product-detail-storage').value.trim() || null;
+    body.label_show_purity = detailRow2.querySelector('.product-detail-show-purity').checked;
   }
 
   saveBtn.disabled = true;
