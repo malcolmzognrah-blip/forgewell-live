@@ -651,7 +651,8 @@ let productsReady = loadProducts().then(populateMostPopular);
 // ---- COA by lot ----
 // The QR on each vial label opens /L/<lot> (nginx serves this page there
 // without changing the URL) or /coa.html?lot=<lot>. GET /api/lots/<lot>
-// answers pending (testing in progress) / attached (COA link) / 404.
+// answers pending (testing in progress) / attached (COA link) / voided (the
+// lot record was entered by mistake; no product or COA is shown) / 404.
 function lotFromUrl() {
   var m = window.location.pathname.match(/^\/l\/([^\/?#]+)\/?$/i);
   if (m) return decodeURIComponent(m[1]);
@@ -691,6 +692,15 @@ function lookUpLot(raw) {
       if (r.status === 429) { showLotResult(function(box) { addEl(box, 'p', 'Too many lookups — please wait a minute and try again.', 'lot-status'); }); return; }
       if (r.status !== 200) throw new Error('lookup failed');
       var d = r.d;
+      if (d.status === 'voided') {
+        showLotResult(function(box) {
+          box.classList.add('notfound');
+          addEl(box, 'h2', 'This lot number was voided');
+          addEl(box, 'p', 'Lot ' + d.lotNumber, 'lot-meta');
+          addEl(box, 'p', 'It was withdrawn from our records and is not a valid lot. If it is printed on a vial you received, please contact us with the lot number and your order number.', 'lot-status');
+        });
+        return;
+      }
       showLotResult(function(box) {
         addEl(box, 'h2', d.productName);
         addEl(box, 'p', 'Lot ' + d.lotNumber + (d.dosage ? ' · ' + d.dosage : ''), 'lot-meta');

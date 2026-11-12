@@ -402,6 +402,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
 .order-stock-panel td, .order-stock-panel th{ padding:4px 10px 4px 0; text-align:left; border:none; }
 .order-stock-panel .costs-link{ margin-right:12px; }
 .lots-actions .costs-link{ margin-right:10px; }
+.lots-voided td{ color:var(--gray); background:#f6f6f6; }
 .costs-list{ margin:4px 0 0; padding-left:18px; font-size:0.78rem; }
 .costs-list.bad{ color:#c0392b; }
 .costs-list.warn{ color:#9A6B1E; }
@@ -1160,6 +1161,17 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <legend id="lots-history-title">Lot history</legend>
           <div id="lots-history-body"></div>
           <button type="button" class="costs-btn-secondary" id="lots-history-close">Close</button>
+        </fieldset>
+        <fieldset class="costs-fieldset" id="lots-void" hidden>
+          <legend id="lots-void-title">Void lot</legend>
+          <p class="fulfillment-section-note">For a lot entered by mistake (wrong product, duplicate receipt). Voiding takes its remaining vials off stock, stops it being sold, allocated or labelled, and keeps it on record with your reason. Its lot number is never issued again, and its QR page says the lot number was voided. A void can't be undone.</p>
+          <p class="fulfillment-section-note">If any order already took vials from this lot, move them to the right lot first (Orders &gt; Stock &gt; Move to lot).</p>
+          <div class="costs-grid">
+            <label>Reason (required)<input type="text" id="lots-void-reason" maxlength="500" placeholder="e.g. created under the wrong product; correct lot is FW…"></label>
+          </div>
+          <label class="costs-radio"><input type="checkbox" id="lots-void-confirm"> <span id="lots-void-confirm-text">I understand this removes the lot's vials from stock and can't be undone.</span></label>
+          <button type="button" class="fulfillment-btn" id="lots-void-save" disabled>Void Lot</button>
+          <button type="button" class="costs-btn-secondary" id="lots-void-close">Close</button>
         </fieldset>
         <fieldset class="costs-fieldset" id="lots-print" hidden>
           <legend id="lots-print-title">Print labels</legend>
@@ -4484,7 +4496,7 @@ var coaLots = [];
 
 function renderCoaLotOptions() {
   var select = document.getElementById('coa-lot-select');
-  var numbered = coaLots.filter(function(l) { return l.lot_number; });
+  var numbered = coaLots.filter(function(l) { return l.lot_number && !l.voided_at; });
   if (!numbered.length) {
     select.innerHTML = '<option value="">No lots yet -- create one under Products > Lots &amp; Labels</option>';
     return;
@@ -6174,11 +6186,22 @@ function renderLotsTable() {
       : !l.sellable && lotsState.data.requireCoa && l.coaStatus !== 'attached' ? costsChip('held back: no COA', 'warn') : '';
     var stock = '<div class="inv-stock"><b>' + l.available + '</b> available' + (l.reserved ? ' · ' + l.reserved + ' reserved' : '') +
       '<br><span style="color:var(--gray);">' + l.on_hand + ' on hand of ' + l.vials_received + ' received</span>' + (why ? '<br>' + why : '') + '</div>';
+    // Voided: kept for traceability, no stock, no actions except History and its public page.
+    if (l.voided_at) {
+      return '<tr class="lots-voided"><td><strong><s>' + escapeHtml(l.lot_number) + '</s></strong> ' + costsChip('voided', 'bad') + '</td>' +
+        '<td>' + escapeHtml(l.received_at || '--') + '</td><td>' + escapeHtml(l.expires_on || '--') + '</td>' +
+        '<td><div class="inv-stock">Voided ' + escapeHtml(new Date(l.voided_at).toLocaleDateString()) + (l.voided_by ? ' by ' + escapeHtml(l.voided_by) : '') +
+          '<br><span style="color:var(--gray);">' + escapeHtml(l.void_reason || '') + '</span><br><span style="color:var(--gray);">' + l.vials_received + ' received, 0 on hand</span></div></td>' +
+        '<td>' + escapeHtml(l.supplier_lot || '') + '</td><td>' + cost + '</td><td>' + coa + '</td>' +
+        '<td class="lots-actions"><button type="button" class="costs-link" data-lot-history="' + escapeHtml(l.id) + '">History</button>' +
+        '<a class="costs-link" href="/L/' + escapeHtml(l.lot_number) + '" target="_blank" rel="noopener">Public page</a></td></tr>';
+    }
     var actions = '<button type="button" class="costs-link" data-lot-adjust="' + escapeHtml(l.id) + '">Adjust</button>' +
       '<button type="button" class="costs-link" data-lot-history="' + escapeHtml(l.id) + '">History</button>' +
       '<button type="button" class="costs-link" data-lot-print="' + escapeHtml(l.id) + '">Print labels</button>' +
       '<button type="button" class="costs-link" data-lot-expiry="' + escapeHtml(l.id) + '">Edit expiry</button>' +
-      '<a class="costs-link" href="/L/' + escapeHtml(l.lot_number) + '" target="_blank" rel="noopener">Public page</a>';
+      '<a class="costs-link" href="/L/' + escapeHtml(l.lot_number) + '" target="_blank" rel="noopener">Public page</a>' +
+      '<button type="button" class="costs-link" data-lot-void="' + escapeHtml(l.id) + '">Void</button>';
     return '<tr><td><strong>' + escapeHtml(l.lot_number) + '</strong>' + (l.is_current ? ' ' + costsChip('current', 'muted') : '') + '</td>' +
       '<td>' + escapeHtml(l.received_at || '--') + '</td><td>' + escapeHtml(l.expires_on || '--') + '</td>' +
       '<td>' + stock + '</td>' +
@@ -6246,6 +6269,7 @@ function openLotAdjust(lotId) {
   var lot = lotsState.data.lots.filter(function(l) { return l.id === lotId; })[0];
   lotsState.adjustLotId = lotId;
   document.getElementById('lots-history').hidden = true;
+  document.getElementById('lots-void').hidden = true;
   document.getElementById('lots-adjust-title').textContent = 'Adjust stock: ' + lot.lot_number + ' (' + lot.on_hand + ' on hand, ' + lot.reserved + ' reserved)';
   ['lots-adjust-qty', 'lots-adjust-note'].forEach(function(id) { document.getElementById(id).value = ''; });
   document.getElementById('lots-adjust-reason').value = 'breakage';
@@ -6273,16 +6297,19 @@ function saveLotAdjust() {
     })
     .catch(function(err) { costsShowError('lots-status', err); });
 }
-var MOVEMENT_LABELS = { receipt: 'Received', allocation: 'Order', return: 'Returned', adjustment: 'Adjustment' };
-var REASON_LABELS = { breakage: 'breakage', lab_sample: 'lab test sample', giveaway: 'sample given away', recount: 'recount', expired: 'expired / written off', other: 'other', customer_return: 'customer return', order_cancelled: 'order cancelled', order_refunded: 'order refunded' };
+var MOVEMENT_LABELS = { receipt: 'Received', allocation: 'Order', return: 'Returned', adjustment: 'Adjustment', void: 'Voided' };
+var REASON_LABELS = { breakage: 'breakage', lab_sample: 'lab test sample', giveaway: 'sample given away', recount: 'recount', expired: 'expired / written off', other: 'other', customer_return: 'customer return', order_cancelled: 'order cancelled', order_refunded: 'order refunded', reassigned: 'moved to/from another lot' };
 function openLotHistory(lotId) {
   document.getElementById('lots-adjust').hidden = true;
+  document.getElementById('lots-void').hidden = true;
   var box = document.getElementById('lots-history-body');
   box.innerHTML = 'Loading…';
   document.getElementById('lots-history').hidden = false;
   costsApi('GET', '/lots/' + encodeURIComponent(lotId) + '/history')
     .then(function(h) {
-      document.getElementById('lots-history-title').textContent = 'History: ' + h.lot.lot_number + ' (' + h.lot.on_hand + ' on hand, ' + h.lot.reserved + ' reserved, ' + h.lot.vials_received + ' received)';
+      document.getElementById('lots-history-title').textContent = 'History: ' + h.lot.lot_number + (h.lot.voided_at
+        ? ' (VOIDED ' + new Date(h.lot.voided_at).toLocaleDateString() + (h.lot.voided_by ? ' by ' + h.lot.voided_by : '') + ': ' + h.lot.void_reason + ')'
+        : ' (' + h.lot.on_hand + ' on hand, ' + h.lot.reserved + ' reserved, ' + h.lot.vials_received + ' received)');
       var mv = h.movements.map(function(m) {
         return '<tr><td>' + escapeHtml(new Date(m.created_at).toLocaleString()) + '</td><td>' + escapeHtml(MOVEMENT_LABELS[m.kind] || m.kind) + (m.reason ? ' · ' + escapeHtml(REASON_LABELS[m.reason] || m.reason) : '') + '</td>' +
           '<td style="text-align:right;"><strong>' + (m.qty > 0 ? '+' : '') + m.qty + '</strong></td><td>' + escapeHtml(m.order_number || '') + '</td><td>' + escapeHtml(m.note || '') + '</td><td>' + escapeHtml(m.admin || '') + '</td></tr>';
@@ -6299,6 +6326,43 @@ document.getElementById('lots-adjust-reason').addEventListener('change', syncAdj
 document.getElementById('lots-adjust-save').addEventListener('click', saveLotAdjust);
 document.getElementById('lots-adjust-close').addEventListener('click', function() { document.getElementById('lots-adjust').hidden = true; });
 document.getElementById('lots-history-close').addEventListener('click', function() { document.getElementById('lots-history').hidden = true; });
+
+// ---- void (lib/inventory.js voidLot): reason + confirm tick, then POST.
+function openLotVoid(lotId) {
+  var lot = lotsState.data.lots.filter(function(l) { return l.id === lotId; })[0];
+  lotsState.voidLotId = lotId;
+  document.getElementById('lots-adjust').hidden = true;
+  document.getElementById('lots-history').hidden = true;
+  closeLotPrint();
+  document.getElementById('lots-void-title').textContent = 'Void lot ' + lot.lot_number + ' (' + lotsState.data.owner.name + ')';
+  document.getElementById('lots-void-confirm-text').textContent = 'I understand this removes ' + lot.on_hand + ' vial(s) of ' + lot.lot_number + ' from stock' +
+    (lot.reserved ? ' (' + lot.reserved + ' are reserved by unpaid checkouts, so it will be refused until those clear)' : '') + ' and can\'t be undone.';
+  document.getElementById('lots-void-reason').value = '';
+  document.getElementById('lots-void-confirm').checked = false;
+  syncLotVoid();
+  document.getElementById('lots-void').hidden = false;
+  document.getElementById('lots-void').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function syncLotVoid() {
+  document.getElementById('lots-void-save').disabled = !(document.getElementById('lots-void-reason').value.trim() && document.getElementById('lots-void-confirm').checked);
+}
+function saveLotVoid() {
+  var reason = document.getElementById('lots-void-reason').value.trim();
+  if (!reason || !document.getElementById('lots-void-confirm').checked) return;
+  var btn = document.getElementById('lots-void-save');
+  btn.disabled = true;
+  costsApi('POST', '/lots/' + encodeURIComponent(lotsState.voidLotId) + '/void', { reason: reason })
+    .then(function(r) {
+      document.getElementById('lots-void').hidden = true;
+      loadLots('Lot ' + r.lot_number + ' voided; ' + r.removedVials + ' vial(s) taken off stock.' + (r.newCurrentLot ? ' ' + r.newCurrentLot + ' is now the current lot.' : ''));
+      refreshInventoryBadge();
+    })
+    .catch(function(err) { syncLotVoid(); costsShowError('lots-status', err); });
+}
+document.getElementById('lots-void-reason').addEventListener('input', syncLotVoid);
+document.getElementById('lots-void-confirm').addEventListener('change', syncLotVoid);
+document.getElementById('lots-void-save').addEventListener('click', saveLotVoid);
+document.getElementById('lots-void-close').addEventListener('click', function() { document.getElementById('lots-void').hidden = true; });
 
 function editLotExpiry(lotId) {
   var lot = lotsState.data.lots.filter(function(l) { return l.id === lotId; })[0];
@@ -6551,6 +6615,7 @@ document.getElementById('lots-table').addEventListener('click', function(e) {
   else if (b.hasAttribute('data-lot-expiry')) editLotExpiry(b.getAttribute('data-lot-expiry'));
   else if (b.hasAttribute('data-lot-adjust')) openLotAdjust(b.getAttribute('data-lot-adjust'));
   else if (b.hasAttribute('data-lot-history')) openLotHistory(b.getAttribute('data-lot-history'));
+  else if (b.hasAttribute('data-lot-void')) openLotVoid(b.getAttribute('data-lot-void'));
 });
 document.getElementById('lots-print-preset').addEventListener('change', refreshLotPrintPreview);
 document.getElementById('lots-print-mode').addEventListener('change', refreshLotPrintPreview);
@@ -6929,7 +6994,7 @@ function loadCostsBatches() {
         // A lot can be created before its cost is known (Lots & Labels).
         var needsReview = b.vials_purchased == null || b.wholesale_cost_cents_per_vial == null;
         return '<tr>' +
-          '<td><strong>' + escapeHtml(b.lot_number) + '</strong>' + (needsReview ? ' ' + costsChip('needs review', 'warn') : '') +
+          '<td><strong>' + escapeHtml(b.lot_number) + '</strong>' + (b.voided_at ? ' ' + costsChip('voided', 'bad') : needsReview ? ' ' + costsChip('needs review', 'warn') : '') +
             (b.supplier_lot ? '<div style="color:var(--gray);font-size:0.72rem;">Supplier lot ' + escapeHtml(b.supplier_lot) + '</div>' : '') +
             (b.notes ? '<div style="color:var(--gray);font-size:0.72rem;">' + escapeHtml(b.notes) + '</div>' : '') + '</td>' +
           '<td>' + escapeHtml(b.received_at || '--') + '</td>' +
@@ -6941,7 +7006,7 @@ function loadCostsBatches() {
           '<td>' + (b.is_current ? costsChip('Current', 'good') : '') + '</td>' +
           '<td style="white-space:nowrap;">' +
             '<button type="button" class="costs-link" data-batch-edit="' + escapeHtml(b.id) + '">Edit costs</button>' +
-            (b.is_current ? '' : ' · <button type="button" class="costs-link" data-batch-current="' + escapeHtml(b.id) + '">Make current</button>') +
+            (b.is_current || b.voided_at ? '' : ' · <button type="button" class="costs-link" data-batch-current="' + escapeHtml(b.id) + '">Make current</button>') +
           '</td></tr>';
       }).join('');
     })
@@ -7305,7 +7370,7 @@ function renderOrderCosts() {
     var line = b.lines[Number(sel.getAttribute('data-line'))];
     costsApi('GET', '/products/' + encodeURIComponent(sel.getAttribute('data-product')) + '/batches')
       .then(function(data) {
-        sel.innerHTML = '<option value="">' + (line.autoBatchId ? 'Auto-assigned batch' : 'No batch (product default)') + '</option>' + data.batches.map(function(bt) {
+        sel.innerHTML = '<option value="">' + (line.autoBatchId ? 'Auto-assigned batch' : 'No batch (product default)') + '</option>' + data.batches.filter(function(bt) { return !bt.voided_at || (line.batchSource === 'override' && line.batchId === bt.id); }).map(function(bt) {
           return '<option value="' + escapeHtml(bt.id) + '"' + (line.batchSource === 'override' && line.batchId === bt.id ? ' selected' : '') + '>' + escapeHtml(bt.lot_number) + ' (' + costsMoney(bt.wholesale_cost_cents_per_vial) + '/vial)</option>';
         }).join('');
       })
@@ -8524,7 +8589,11 @@ function renderOrderStockPanel(o) {
     var short = (o.inventory_shortfall || []).filter(function(s) { return s.lineIndex === i; })[0];
     var lots = allocs.map(function(a) {
       return '<label style="font-weight:400;">' + (a.status === 'committed' && ['shipped', 'delivered'].indexOf(o.fulfillment_status) !== -1 ? '<input type="checkbox" class="order-return-pick" value="' + a.id + '"> ' : '') +
-        '<strong>' + escapeHtml(a.lot_number) + '</strong> x' + a.vials + ' <span style="color:var(--gray);">(exp ' + escapeHtml(a.expires_on) + ', ' + escapeHtml(a.status) + ')</span></label>';
+        '<strong>' + escapeHtml(a.lot_number) + '</strong> x' + a.vials + ' <span style="color:var(--gray);">(exp ' + escapeHtml(a.expires_on) + ', ' + escapeHtml(a.status) + ')</span></label>' +
+        // Committed vials can be moved to another lot of the same vial (wrong lot recorded, or before voiding a lot).
+        // "Unshipped" matches lib/inventory.js reassignAllocation: anything not shipped/delivered (only sellable targets offered).
+        (a.status === 'committed' ? ' <button type="button" class="costs-link" data-alloc-move="' + a.id + '" data-owner="' + escapeHtml(a.owner_id) + '" data-batch="' + escapeHtml(a.batch_id) + '" data-vials="' + a.vials + '" data-lot="' + escapeHtml(a.lot_number) + '" data-unshipped="' + (['shipped', 'delivered'].indexOf(o.fulfillment_status) === -1 ? '1' : '') + '">Move to lot…</button>' : '') +
+        '<span class="alloc-move-form" id="alloc-move-' + a.id + '"></span>';
     }).join('<br>');
     return '<tr><td>' + escapeHtml(li.name) + ' x' + li.qty + '</td><td>' + (lots || (short ? costsChip('awaiting stock', 'bad') : '<span style="color:var(--gray);">--</span>')) + '</td></tr>';
   }).join('');
@@ -8541,8 +8610,8 @@ function renderOrderStockPanel(o) {
 }
 function toggleOrderStock(orderId, btn, forceOpen) {
   var row = btn.closest('tr'), next = row.nextElementSibling;
-  if (next && next.classList.contains('order-stock-row')) { next.remove(); if (!forceOpen) return; }
-  fetch('/api/admin/orders/' + encodeURIComponent(orderId), { credentials: 'include' })
+  if (next && next.classList.contains('order-stock-row')) { next.remove(); if (!forceOpen) return Promise.resolve(); }
+  return fetch('/api/admin/orders/' + encodeURIComponent(orderId), { credentials: 'include' })
     .then(function(res) { if (res.status === 401) { showLogin(); return null; } return res.json(); })
     .then(function(o) {
       if (!o) return;
@@ -8580,6 +8649,49 @@ document.getElementById('orders-tbody').addEventListener('click', function(e) {
     if (why === null) return;
     costsApi('POST', '/orders/' + encodeURIComponent(orderId) + '/customer-return', { allocationIds: ids, action: action, note: why }).then(function(r) { done(action === 'restock' ? r.restockedVials + ' vial(s) back in stock.' : 'Written off (nothing restocked).'); }).catch(fail);
   }
+});
+
+// Move to lot (POST /allocations/:id/reassign): lists the vial's other lots
+// with enough free vials (sellable ones only while the order is unshipped).
+document.getElementById('orders-tbody').addEventListener('click', function(e) {
+  var b = e.target.closest('[data-alloc-move],[data-alloc-move-go],[data-alloc-move-cancel]');
+  if (!b) return;
+  var panelRow = b.closest('tr.order-stock-row');
+  var orderId = panelRow.previousElementSibling.querySelector('[data-order-stock]').getAttribute('data-order-stock');
+  var mainBtn = panelRow.previousElementSibling.querySelector('[data-order-stock]');
+  var statusEl = document.getElementById('order-stock-status-' + orderId);
+  if (b.hasAttribute('data-alloc-move-cancel')) { document.getElementById('alloc-move-' + b.getAttribute('data-alloc-move-cancel')).innerHTML = ''; return; }
+  if (b.hasAttribute('data-alloc-move-go')) {
+    var id = b.getAttribute('data-alloc-move-go'), box = document.getElementById('alloc-move-' + id);
+    var target = box.querySelector('select').value, note = box.querySelector('input').value.trim();
+    if (!target) { statusEl.textContent = 'Choose the lot to move these vials to.'; return; }
+    b.disabled = true;
+    costsApi('POST', '/allocations/' + encodeURIComponent(id) + '/reassign', { batchId: target, note: note || null })
+      .then(function(r) {
+        var msg = 'Moved ' + r.vials + ' vial(s) from ' + r.from + ' to ' + r.to + '.';
+        refreshInventoryBadge();
+        // The panel is rebuilt; show the message in the new one.
+        return toggleOrderStock(orderId, mainBtn, true).then(function() { var el = document.getElementById('order-stock-status-' + orderId); if (el) el.textContent = msg; });
+      })
+      .catch(function(err) { b.disabled = false; statusEl.textContent = err.message || 'Failed.'; });
+    return;
+  }
+  var allocId = b.getAttribute('data-alloc-move'), vials = Number(b.getAttribute('data-vials')), unshipped = b.getAttribute('data-unshipped') === '1';
+  var formBox = document.getElementById('alloc-move-' + allocId);
+  formBox.textContent = ' Loading lots…';
+  costsApi('GET', '/products/' + encodeURIComponent(b.getAttribute('data-owner')) + '/lots')
+    .then(function(d) {
+      var options = (d.lots || []).filter(function(l) {
+        return l.id !== b.getAttribute('data-batch') && !l.voided_at && l.available >= vials && (!unshipped || l.sellable);
+      });
+      if (!options.length) { formBox.textContent = ' No other lot of this vial has ' + vials + ' free vial(s)' + (unshipped ? ' and is sellable' : '') + '.'; return; }
+      formBox.innerHTML = ' <select class="costs-select" style="width:auto;display:inline-block;">' + options.map(function(l) {
+        return '<option value="' + escapeHtml(l.id) + '">' + escapeHtml(l.lot_number) + ' (' + l.available + ' free, exp ' + escapeHtml(l.expires_on) + ')</option>';
+      }).join('') + '</select> <input type="text" placeholder="note (why)" maxlength="500" style="width:180px;padding:4px 6px;">' +
+        ' <button type="button" class="costs-link" data-alloc-move-go="' + allocId + '">Move ' + vials + ' vial(s) from ' + escapeHtml(b.getAttribute('data-lot')) + '</button>' +
+        '<button type="button" class="costs-link" data-alloc-move-cancel="' + allocId + '">Cancel</button>';
+    })
+    .catch(function(err) { formBox.textContent = ' ' + (err.message || 'Could not load lots.'); });
 });
 
 document.getElementById('orders-tbody').addEventListener('click', function(e) {
