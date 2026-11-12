@@ -512,6 +512,15 @@ function baseLabel(name) {
   return name.replace(/\s*\(?\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct)(?:\s*\/\s*\d+(\.\d+)?\s?(mg|mcg|iu|ml|ct))*\)?\s*$/i, '').trim();
 }
 
+// Same family key as shop.html/product.html (duplicated per the no-shared-JS
+// convention): strengths of one product share it; kits strip their whole
+// trailing "(dosage, N-Pack)".
+function groupKeyFor(p) {
+  return p.category === 'kit'
+    ? p.name.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    : baseLabel(p.name);
+}
+
 function resolveImagePath(path) {
   if (!path) return null;
   if (path.indexOf('http') === 0) return path;
@@ -929,9 +938,31 @@ async function renderHomeMostPopular() {
     'ghk-cu-high',
   ];
 
+  // An out-of-stock pick is replaced by its family's cheapest in-stock
+  // strength (with an image), so Most Popular never shows a sold-out
+  // strength while a sibling is buyable; if none is, the pick stays (as
+  // "Out of Stock" / "Notify When In Stock"). Two picks that land on the
+  // same strength (e.g. Tirzepatide 10mg and 60mg both -> 20mg) show once.
+  const EXCLUDED_IDS = ['cjc-1295', 'semax', 'selank'];
+  function inStockStandIn(p) {
+    if (!isEffectivelyOutOfStock(p)) return p;
+    const key = groupKeyFor(p);
+    let best = null;
+    products.forEach(s => {
+      if (s.id === p.id || EXCLUDED_IDS.indexOf(s.id) !== -1 || groupKeyFor(s) !== key) return;
+      if (isEffectivelyOutOfStock(s) || !resolveKitImagePath(s)) return;
+      const price = s.effectivePrice != null ? s.effectivePrice : s.price;
+      const bestPrice = best ? (best.effectivePrice != null ? best.effectivePrice : best.price) : null;
+      if (!best || (price > 0 && (bestPrice <= 0 || price < bestPrice))) best = s;
+    });
+    return best || p;
+  }
+  const seen = new Set();
   const picks = MOST_POPULAR_IDS
     .map(id => products.find(p => p.id === id))
     .filter(Boolean)
+    .map(inStockStandIn)
+    .filter(p => (seen.has(p.id) ? false : (seen.add(p.id), true)))
     .map(p => ({
       baseId: p.id, name: p.name, category: p.category || 'other',
       lowestPrice: (p.effectivePrice != null ? p.effectivePrice : p.price), lowestRegularPrice: p.price,

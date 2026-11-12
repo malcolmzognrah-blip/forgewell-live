@@ -539,10 +539,10 @@ function resolveKitImagePath(p) {
 
 // Same "own flag OR backing vial's flag" rule product.html's
 // isEffectivelyOutOfStock() and routes/checkout.js's server-side check
-// already apply. Sets each card's outOfStock flag, which follows only the
-// tier the card's buttons act on (baseId) -- see renderShopGrid(). That one
-// flag drives the "Out of Stock" badge, the disabled Buy Now/Add to Cart,
-// and the "In Stock Only" filter, so the three never disagree. (The filter
+// already apply, per strength. applyFamilyStock() uses it on every strength
+// of a family: the card is out of stock only when all of them are. That one
+// card flag drives the "Out of Stock" badge, the disabled Buy Now/Add to
+// Cart, and the "In Stock Only" filter, so the three never disagree. (The filter
 // once checked just a kit's own flag, so it could list a kit as in-stock
 // while its backing vial -- and therefore the kit itself, everywhere else
 // on the site -- was actually unavailable.)
@@ -889,6 +889,40 @@ function buildCardHtml(group) {
   '</div>';
 }
 
+// Family stock rule (one card per family of strengths): the card is out of
+// stock only when EVERY strength is (isEffectivelyOutOfStock -- the
+// server's per-strength stock_status, plus a kit's backing vial). Otherwise
+// the card is built from the CHEAPEST IN-STOCK strength: its id is what the
+// card links to and what Add to Cart / Buy Now add (baseId), and its
+// price, sale badge, dosage and photo are what the card shows, so the
+// card never advertises a strength you can't buy. With every strength out
+// of stock, the cheapest one overall stands in (for "Notify When In
+// Stock"). onSale (sort/filter) and the kit price range only count the
+// strengths the card can sell. "In Stock Only" uses outOfStock.
+// The server still refuses any out-of-stock strength at checkout
+// (routes/checkout.js), whatever a card shows.
+function applyFamilyStock(g) {
+  const inStock = g.members.filter(m => !isEffectivelyOutOfStock(m.product));
+  g.outOfStock = inStock.length === 0;
+  const sellable = inStock.length ? inStock : g.members;
+  // Cheapest priced strength; an unpriced ($0 / "coming soon") one only if
+  // nothing in the pool has a price. First encountered wins ties.
+  let rep = null;
+  sellable.forEach(m => {
+    if (m.product.effectivePrice > 0 && (!rep || m.product.effectivePrice < rep.product.effectivePrice)) rep = m;
+  });
+  rep = rep || sellable[0];
+  const p = rep.product;
+  g.baseId = p.id;
+  g.dosage = p.dosage;
+  g.imgUrl = rep.imgUrl;
+  g.lowestPrice = p.effectivePrice;
+  g.lowestRegularPrice = p.price;
+  g.salePercent = p.onSaleNow ? p.sale_percent : null;
+  g.onSale = sellable.some(m => !!m.product.onSaleNow);
+  g.highestPrice = sellable.reduce((hi, m) => (m.product.effectivePrice > hi ? m.product.effectivePrice : hi), p.effectivePrice);
+}
+
 async function renderShopGrid() {
   const gridEl = document.getElementById('grid');
   const tabsEl = document.getElementById('tabs');
@@ -905,14 +939,11 @@ async function renderShopGrid() {
     return;
   }
 
-  // Group by base label (size-tier variants collapse into one card, linking
-  // to the lowest-priced tier by default), excluding component-only records.
-  // onSale/unitsSold are family-level aggregates for the sort/filter
-  // controls, not just the representative (cheapest) tier's own values --
-  // a family counts as on-sale if ANY tier is, and unitsSold is
-  // summed across every tier, since the card represents the whole family,
-  // not one arbitrary row within it (same reasoning already applied to
-  // "cheapest tier wins the card" for price/dosage below).
+  // Group by base label (size-tier variants collapse into one card),
+  // excluding component-only records. Every listed tier is kept in
+  // `members`; the card itself is then built by applyFamilyStock() below.
+  // unitsSold/popularityRank are family-level aggregates for the sort
+  // controls (summed / min over every tier).
   const groups = {};
   products.forEach(p => {
     if (EXCLUDED_COMPONENT_IDS.indexOf(p.id) !== -1) return;
@@ -920,54 +951,21 @@ async function renderShopGrid() {
     if (!imgUrl) return; // image-matching display rule: no image (own or backing vial's), no listing
     const base = groupKeyFor(p);
     if (!groups[base]) {
-      groups[base] = { baseId: p.id, name: base, category: p.category || 'other',
-        lowestPrice: p.effectivePrice, highestPrice: p.effectivePrice, lowestRegularPrice: p.price,
-        dosage: p.dosage, imgUrl: imgUrl, multi: false, count: 1,
-        onSale: !!p.onSaleNow,
-        salePercent: p.onSaleNow ? p.sale_percent : null, unitsSold: p.units_sold || 0,
-        popularityRank: p.popularity_rank ?? null };
-    } else {
-      groups[base].count += 1;
-      groups[base].multi = true;
-      groups[base].onSale = groups[base].onSale || !!p.onSaleNow;
-      groups[base].unitsSold += (p.units_sold || 0);
-      // Every tier carries its family's rank; min() just guards against a
-      // mismatch rather than relying on encounter order.
-      if (p.popularity_rank != null && (groups[base].popularityRank == null || p.popularity_rank < groups[base].popularityRank)) {
-        groups[base].popularityRank = p.popularity_rank;
-      }
-      if (p.effectivePrice > 0 && (groups[base].lowestPrice <= 0 || p.effectivePrice < groups[base].lowestPrice)) {
-        groups[base].lowestPrice = p.effectivePrice;
-        groups[base].lowestRegularPrice = p.price;
-        groups[base].baseId = p.id; // link to the cheapest tier
-        groups[base].dosage = p.dosage;
-        // The card's photo should be the cheapest tier's own photo, same as
-        // baseId/dosage above -- previously left at whichever sibling
-        // happened to be encountered first (harmless while every tier of a
-        // family shared one photo, but Insulin Needles' 30ct/100ct now have
-        // distinct real photos, so a stale imgUrl here would show the wrong
-        // tier's box on the card it links to).
-        groups[base].imgUrl = imgUrl;
-        // Same "cheapest tier wins the card" rule applied to the % badge --
-        // salePercent always describes the specific tier lowestPrice/
-        // lowestRegularPrice above are already showing, never some other
-        // sibling's percent, so the badge and the struck-through price
-        // never disagree about which discount they're describing.
-        groups[base].salePercent = p.onSaleNow ? p.sale_percent : null;
-      }
-      if (p.effectivePrice > 0 && p.effectivePrice > groups[base].highestPrice) {
-        groups[base].highestPrice = p.effectivePrice;
-      }
+      groups[base] = { name: base, category: p.category || 'other', members: [], count: 0, multi: false,
+        unitsSold: 0, popularityRank: null };
+    }
+    const g = groups[base];
+    g.members.push({ product: p, imgUrl: imgUrl });
+    g.count += 1;
+    g.multi = g.count > 1;
+    g.unitsSold += (p.units_sold || 0);
+    // Every tier carries its family's rank; min() just guards against a
+    // mismatch rather than relying on encounter order.
+    if (p.popularity_rank != null && (g.popularityRank == null || p.popularity_rank < g.popularityRank)) {
+      g.popularityRank = p.popularity_rank;
     }
   });
-
-  // A card's buttons add baseId (the cheapest tier) to the cart, so the
-  // card's out-of-stock state follows that one tier, not the whole family.
-  // The "In Stock Only" filter uses the same flag, so a card showing
-  // "Out of Stock" is never listed under it.
-  Object.values(groups).forEach(g => {
-    g.outOfStock = isEffectivelyOutOfStock(products.find(p => p.id === g.baseId));
-  });
+  Object.values(groups).forEach(applyFamilyStock);
 
   // The "no image, no listing" rule above only checks that image_path is a
   // non-empty string -- it doesn't catch a path that 404s. That's now handled

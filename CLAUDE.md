@@ -153,6 +153,27 @@ catalog. The 20 legacy pre-rendered `forgewell-product-<slug>.html` pages and th
 object that used to route search to them have been removed — `product.html` is now the only
 per-product page.
 
+### Strengths and stock (one family, per-strength stock)
+
+Each strength (mg option, or kit dosage × pack size) is its own `products` row with its own
+`stock_status`, which `/api/products` sends as the **effective** per-strength status (paused, or no
+sellable vials — backend `lib/inventory.js`). There is no family table: strengths are grouped by
+name with `groupKeyFor()` (duplicated in `shop.html`, `product.html`, `home.html`, and backend
+`lib/popularity.js`). The backend never decides stock per family; checkout refuses an out-of-stock
+strength by its own id.
+
+- `shop.html` `applyFamilyStock()`: a card is out of stock only when **every** strength is.
+  Otherwise the card is built from the cheapest **in-stock** strength (link, Add/Buy, price, sale
+  badge, photo). "In Stock Only" uses the same family flag.
+- `product.html`: opening an out-of-stock strength switches (`location.replace`) to the cheapest
+  in-stock sibling (same pack size first) with `&from=<id>`, which shows a notice ("10mg is
+  currently out of stock. Showing 20mg.") linking back to the 10mg page with `&exact=1`.
+  `&exact=1` means "this exact strength": no switch. Out-of-stock strength pills are marked "Out of
+  stock" but stay clickable and open with `&exact=1`, so visitors can use "Notify When In Stock" for
+  that strength. Pills for a combination that doesn't exist stay disabled.
+- `cart.html` item links carry `&exact=1`. `home.html` Most Popular replaces an out-of-stock pick
+  with its family's cheapest in-stock strength, de-duplicated.
+
 ### Client-side state is localStorage, not cookies
 
 - `forgewell_cart` — JSON array of `{ productId, name, price, qty }` (no image field — `cart.html`

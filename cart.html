@@ -818,7 +818,9 @@ function renderCartPage() {
     const onlyAvailable = !outOfStock && cartShortages[item.productId] != null && cartShortages[item.productId] < item.qty ? cartShortages[item.productId] : null;
     if (onlyAvailable != null) hasShortage = true;
     const lineTotal = item.price * item.qty;
-    const productLink = '/product.html?id=' + encodeURIComponent(item.productId);
+    // &exact=1: a cart line opens its own strength, even when it's out of
+    // stock (product.html would otherwise switch to an in-stock sibling).
+    const productLink = '/product.html?id=' + encodeURIComponent(item.productId) + '&exact=1';
     // item.price is already the sale-aware price stored at add-to-cart
     // time (see addToCart's own comment on effectivePrice) -- this is
     // purely a display cue that it was a sale price, not a second price

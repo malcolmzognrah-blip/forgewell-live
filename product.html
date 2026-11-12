@@ -180,6 +180,13 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
 .size-option{padding:9px 16px; border:1.5px solid var(--line); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:'Quicksand',sans-serif; background:#fff;}
 .size-option.active{border-color:var(--navy); background:var(--navy); color:#fff;}
 .size-option.disabled{opacity:0.45; cursor:not-allowed; pointer-events:none;}
+/* An existing strength that's out of stock: still clickable (opens that
+   strength with &exact=1 for "Notify When In Stock"), visibly marked. */
+.size-option.oos{border-style:dashed; color:var(--gray);}
+.size-option.oos.active{color:#fff;}
+.size-option .oos-note{display:block; font-size:0.68rem; line-height:1.2; margin-top:2px;}
+.strength-switch-note{margin:6px 0 14px; padding:10px 14px; border:1.5px solid var(--line); border-left:4px solid var(--navy); border-radius:6px; background:#fff; font-size:0.85rem; color:#333;}
+.strength-switch-note a{color:var(--navy); font-weight:700;}
 
 .qty-row{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
 .qty-stepper{display:flex; align-items:center; border:1.5px solid var(--line); border-radius:6px; overflow:hidden;}
@@ -813,6 +820,48 @@ function buildProductUrl(id, trailIds) {
   return url;
 }
 
+// ---- Strength stock (one family = sibling rows, groupKeyFor()) ----
+// Opening an out-of-stock strength switches to an in-stock sibling (with a
+// notice, see strengthSwitchNoteHtml), unless the URL says &exact=1 -- set
+// by an out-of-stock strength pill and by cart.html's item links, i.e.
+// whenever someone asked for that exact strength. &from=<id> marks a page
+// we switched to, so it never switches again.
+function strengthLabel(p) {
+  var parts = [p.dosage, p.pack_size].filter(function(v) { return v && /^\d/.test(v); });
+  return parts.length ? parts.join(', ') : p.name;
+}
+
+// The in-stock sibling to show instead of `product`: same pack size first
+// (a kit keeps its pack size if it can), then any; cheapest priced one
+// within that, else the first. null when no sibling is in stock.
+function pickInStockSibling(product, siblings) {
+  var inStock = siblings.filter(function(s) { return s.id !== product.id && !isEffectivelyOutOfStock(s); });
+  if (!inStock.length) return null;
+  var samePack = inStock.filter(function(s) { return s.pack_size === product.pack_size; });
+  var pool = samePack.length ? samePack : inStock;
+  var best = null;
+  pool.forEach(function(s) {
+    if (s.effectivePrice > 0 && (!best || s.effectivePrice < best.effectivePrice)) best = s;
+  });
+  return best || pool[0];
+}
+
+function escapeText(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
+}
+
+// "10mg is currently out of stock. Showing 20mg." + a link to the 10mg page
+// (&exact=1) for "Notify When In Stock".
+function strengthSwitchNoteHtml(from, product, trailIds) {
+  if (!from) return '';
+  return '<div class="strength-switch-note" id="strength-switch-note">' +
+    escapeText(strengthLabel(from)) + ' is currently out of stock. Showing ' + escapeText(strengthLabel(product)) + '. ' +
+    '<a href="' + buildProductUrl(from.id, trailIds) + '&exact=1">Get notified when ' + escapeText(strengthLabel(from)) + ' is back</a>' +
+    '</div>';
+}
+
 // Appends the current product to its own trail to produce the trail for a
 // product being navigated *to*. If that target id is already somewhere in
 // the trail (or is the current product), truncates back to before that
@@ -1029,7 +1078,7 @@ function freeShippingBadgeText() {
     : 'Free Shipping Available';
 }
 
-function renderProduct(product, siblings) {
+function renderProduct(product, siblings, switchedFrom) {
   var root = document.getElementById('product-root');
   var imgUrl = resolveKitImagePath(product);
   var trailIds = getTrailIds();
@@ -1104,27 +1153,29 @@ function renderProduct(product, siblings) {
   // pack-size-given-dosage, so neither selector can ever lead to a
   // nonexistent row no matter which one a visitor touches first. For a
   // single-axis family (packSize always null on every sibling) this
-  // reduces to a plain dosage match and never disables anything. Also
-  // disables a combo whose row is effectively out of stock (its own flag,
-  // or -- for a kit -- its backing vial's), for any category: `siblings`
-  // is always one category or the other, never mixed (groupKeyFor() keys
-  // kits and plain vials differently -- "BPC-157 Kit" vs "BPC-157" -- so
-  // this was never really kit-only, just written before a plain peptide
-  // tier had ever gone out of stock to notice the gap).
-  function comboAvailable(dosage, packSize) {
+  // reduces to a plain dosage match and never disables anything. A combo
+  // whose row is effectively out of stock (its own flag, or -- for a kit --
+  // its backing vial's) is marked, not disabled (see comboState).
+  // 'none' (no such row: disabled, can't be clicked), 'oos' (the row exists
+  // but is out of stock: marked "Out of stock", still clickable -- it opens
+  // that strength with &exact=1 so a visitor can ask to be notified), or
+  // 'ok'. Only an in-stock strength can be added to the cart (the buy
+  // buttons follow the strength being viewed, and the server refuses an
+  // out-of-stock one at checkout anyway).
+  function comboState(dosage, packSize) {
     var match = siblings.filter(function(s) { return s.dosage === dosage && s.pack_size === packSize; })[0];
-    if (!match) return false;
-    if (isEffectivelyOutOfStock(match)) return false;
-    return true;
+    if (!match) return 'none';
+    return isEffectivelyOutOfStock(match) ? 'oos' : 'ok';
   }
 
   function buildSelectorHtml(label, id, values, activeValue, otherActiveValue, isPackAxis) {
     return '<div class="size-selector"><label>' + label + '</label><div class="size-options" id="' + id + '">' +
       values.map(function(v) {
         var active = v === activeValue;
-        var available = isPackAxis ? comboAvailable(otherActiveValue, v) : comboAvailable(v, otherActiveValue);
-        var cls = 'size-option' + (active ? ' active' : '') + (available ? '' : ' disabled');
-        return '<div class="' + cls + '" data-value="' + v + '">' + v + '</div>';
+        var state = isPackAxis ? comboState(otherActiveValue, v) : comboState(v, otherActiveValue);
+        var cls = 'size-option' + (active ? ' active' : '') + (state === 'none' ? ' disabled' : state === 'oos' ? ' oos' : '');
+        return '<div class="' + cls + '" data-value="' + v + '"' + (state === 'oos' ? ' title="Out of stock"' : '') + '>' + v +
+          (state === 'oos' ? '<span class="oos-note">Out of stock</span>' : '') + '</div>';
       }).join('') + '</div></div>';
   }
 
@@ -1300,6 +1351,7 @@ function renderProduct(product, siblings) {
           '<h1 class="product-title">' + baseLabel(product.name) + '</h1>' +
           shortDescriptionHtml +
           '<div class="product-price">' + priceHtml + '</div>' +
+          strengthSwitchNoteHtml(switchedFrom, product, trailIds) +
           sizeOptionsHtml +
           '<div class="qty-row"' + (isOutOfStock ? ' style="display:none;"' : '') + '>' +
             '<div class="qty-stepper">' +
@@ -1539,8 +1591,10 @@ function wireProductInteractions(product, trailIds, siblings) {
         var target = findSiblingByCombo.apply(null, buildCombo(opt.getAttribute('data-value'), otherAxisValue));
         if (target && target.id !== product.id) {
           // Switching dosage/pack size is the same product conceptually,
-          // not a new hop -- trail carries through unchanged.
-          window.location.href = buildProductUrl(target.id, trailIds);
+          // not a new hop -- trail carries through unchanged. An
+          // out-of-stock strength opens as itself (&exact=1), not switched
+          // back to an in-stock one, so "Notify When In Stock" is for it.
+          window.location.href = buildProductUrl(target.id, trailIds) + (isEffectivelyOutOfStock(target) ? '&exact=1' : '');
         }
       });
     });
@@ -1715,7 +1769,22 @@ async function initProductPage() {
       return groupKeyFor(p) === base && EXCLUDED_COMPONENT_IDS.indexOf(p.id) === -1;
     });
 
-    renderProduct(product, siblings);
+    // Out-of-stock strength opened without &exact=1 (a shop card, search,
+    // an old link): show an in-stock sibling instead, with a notice. replace()
+    // so Back doesn't bounce through the out-of-stock page.
+    var fromId = getQueryParam('from');
+    if (getQueryParam('exact') !== '1' && !fromId && isEffectivelyOutOfStock(product)) {
+      var alt = pickInStockSibling(product, siblings);
+      if (alt) {
+        window.location.replace(buildProductUrl(alt.id, getTrailIds()) + '&from=' + encodeURIComponent(product.id));
+        return;
+      }
+    }
+    // The notice only while that strength is still out of stock (a later
+    // reload of this URL after a restock shows no stale notice).
+    var switchedFrom = fromId ? siblings.filter(function(s) { return s.id === fromId && s.id !== product.id && isEffectivelyOutOfStock(s); })[0] || null : null;
+
+    renderProduct(product, siblings, switchedFrom);
   } catch (err) {
     console.error('Failed to load product:', err);
     renderError('Could not load this product right now.');
