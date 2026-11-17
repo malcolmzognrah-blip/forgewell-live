@@ -1786,8 +1786,8 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
       </fieldset>
       <fieldset class="costs-fieldset">
         <legend>Commission</legend>
-        <label class="costs-radio"><input type="radio" name="aff-method" value="revenue"> Revenue basis (subtotal minus discount)</label>
-        <label class="costs-radio"><input type="radio" name="aff-method" value="profit_v1"> Profit basis (revenue minus product, lab, label, packaging, shipping and processing costs)</label>
+        <label class="costs-radio"><input type="radio" name="aff-method" value="revenue"> <span class="aff-method-text" data-method="revenue">Revenue basis</span></label>
+        <label class="costs-radio"><input type="radio" name="aff-method" value="profit_v1"> <span class="aff-method-text" data-method="profit_v1">Profit basis</span></label>
         <div class="costs-grid">
           <label><span>Revenue commission rate (%)<span class="affiliate-active-chip" id="aff-revenue-rate-chip"></span></span><input type="text" inputmode="decimal" id="aff-revenue-rate"></label>
           <label><span>Profit commission rate (%)<span class="affiliate-active-chip" id="aff-profit-rate-chip"></span></span><input type="text" inputmode="decimal" id="aff-profit-rate" placeholder="e.g. 5"></label>
@@ -6660,15 +6660,27 @@ function fetchProgramSettings() {
     });
 }
 
-// Reads the live commission_basis_method -- replaces the old static
-// "Temporary basis" banner.
+// The revenue-basis rate setting from the public program settings
+// (revenueRatePercent; an older backend sent it as commissionRatePercent).
+function programRevenueRate(p) {
+  return p.revenueRatePercent !== undefined ? p.revenueRatePercent : p.commissionRatePercent;
+}
+
+// The live basis and rate, worded by the backend (cost.commission =
+// lib/referrals.js describeCommission() of the live settings) -- the same
+// wording the storefront and emails use. Switching basis or rate in
+// Settings changes it with no code change.
 function renderAffiliateStatus(cost, program) {
   var el = document.getElementById('affiliate-basis-status');
   var profit = cost.method === 'profit_v1';
-  var rate = profit ? cost.profitRatePercent : (program ? program.commissionRatePercent : null);
-  var html = 'Commissions are calculated on the <strong>' + (profit ? 'PROFIT' : 'REVENUE') + ' basis</strong> ' +
-    (profit ? '(revenue minus product, lab, label, packaging, shipping and processing costs)' : '(subtotal minus discount)') +
-    (rate != null ? ' at <strong>' + escapeHtml(String(rate)) + '%</strong>' : '') + '.';
+  var html;
+  if (cost.commission) {
+    html = '<strong>' + escapeHtml(cost.commission.adminLabel) + ' (' + escapeHtml(cost.commission.headline) + ').</strong> ' + escapeHtml(cost.commission.adminSummary);
+  } else {
+    var rate = profit ? cost.profitRatePercent : (program ? programRevenueRate(program) : null);
+    html = 'Commissions are calculated on the <strong>' + (profit ? 'PROFIT' : 'REVENUE') + ' basis</strong>' +
+      (rate != null ? ' at <strong>' + escapeHtml(String(rate)) + '%</strong>' : '') + '.';
+  }
   var missing = cost.missingForProfit || [];
   if (missing.length) {
     html += profit
@@ -6711,11 +6723,15 @@ function renderAffProgram(p) {
   document.getElementById('aff-payout-hold').value = p.payoutHoldDays;
   document.getElementById('aff-minimum-payout').value = (p.minimumPayoutCents / 100).toFixed(2);
   document.getElementById('aff-payout-schedule').value = p.payoutScheduleDays;
-  document.getElementById('aff-revenue-rate').value = p.commissionRatePercent;
+  document.getElementById('aff-revenue-rate').value = programRevenueRate(p);
 }
 
 function renderAffCost(c) {
   document.querySelectorAll('input[name="aff-method"]').forEach(function(r) { r.checked = r.value === c.method; });
+  (c.commissionMethods || []).forEach(function(m) {
+    var span = document.querySelector('.aff-method-text[data-method="' + m.method + '"]');
+    if (span) span.textContent = m.adminLabel + ': ' + m.basis;
+  });
   document.getElementById('aff-profit-rate').value = c.profitRatePercent == null ? '' : c.profitRatePercent;
   document.getElementById('aff-label').value = costsCentsToInput(c.labelPerVialCents);
   document.getElementById('aff-packaging').value = costsCentsToInput(c.packagingPerVialCents);
@@ -6802,7 +6818,7 @@ function readAffiliateForm() {
 
 function affProgramChanged(form) {
   var p = affSettings.program;
-  return !!(p && form.program) && (form.program.commissionRatePercent !== Number(p.commissionRatePercent) || form.program.attributionWindowDays !== Number(p.attributionWindowDays) ||
+  return !!(p && form.program) && (form.program.commissionRatePercent !== Number(programRevenueRate(p)) || form.program.attributionWindowDays !== Number(p.attributionWindowDays) ||
     form.program.payoutHoldDays !== Number(p.payoutHoldDays) || form.program.minimumPayoutCents !== Number(p.minimumPayoutCents) || form.program.payoutScheduleDays !== Number(p.payoutScheduleDays));
 }
 
@@ -6823,7 +6839,7 @@ function saveAffiliateSettings(form, programChanged, costChanged) {
   costsSetStatus('aff-settings-status', 'Saving…');
   var result = { program: null, cost: null }; // null = not attempted; true = saved; Error = failed
   var step1 = programChanged
-    ? costsApi('PUT', '/content/referral-program-settings', form.program).then(function() { result.program = true; affSettings.program = Object.assign({}, affSettings.program, form.program); }, function(err) { result.program = err; })
+    ? costsApi('PUT', '/content/referral-program-settings', form.program).then(function() { result.program = true; affSettings.program = Object.assign({}, affSettings.program, form.program, { revenueRatePercent: form.program.commissionRatePercent }); }, function(err) { result.program = err; })
     : Promise.resolve();
   step1.then(function() {
     if (result.program && result.program.loggedOut) return;

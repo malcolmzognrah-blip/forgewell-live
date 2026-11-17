@@ -440,6 +440,10 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <div class="affiliate-program-info-label">Minimum Payout</div>
         </div>
       </div>
+      <!-- Filled from the live commission settings (GET
+           /api/content/referral-program-settings -> commission.summary,
+           backend lib/referrals.js describeCommission()). -->
+      <p class="referral-note commission-summary" hidden></p>
 
       <form id="affiliate-app-form">
         <div class="affiliate-form-section affiliate-form">
@@ -588,6 +592,7 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
           <button type="button" class="referral-copy-btn" id="referral-copy-btn">Copy</button>
         </div>
         <p class="referral-note">Share this link -- when someone signs up through it and places an order, you earn a commission.</p>
+        <p class="referral-note commission-summary" hidden></p>
       </div>
       <div class="referral-stats-row">
         <div class="referral-stat">
@@ -1562,11 +1567,19 @@ updateCartIcon();
   // docs/affiliate-agreement.md's own header comment, backend repo).
   // Cookie Duration is deliberately not shown as a bracket at all here --
   // it's the real attribution window number.
+  // Commission rate and basis wording come only from s.commission (the
+  // backend's describeCommission() of the LIVE admin settings), so
+  // switching basis or rate in admin changes this page with no code change.
   function loadAffiliateProgramInfo() {
     fetch('/api/content/referral-program-settings')
       .then(function(r) { return r.json(); })
       .then(function(s) {
-        document.getElementById('affiliate-info-commission-rate').textContent = s.commissionRatePercent + '%';
+        var c = s.commission;
+        document.getElementById('affiliate-info-commission-rate').textContent = c ? (c.rateText || '--') : s.commissionRatePercent + '%';
+        document.querySelectorAll('.commission-summary').forEach(function(el) {
+          el.textContent = c ? c.summary : '';
+          el.hidden = !c;
+        });
         document.getElementById('affiliate-info-attribution-window').textContent = s.attributionWindowDays + ' Days';
         document.getElementById('affiliate-info-minimum-payout').textContent = formatCents(s.minimumPayoutCents);
       })
