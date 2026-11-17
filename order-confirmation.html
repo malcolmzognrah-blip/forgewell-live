@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Affiliate links (?ref=CODE) on any page: stored before anything else runs. -->
+<script src="/js/ref-capture.js?v=20261117-1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Order Confirmation — Forgewell</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -251,6 +253,9 @@ function renderOrder(order, timedOut) {
     discountLine = discountCents > 0
       ? `<div class="totals-row"><span>Coupon ${escapeHtml(order.coupon_code)}</span><span>&minus;$${(discountCents / 100).toFixed(2)}</span></div>`
       : `<div class="totals-row"><span>Coupon ${escapeHtml(order.coupon_code)}</span><span>Applied</span></div>`;
+  } else if (order.discount_source === 'affiliate' && discountCents > 0) {
+    // An affiliate's first-order discount won (same label as the email).
+    discountLine = `<div class="totals-row"><span>First-order discount (code ${escapeHtml(order.affiliate_code || '')})</span><span>&minus;$${(discountCents / 100).toFixed(2)}</span></div>`;
   } else if (order.discount_applied) {
     discountLine = discountCents > 0
       ? `<div class="totals-row"><span>Bulk discount</span><span>&minus;$${(discountCents / 100).toFixed(2)}</span></div>`

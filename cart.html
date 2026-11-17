@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Affiliate links (?ref=CODE) on any page: stored before anything else runs. -->
+<script src="/js/ref-capture.js?v=20261117-1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Shopping Cart</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -740,11 +742,16 @@ function couponDiscountedTotal(rawTotal, coupon) {
 // beats the bulk discount above -- bulk and coupon never stack. This is
 // what lets the cart page show the customer's actual coupon savings
 // instead of just silently folding it into the total.
-function calculateCartTotals(cartItems, coupon) {
+// affiliatePercent: an affiliate's first-order discount (0 = none) -- it
+// competes with bulk and the coupon, the biggest single discount wins,
+// exactly as lib/orderPricing.js applyBulkDiscount() does at checkout.
+function calculateCartTotals(cartItems, coupon, affiliatePercent) {
   const { subtotal, total: bulkTotal, discountApplied: bulkDiscountApplied, savings: bulkSavings } = calculateCartDiscount(cartItems);
   let finalTotal = bulkTotal;
   let couponWon = false;
   let couponSavings = 0;
+  let affiliateWon = false;
+  let affiliateSavings = 0;
   // free_shipping coupons have no real discountValue and never affect
   // the subtotal -- their entire effect is on shipping, computed only on
   // checkout.html (cart.html doesn't calculate shipping at all). Same
@@ -758,6 +765,15 @@ function calculateCartTotals(cartItems, coupon) {
       couponSavings = subtotal - couponTotal;
     }
   }
+  if (affiliatePercent > 0) {
+    const affiliateTotal = subtotal * (1 - affiliatePercent / 100);
+    if (affiliateTotal < finalTotal) {
+      finalTotal = affiliateTotal;
+      affiliateWon = true;
+      couponWon = false;
+      affiliateSavings = subtotal - affiliateTotal;
+    }
+  }
   finalTotal = Math.round(finalTotal * 100) / 100;
   return {
     subtotal,
@@ -765,9 +781,42 @@ function calculateCartTotals(cartItems, coupon) {
     discountApplied: finalTotal < subtotal,
     couponWon,
     couponSavings: Math.round(couponSavings * 100) / 100,
+    affiliateWon,
+    affiliateSavings: Math.round(affiliateSavings * 100) / 100,
     bulkDiscountApplied,
     bulkSavings,
   };
+}
+
+// ---- Affiliate code (preview only; routes/checkout.js decides for real) ----
+// The promo box takes a coupon OR an affiliate code. A typed code that isn't
+// one of the customer's coupons is checked with POST /api/referrals/
+// code-check; a customer who signed up through an affiliate gets their
+// first-order discount with no code (GET /api/referrals/
+// my-first-order-discount).
+var affiliatePreview = { auto: null, typed: null };
+function checkTypedAffiliateCode(code) {
+  affiliatePreview.typed = { code: code.toUpperCase(), pending: true };
+  return fetch('/api/referrals/code-check', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) {
+      if (!affiliatePreview.typed || affiliatePreview.typed.code !== code.toUpperCase()) return d;
+      affiliatePreview.typed = d ? Object.assign({ code: code.toUpperCase() }, d) : null;
+      renderCartPage();
+      return d;
+    })
+    .catch(function() { affiliatePreview.typed = null; return null; });
+}
+function loadAutoAffiliateDiscount() {
+  fetch('/api/referrals/my-first-order-discount', { credentials: 'include' })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) { affiliatePreview.auto = d && d.discount; if (affiliatePreview.auto) renderCartPage(); })
+    .catch(function() {});
+}
+// The typed code as an affiliate code the customer can use, or null.
+function usableTypedAffiliate(appliedCode) {
+  var t = affiliatePreview.typed;
+  return t && appliedCode && t.code === appliedCode.trim().toUpperCase() && t.affiliate && t.usable ? t : null;
 }
 
 // Quantities (POST /api/products/availability): the server only says how
@@ -871,11 +920,18 @@ function renderCartPage() {
   const matchedCoupon = appliedCode
     ? availableCoupons.find(function(c) { return c.code.toUpperCase() === appliedCode.trim().toUpperCase(); })
     : null;
-  const { subtotal, total, couponWon, couponSavings, bulkDiscountApplied, bulkSavings } = calculateCartTotals(cart, matchedCoupon);
+  // Affiliate discount candidate: the typed affiliate code, else (when the
+  // typed code isn't an affiliate code) the customer's automatic one.
+  const typedAffiliate = !matchedCoupon ? usableTypedAffiliate(appliedCode) : null;
+  const typedIsAffiliate = !matchedCoupon && affiliatePreview.typed && appliedCode && affiliatePreview.typed.code === appliedCode.trim().toUpperCase() && affiliatePreview.typed.affiliate;
+  const affiliateCandidate = typedAffiliate ? { code: typedAffiliate.code, percent: typedAffiliate.discountPercent } : (!typedIsAffiliate ? affiliatePreview.auto : null);
+  const { subtotal, total, couponWon, couponSavings, affiliateWon, affiliateSavings, bulkDiscountApplied, bulkSavings } = calculateCartTotals(cart, matchedCoupon, affiliateCandidate ? affiliateCandidate.percent : 0);
 
   const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
   let html = '<div class="cart-summary-line"><span>Subtotal (' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + ')</span><span>$' + subtotal.toFixed(2) + '</span></div>';
-  if (couponWon) {
+  if (affiliateWon) {
+    html += '<div class="cart-summary-line cart-summary-discount"><span>First-order discount (code ' + escapeCode(affiliateCandidate.code) + ')</span><span>-$' + affiliateSavings.toFixed(2) + '</span></div>';
+  } else if (couponWon) {
     html += '<div class="cart-summary-line cart-summary-discount"><span>Coupon ' + matchedCoupon.code + ' applied</span><span>-$' + couponSavings.toFixed(2) + '</span></div>';
   } else if (bulkDiscountApplied) {
     html += '<div class="cart-summary-line cart-summary-discount"><span>Discount</span><span>-$' + bulkSavings.toFixed(2) + '</span></div>';
@@ -925,8 +981,26 @@ function renderCartPage() {
   // to reflect that without the customer re-applying anything.
   var msgEl = document.getElementById('cart-promo-msg');
   msgEl.classList.remove('error');
+  var typed = affiliatePreview.typed && appliedCode && affiliatePreview.typed.code === appliedCode.trim().toUpperCase() ? affiliatePreview.typed : null;
   if (!appliedCode || couponWon) {
     msgEl.textContent = '';
+  } else if (!matchedCoupon && typed && typed.pending) {
+    msgEl.textContent = 'Checking code…';
+  } else if (!matchedCoupon && typed && typed.affiliate) {
+    // An affiliate code: say whether it applies, and why not.
+    if (!typed.signedIn) {
+      msgEl.textContent = 'Sign in or create an account to use an affiliate code.';
+      msgEl.classList.add('error');
+    } else if (!typed.usable) {
+      msgEl.textContent = typed.error || "This affiliate code can't be used.";
+      msgEl.classList.add('error');
+    } else if (affiliateWon) {
+      msgEl.textContent = 'Affiliate code ' + typed.code + ': ' + typed.discountPercent + '% off your first order.';
+    } else if (Number(typed.discountPercent) > 0) {
+      msgEl.textContent = 'Affiliate code ' + typed.code + " doesn't beat your current discount, so the bigger discount applies.";
+    } else {
+      msgEl.textContent = 'Affiliate code ' + typed.code + ' added.';
+    }
   } else if (matchedCoupon && matchedCoupon.discountType === 'free_shipping') {
     // couponWon is deliberately always false for this type (see
     // calculateCartTotals()'s own comment -- it never affects the
@@ -1164,12 +1238,33 @@ function applyPromoCode(code) {
   if (!code) {
     localStorage.removeItem('forgewell_promo_code');
     couponInput.value = '';
+    affiliatePreview.typed = null;
   } else {
     couponInput.value = code;
     localStorage.setItem('forgewell_promo_code', code);
+    // Not one of the customer's coupons: maybe an affiliate code.
+    var isCoupon = availableCoupons.some(function(c) { return c.code.toUpperCase() === code.toUpperCase(); });
+    if (!isCoupon) checkTypedAffiliateCode(code);
   }
   renderCartPage();
 }
+function escapeCode(v) { return String(v || '').replace(/[&<>"']/g, ''); }
+
+// Arrived through an affiliate link (/js/ref-capture.js) with no promo code
+// yet: if this signed-in customer can use that code, put it in the box.
+(function prefillAffiliateCode() {
+  var stored = window.getStoredReferralCode ? window.getStoredReferralCode() : null;
+  if (savedPromoCode || !stored) {
+    if (savedPromoCode && !availableCoupons.some(function(c) { return c.code.toUpperCase() === savedPromoCode.toUpperCase(); })) checkTypedAffiliateCode(savedPromoCode);
+    loadAutoAffiliateDiscount();
+    return;
+  }
+  checkTypedAffiliateCode(stored).then(function(d) {
+    if (d && d.affiliate && d.signedIn && d.usable) applyPromoCode(d.code);
+    else affiliatePreview.typed = null;
+    loadAutoAffiliateDiscount();
+  });
+})();
 
 document.getElementById('cart-coupon-apply-btn').addEventListener('click', function() {
   closeCouponDropdown();

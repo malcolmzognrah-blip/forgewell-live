@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Affiliate links (?ref=CODE) on any page: stored before anything else runs. -->
+<script src="/js/ref-capture.js?v=20261117-1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Account</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -786,6 +788,14 @@ updateCartIcon();
     });
   }
 
+  // ?next=/some/page (e.g. /account.html#referrals from the footer's
+  // "Become an Affiliate" link): where to go once logged in. Same-site
+  // paths only, so this can't be used to send someone off-site.
+  function nextPath() {
+    var n = new URLSearchParams(window.location.search).get('next') || '';
+    return /^\/(?![\/\\])/.test(n) ? n : null;
+  }
+
   // If already logged in, skip straight to the success state -- unless we
   // got here via the landing page's mandatory sign-in step (index.html sets
   // this flag right before sending the visitor to /api/auth/google, since
@@ -798,6 +808,7 @@ updateCartIcon();
     .then(function(res) { return res.ok ? res.json() : null; })
     .then(function(customer) {
       if (!customer) return;
+      if (nextPath()) { window.location.replace(nextPath()); return; }
       if (sessionStorage.getItem('forgewell_landing_auth_pending')) {
         sessionStorage.removeItem('forgewell_landing_auth_pending');
         window.location.href = '/home.html';
@@ -846,6 +857,7 @@ updateCartIcon();
           errorEl.classList.add('show');
           return;
         }
+        if (nextPath()) { window.location.href = nextPath(); return; }
         showSuccess(result.data);
       })
       .catch(function() {

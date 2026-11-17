@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Affiliate links (?ref=CODE) on any page: stored before anything else runs. -->
+<script src="/js/ref-capture.js?v=20261117-1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — My Account</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -570,8 +572,8 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
          than a new address). -->
     <div class="affiliate-status-card" id="affiliate-pending-view" style="display:none;">
       <h3>Application Under Review</h3>
-      <p>Your application has been received and is currently under review.</p>
-      <p>If approved, you will receive an email containing your affiliate account information, unique affiliate link, promotional code (if applicable), commission details, and instructions for accessing your affiliate dashboard.</p>
+      <p>We received your application and will email you once it has been reviewed. You can also check this page any time.</p>
+      <p>If it's approved, your affiliate code and link will appear here.</p>
       <p>Forgewell Affiliate Support:<br><a href="mailto:support@forgewellpeptide.com">support@forgewellpeptide.com</a></p>
     </div>
 
@@ -583,15 +585,30 @@ footer.footer-main{margin-top:60px; padding:40px 20px 24px; background:var(--nav
       <button type="button" class="referral-copy-btn" id="affiliate-reapply-btn">Apply Again</button>
     </div>
 
-    <!-- Approved state -- unchanged from before. -->
+    <!-- Approved state: their one affiliate code, used two ways (link or
+         typed), the customer discount (hidden while it's 0%) and the live
+         commission wording. -->
     <div id="referral-joined-view" style="display:none;">
+      <!-- Approved before applications existed (GET /api/referrals/mine ->
+           needsAgreement): code and link keep working, payouts are held
+           until they sign (the application form is shown below this). -->
+      <div class="affiliate-status-card" id="affiliate-agreement-needed" style="display:none;">
+        <h3>Please sign the affiliate agreement</h3>
+        <p id="affiliate-agreement-needed-text"></p>
+      </div>
       <div class="referral-link-card">
-        <div class="referral-link-label">Your Referral Link</div>
+        <div class="referral-link-label">Your Affiliate Code</div>
+        <div class="referral-link-row">
+          <input type="text" id="referral-code-input" readonly>
+          <button type="button" class="referral-copy-btn" data-copy-target="referral-code-input">Copy</button>
+        </div>
+        <div class="referral-link-label" style="margin-top:14px;">Your Affiliate Link</div>
         <div class="referral-link-row">
           <input type="text" id="referral-link-input" readonly>
-          <button type="button" class="referral-copy-btn" id="referral-copy-btn">Copy</button>
+          <button type="button" class="referral-copy-btn" id="referral-copy-btn" data-copy-target="referral-link-input">Copy</button>
         </div>
-        <p class="referral-note">Share this link -- when someone signs up through it and places an order, you earn a commission.</p>
+        <p class="referral-note">Two ways to use them: share your link -- a new customer who creates an account through it is linked to you -- or give people your code to enter when they create an account, or in the promo code box at checkout on their first order.</p>
+        <p class="referral-note" id="referral-customer-discount" hidden></p>
         <p class="referral-note commission-summary" hidden></p>
       </div>
       <div class="referral-stats-row">
@@ -1641,7 +1658,28 @@ updateCartIcon();
     }
 
     showAffiliateView('approved');
-    document.getElementById('referral-link-input').value = window.location.origin + '/?ref=' + (data.referralCode || '');
+    document.getElementById('referral-code-input').value = data.referralCode || '';
+    document.getElementById('referral-link-input').value = window.location.origin + '/?ref=' + encodeURIComponent(data.referralCode || '');
+    var discountEl = document.getElementById('referral-customer-discount');
+    discountEl.textContent = data.customerDiscountText || '';
+    discountEl.hidden = !data.customerDiscountText;
+    // Approved before applications existed: ask them to sign. The form card
+    // shows under this view while they still need to (none / rejected).
+    var agreementCard = document.getElementById('affiliate-agreement-needed');
+    agreementCard.style.display = data.needsAgreement ? '' : 'none';
+    if (data.needsAgreement) {
+      var agreementText = document.getElementById('affiliate-agreement-needed-text');
+      if (data.agreementStatus === 'pending') {
+        agreementText.textContent = "Thanks -- your signed agreement is under review. Your code and link keep working; payouts are on hold until it's approved.";
+      } else {
+        agreementText.textContent = (data.agreementStatus === 'rejected' && data.rejectionReason ? 'Your last submission was not approved: ' + data.rejectionReason + ' ' : '') +
+          'Your code and link keep working, but payouts are on hold until you sign the Forgewell Affiliate Program Agreement below.';
+        // The form normally sits before this view; put it right under the card.
+        var appCard = document.getElementById('affiliate-app-card');
+        agreementCard.parentNode.insertBefore(appCard, agreementCard.nextSibling);
+        appCard.style.display = '';
+      }
+    }
     document.getElementById('referral-pending-amount').textContent = formatCents(data.pendingCents);
     document.getElementById('referral-paid-amount').textContent = formatCents(data.paidCents);
 
@@ -1742,8 +1780,8 @@ updateCartIcon();
       });
   });
 
-  document.getElementById('referral-copy-btn').addEventListener('click', function() {
-    var input = document.getElementById('referral-link-input');
+  document.querySelectorAll('#referral-joined-view [data-copy-target]').forEach(function(copyBtn) { copyBtn.addEventListener('click', function() {
+    var input = document.getElementById(this.getAttribute('data-copy-target'));
     var btn = this;
     var originalLabel = btn.textContent;
     function showCopied() {
@@ -1762,7 +1800,7 @@ updateCartIcon();
       document.execCommand('copy');
       showCopied();
     }
-  });
+  }); });
 
   // ============================================================
   // Bootstrap: auth gate, then load every tab's data up front so
@@ -1772,7 +1810,9 @@ updateCartIcon();
   fetch('/api/auth/me', { credentials: 'include' })
     .then(function(res) {
       if (res.status === 401) {
-        window.location.href = '/login.html';
+        // Back here (and to the same tab, e.g. #referrals from the footer's
+        // "Become an Affiliate") once logged in -- login.html honors ?next=.
+        window.location.href = '/login.html?next=' + encodeURIComponent(window.location.pathname + window.location.hash);
         return null;
       }
       return res.json();

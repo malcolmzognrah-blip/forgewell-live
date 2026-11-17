@@ -139,6 +139,34 @@ Included at the end of `<body>` on those three pages, right after the chat widge
 ```
 **Any change to either file must bump `?v=` on both includes in all three pages in the same commit.**
 
+### Affiliate link capture — shared file, not inlined
+
+The fourth exception to the no-shared-JS rule. `/js/ref-capture.js` stores an affiliate code from an
+affiliate link (`?ref=CODE`, any page) in `localStorage.forgewell_referral_code` and exposes
+`window.getStoredReferralCode()` / `window.clearStoredReferralCode()`. It's loaded in `<head>`, right
+after `<meta charset>`, on the same 19 storefront pages as the chat widget — on `home.html`/`shop.html`
+that's before the login-gate script, so the code is stored before the gate's redirect to `index.html`:
+```html
+<script src="/js/ref-capture.js?v=20261117-1"></script>
+```
+**Any change to it must bump `?v=` on all 19 includes in the same commit.**
+
+### Affiliate code (Refer & Earn)
+
+An approved affiliate has ONE code (`customers.referral_code`), used as the link (`/?ref=CODE`) or
+typed: in `index.html`'s Sign Up "Affiliate code (optional)" field (prefilled from a stored link
+code), or in the cart's promo code box (the same box as coupons; coupons can never equal an affiliate
+code). A signed-in customer with no paid order gets the admin-set first-order discount (Affiliate >
+Settings, "New-customer discount", 0 = none and no "N% off" text anywhere); it competes with bulk and
+coupons, biggest single discount wins. The backend decides and enforces everything (sign-in required,
+first order only, no own code, no re-attribution); `cart.html`/`checkout.html` only preview it via
+`POST /api/referrals/code-check` and `GET /api/referrals/my-first-order-discount`, and checkout
+errors carry `codeError: true` so they show next to the promo code. Commission: the first paid order
+of a referred customer only, worded by the backend (`commission.summary` from
+`/api/content/referral-program-settings`). The footer's "Become an Affiliate" goes to
+`account.html#referrals`; signed out, `account.html` sends visitors to `login.html?next=...`, which
+returns them there after login (same-site paths only).
+
 ### Product pages are rendered dynamically
 
 `shop.html` fetches the live catalog from `GET /api/products` and renders cards into `#grid`

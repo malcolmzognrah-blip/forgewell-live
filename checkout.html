@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Affiliate links (?ref=CODE) on any page: stored before anything else runs. -->
+<script src="/js/ref-capture.js?v=20261117-1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Forgewell — Checkout</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -1052,11 +1054,16 @@ function couponDiscountedTotal(rawTotal, coupon) {
 // below -- but the savings this produces still needs to be computed the
 // same way cart.html does, so the total shown here matches what the
 // customer already saw there.
-function calculateCartTotals(cartItems, coupon) {
+// affiliatePercent: an affiliate's first-order discount (0 = none) -- it
+// competes like bulk and the coupon, biggest single discount wins
+// (lib/orderPricing.js applyBulkDiscount() at checkout).
+function calculateCartTotals(cartItems, coupon, affiliatePercent) {
   const { subtotal, total: bulkTotal, discountApplied: bulkDiscountApplied, savings: bulkSavings } = calculateCartDiscount(cartItems);
   let finalTotal = bulkTotal;
   let couponWon = false;
   let couponSavings = 0;
+  let affiliateWon = false;
+  let affiliateSavings = 0;
   // free_shipping coupons have no real discountValue and never affect
   // the subtotal -- their entire effect is on the shipping line (see
   // currentCouponFreeShipping below), same split as routes/checkout.js's
@@ -1069,6 +1076,15 @@ function calculateCartTotals(cartItems, coupon) {
       couponSavings = subtotal - couponTotal;
     }
   }
+  if (affiliatePercent > 0) {
+    const affiliateTotal = subtotal * (1 - affiliatePercent / 100);
+    if (affiliateTotal < finalTotal) {
+      finalTotal = affiliateTotal;
+      affiliateWon = true;
+      couponWon = false;
+      affiliateSavings = subtotal - affiliateTotal;
+    }
+  }
   finalTotal = Math.round(finalTotal * 100) / 100;
   return {
     subtotal,
@@ -1076,9 +1092,41 @@ function calculateCartTotals(cartItems, coupon) {
     discountApplied: finalTotal < subtotal,
     couponWon,
     couponSavings: Math.round(couponSavings * 100) / 100,
+    affiliateWon,
+    affiliateSavings: Math.round(affiliateSavings * 100) / 100,
     bulkDiscountApplied,
     bulkSavings,
   };
+}
+
+// ---- Affiliate first-order discount (preview; the server decides) ----
+// From the promo code carried over from cart.html when it's an affiliate
+// code (POST /api/referrals/code-check), else the automatic one for a
+// customer who signed up through an affiliate (GET /api/referrals/
+// my-first-order-discount). { code, percent, usable, error, signedIn } or null.
+let affiliatePreview = { auto: null, typed: null };
+function loadAffiliatePreview() {
+  const code = (localStorage.getItem('forgewell_promo_code') || '').trim();
+  const typedP = code
+    ? fetch('/api/referrals/code-check', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+        .then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; })
+    : Promise.resolve(null);
+  const autoP = fetch('/api/referrals/my-first-order-discount', { credentials: 'include' })
+    .then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
+  Promise.all([typedP, autoP]).then(function(r) {
+    affiliatePreview.typed = r[0] && r[0].affiliate ? Object.assign({ code: code.toUpperCase() }, r[0]) : null;
+    affiliatePreview.auto = r[1] && r[1].discount;
+    renderOrderSummary();
+  });
+}
+// The affiliate discount candidate for these totals: the typed affiliate
+// code if usable; otherwise (only when the typed code isn't an affiliate
+// code) the automatic one.
+function affiliateCandidate(matchedCoupon) {
+  if (matchedCoupon) return affiliatePreview.auto;
+  const t = affiliatePreview.typed;
+  if (t) return t.usable ? { code: t.code, percent: t.discountPercent } : null;
+  return affiliatePreview.auto;
 }
 
 // Populated by loadCoupons() below (signed-in customers only) -- used to
@@ -1261,7 +1309,8 @@ function calculatePreCreditTotal() {
   const matchedCoupon = appliedCode
     ? availableCoupons.find(function(c) { return c.code.toUpperCase() === appliedCode.trim().toUpperCase(); })
     : null;
-  const { total } = calculateCartTotals(cart, matchedCoupon);
+  const aff = affiliateCandidate(matchedCoupon);
+  const { total } = calculateCartTotals(cart, matchedCoupon, aff ? aff.percent : 0);
   const shippingMethod = getSelectedShippingMethod();
   return Math.round((total + shippingMethod.cost) * 100) / 100;
 }
@@ -1366,7 +1415,8 @@ function renderOrderSummary() {
   const matchedCoupon = appliedCode
     ? availableCoupons.find(function(c) { return c.code.toUpperCase() === appliedCode.trim().toUpperCase(); })
     : null;
-  const { subtotal, total, couponWon, couponSavings, bulkDiscountApplied, bulkSavings } = calculateCartTotals(cart, matchedCoupon);
+  const aff = affiliateCandidate(matchedCoupon);
+  const { subtotal, total, couponWon, couponSavings, affiliateWon, affiliateSavings, bulkDiscountApplied, bulkSavings } = calculateCartTotals(cart, matchedCoupon, aff ? aff.percent : 0);
   const shippingMethod = getSelectedShippingMethod();
   const preCreditTotal = total + shippingMethod.cost;
 
@@ -1424,7 +1474,9 @@ function renderOrderSummary() {
   if (saleSavings > 0) {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Sale Savings</span><span>-$' + saleSavings.toFixed(2) + '</span></div>';
   }
-  if (couponWon) {
+  if (affiliateWon) {
+    html += '<div class="checkout-summary-line checkout-summary-discount"><span>First-order discount (code ' + String(aff.code).replace(/[&<>"']/g, '') + ')</span><span>-$' + affiliateSavings.toFixed(2) + '</span></div>';
+  } else if (couponWon) {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Coupon ' + matchedCoupon.code + ' applied</span><span>-$' + couponSavings.toFixed(2) + '</span></div>';
   } else if (bulkDiscountApplied) {
     html += '<div class="checkout-summary-line checkout-summary-discount"><span>Discount</span><span>-$' + bulkSavings.toFixed(2) + '</span></div>';
@@ -1470,6 +1522,17 @@ function renderOrderSummary() {
   } else if (matchedCoupon) {
     noteEl.style.display = 'block';
     noteEl.innerHTML = 'Coupon ' + matchedCoupon.code + " doesn't beat your current discount, so it wasn't applied. <a href=\"/cart.html\">Change on cart page</a>";
+  } else if (affiliatePreview.typed) {
+    // The carried-over code is an affiliate code.
+    const t = affiliatePreview.typed;
+    noteEl.style.display = 'block';
+    if (!t.signedIn || !t.usable) {
+      noteEl.classList.add('error');
+      noteEl.innerHTML = (t.signedIn ? (t.error || "This affiliate code can't be used.") : 'Sign in or create an account to use an affiliate code.') + ' <a href="/cart.html">Change on cart page</a>';
+    } else {
+      noteEl.innerHTML = (affiliateWon ? 'Affiliate code ' + t.code + ' applied.' : Number(t.discountPercent) > 0 ? 'Affiliate code ' + t.code + " doesn't beat your current discount, so the bigger discount applies." : 'Affiliate code ' + t.code + ' added.') +
+        ' <a href="/cart.html">Change on cart page</a>';
+    }
   } else {
     noteEl.style.display = 'block';
     noteEl.innerHTML = 'Promo code ' + appliedCode + ' will be validated when you place your order. <a href="/cart.html">Change on cart page</a>';
@@ -2115,6 +2178,8 @@ if (cart.length === 0) {
 
   renderShippingMethods();
   renderOrderSummary();
+  // Affiliate first-order discount for this preview (re-renders when known).
+  loadAffiliatePreview();
   // Catches an address that arrived via localStorage restore (the
   // earlier synchronous fill above) or a saved address the account-based
   // autofill flow already applied before this line runs -- the async
@@ -2687,7 +2752,7 @@ if (cart.length === 0) {
       // generic alert below -- this only narrows the one case this change
       // is actually about.
       if (!res.ok) {
-        if (data.error && /promo code/i.test(data.error)) {
+        if (data.error && (data.codeError || /promo code/i.test(data.error))) {
           const noteEl = document.getElementById('checkout-coupon-note');
           noteEl.style.display = 'block';
           noteEl.classList.add('error');

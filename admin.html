@@ -1781,6 +1781,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <label>Payout hold (days)<input type="text" inputmode="numeric" id="aff-payout-hold"></label>
           <label>Minimum payout ($)<input type="text" inputmode="decimal" id="aff-minimum-payout"></label>
           <label>Payout schedule (days)<input type="text" inputmode="numeric" id="aff-payout-schedule"></label>
+          <label>New-customer discount (%)<input type="text" inputmode="decimal" id="aff-first-order-discount" placeholder="0 = none"></label>
         </div>
         <p class="affiliate-section-status" id="aff-status-program"></p>
       </fieldset>
@@ -1830,6 +1831,7 @@ table.products-table td{ padding:10px; border-bottom:1px solid var(--line); vert
           <th>Not Yet Eligible</th>
           <th>Lifetime Paid</th>
           <th>Last Paid</th>
+          <th>W-9</th>
           <th></th>
         </tr>
       </thead>
@@ -2440,30 +2442,42 @@ function loadReferralPayouts() {
       renderReferralPayouts(data.payouts || []);
     })
     .catch(function() {
-      document.getElementById('referral-payouts-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">Could not load payouts.</td></tr>';
+      document.getElementById('referral-payouts-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">Could not load payouts.</td></tr>';
     });
 }
 
 function renderReferralPayouts(payouts) {
   if (!payouts.length) {
-    document.getElementById('referral-payouts-tbody').innerHTML = '<tr><td colspan="6" style="color:var(--gray);padding:20px;">No affiliates with commissions yet.</td></tr>';
+    document.getElementById('referral-payouts-tbody').innerHTML = '<tr><td colspan="7" style="color:var(--gray);padding:20px;">No affiliates yet.</td></tr>';
     return;
   }
+  // Every approved affiliate is listed (so a W-9 can be recorded before they
+  // earn). Pay Out needs a signed agreement and a recorded W-9 as well as
+  // the money rules -- payBlockedReason says which is missing (the server
+  // re-checks on the actual pay call).
+  var today = new Date().toISOString().slice(0, 10);
   document.getElementById('referral-payouts-tbody').innerHTML = payouts.map(function(p) {
+    var w9Cell = p.w9ReceivedOn
+      ? 'Received ' + escapeForHtml(p.w9ReceivedOn) + '<br><span style="color:var(--gray);font-size:0.72rem;">recorded by ' + escapeForHtml(p.w9RecordedBy || '—') + '</span> ' +
+        '<button type="button" class="costs-link referral-w9-clear-btn" data-customer-id="' + p.customerId + '">Clear</button>'
+      : '<input type="date" class="referral-w9-date" max="' + today + '" value="' + today + '" style="width:auto;"> ' +
+        '<button type="button" class="product-edit-toggle-btn referral-w9-save-btn" data-customer-id="' + p.customerId + '">Record W-9</button>';
     var row = '<tr>' +
-      '<td>' + escapeForHtml(p.name || p.email) + '</td>' +
+      '<td>' + escapeForHtml(p.name || p.email) + (p.referralCode ? '<br><span style="color:var(--gray);font-size:0.72rem;">Code ' + escapeForHtml(p.referralCode) + '</span>' : '') +
+        (p.needsAgreement ? '<br>' + costsChip('agreement not signed', 'warn') : '') + '</td>' +
       '<td>' + formatCents(p.eligibleUnpaidCents) + '</td>' +
       '<td>' + formatCents(p.pendingNotYetEligibleCents) + '</td>' +
       '<td>' + formatCents(p.lifetimePaidCents) + '</td>' +
       '<td>' + (p.lastPaidAt ? formatDate(p.lastPaidAt) : '—') + '</td>' +
+      '<td style="white-space:nowrap;">' + w9Cell + '<p class="credit-issue-status" id="referral-w9-status-' + p.customerId + '"></p></td>' +
       '<td>' + (p.canPayOut
         ? '<button type="button" class="product-edit-toggle-btn referral-payout-toggle-btn" data-customer-id="' + p.customerId + '">Pay Out</button>'
-        : '<span style="color:var(--gray);font-size:0.78rem;">Not yet eligible</span>') +
+        : '<span style="color:var(--gray);font-size:0.78rem;">' + escapeForHtml(p.payBlockedReason || 'Not yet eligible') + '</span>') +
       '</td>' +
     '</tr>';
     if (!p.canPayOut) return row;
     row += '<tr class="product-detail-row" data-customer-id="' + p.customerId + '">' +
-      '<td colspan="6" class="product-detail-cell">' +
+      '<td colspan="7" class="product-detail-cell">' +
         '<label>Payment Type</label>' +
         '<select class="referral-payout-type">' +
           '<option value="PayPal">PayPal</option>' +
@@ -2488,6 +2502,28 @@ function renderReferralPayouts(payouts) {
 }
 
 document.getElementById('referral-payouts-tbody').addEventListener('click', function(e) {
+  // W-9: record the date it was received (stored with who recorded it --
+  // never a tax ID or the document), or clear a mistaken entry.
+  var w9Btn = e.target.closest('.referral-w9-save-btn, .referral-w9-clear-btn');
+  if (w9Btn) {
+    var w9Id = w9Btn.getAttribute('data-customer-id');
+    var clearing = w9Btn.classList.contains('referral-w9-clear-btn');
+    var w9Date = clearing ? null : w9Btn.closest('td').querySelector('.referral-w9-date').value;
+    if (clearing && !window.confirm('Clear the recorded W-9 for this affiliate? Payouts will be blocked until one is recorded again.')) return;
+    if (!clearing && !w9Date) return;
+    var w9Status = document.getElementById('referral-w9-status-' + w9Id);
+    w9Btn.disabled = true;
+    fetch('/api/admin/referral-payouts/' + encodeURIComponent(w9Id) + '/w9', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ receivedOn: w9Date }),
+    })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, d: d }; }); })
+      .then(function(r) {
+        if (!r.ok) { w9Btn.disabled = false; w9Status.textContent = r.d.error || 'Could not save.'; w9Status.className = 'credit-issue-status error'; return; }
+        loadReferralPayouts();
+      })
+      .catch(function() { w9Btn.disabled = false; w9Status.textContent = 'Could not save.'; w9Status.className = 'credit-issue-status error'; });
+    return;
+  }
   var toggleBtn = e.target.closest('.referral-payout-toggle-btn');
   if (toggleBtn) {
     var toggleId = toggleBtn.getAttribute('data-customer-id');
@@ -2677,6 +2713,13 @@ function renderReferralApplications() {
           '<button type="button" class="product-save-btn application-approve-btn" data-application-id="' + a.id + '">Approve</button> ' +
           '<button type="button" class="coa-delete-btn application-reject-btn" data-application-id="' + a.id + '">Reject</button>' +
         '</div>' +
+        // Approve asks first, like Reject (which needs a reason): it creates
+        // their code and emails them, and can't be undone from here.
+        '<div class="application-approve-confirm" id="application-approve-confirm-' + a.id + '" hidden style="margin-top:10px;">' +
+          '<p style="margin:0 0 8px;">Approve <strong>' + escapeForHtml(a.full_legal_name) + '</strong>? This creates their affiliate code (or keeps the one they have) and emails them their code, link and commission terms.</p>' +
+          '<button type="button" class="product-save-btn application-approve-confirm-btn" data-application-id="' + a.id + '">Yes, approve</button> ' +
+          '<button type="button" class="coa-delete-btn application-approve-cancel-btn" data-application-id="' + a.id + '">Cancel</button>' +
+        '</div>' +
         '<p class="credit-issue-status" id="application-status-' + a.id + '"></p>' +
       '</td>' +
     '</tr>';
@@ -2693,7 +2736,18 @@ document.getElementById('applications-tbody').addEventListener('click', function
     return;
   }
 
-  var approveBtn = e.target.closest('.application-approve-btn');
+  // Approve is two steps: the button shows the confirm box, "Yes, approve" sends it.
+  var askBtn = e.target.closest('.application-approve-btn');
+  if (askBtn) {
+    document.getElementById('application-approve-confirm-' + askBtn.getAttribute('data-application-id')).hidden = false;
+    return;
+  }
+  var cancelBtn = e.target.closest('.application-approve-cancel-btn');
+  if (cancelBtn) {
+    document.getElementById('application-approve-confirm-' + cancelBtn.getAttribute('data-application-id')).hidden = true;
+    return;
+  }
+  var approveBtn = e.target.closest('.application-approve-confirm-btn');
   if (approveBtn) {
     var approveId = approveBtn.getAttribute('data-application-id');
     var statusEl = document.getElementById('application-status-' + approveId);
@@ -6709,7 +6763,9 @@ function loadAffiliateStatus() {
 var affSettings = { program: null, cost: null }; // as loaded/saved; null = not loaded
 
 var AFF_COST_MONEY = { labelPerVialCents: 'aff-label', packagingPerVialCents: 'aff-packaging', feeCardFixedCents: 'aff-fee-card-fixed', feePayramFixedCents: 'aff-fee-payram-fixed' };
-var AFF_PROGRAM_INPUTS = ['aff-attribution-window', 'aff-payout-hold', 'aff-minimum-payout', 'aff-payout-schedule', 'aff-revenue-rate'];
+// aff-first-order-discount: % off a referred customer's first order (with an
+// affiliate's code or link); 0 = no discount, and no "N% off" text anywhere.
+var AFF_PROGRAM_INPUTS = ['aff-attribution-window', 'aff-payout-hold', 'aff-minimum-payout', 'aff-payout-schedule', 'aff-revenue-rate', 'aff-first-order-discount'];
 var AFF_COST_INPUTS = ['aff-profit-rate', 'aff-label', 'aff-packaging', 'aff-fee-card-pct', 'aff-fee-card-fixed', 'aff-fee-payram-pct', 'aff-fee-payram-fixed'];
 
 function affSectionStatus(section, message, kind) {
@@ -6724,6 +6780,7 @@ function renderAffProgram(p) {
   document.getElementById('aff-minimum-payout').value = (p.minimumPayoutCents / 100).toFixed(2);
   document.getElementById('aff-payout-schedule').value = p.payoutScheduleDays;
   document.getElementById('aff-revenue-rate').value = programRevenueRate(p);
+  document.getElementById('aff-first-order-discount').value = p.firstOrderDiscountPercent != null ? p.firstOrderDiscountPercent : 0;
 }
 
 function renderAffCost(c) {
@@ -6793,9 +6850,12 @@ function readAffiliateForm() {
     if (minPayout === null || minPayout === '') return { error: 'Minimum payout must be a dollar amount like 50.00.' };
     var rev = v('aff-revenue-rate');
     if (rev === '' || !(isFinite(Number(rev)) && Number(rev) >= 0 && Number(rev) <= 100)) return { error: 'Revenue commission rate must be a number between 0 and 100.' };
+    var disc = v('aff-first-order-discount') || '0';
+    if (!(isFinite(Number(disc)) && Number(disc) >= 0 && Number(disc) <= 100)) return { error: 'New-customer discount must be a number between 0 and 100 (0 = none).' };
     out.program = {
       commissionRatePercent: Number(rev), attributionWindowDays: Number(v('aff-attribution-window')),
       payoutHoldDays: Number(v('aff-payout-hold')), minimumPayoutCents: minPayout, payoutScheduleDays: Number(v('aff-payout-schedule')),
+      affiliateFirstOrderDiscountPercent: Number(disc),
     };
   }
   if (affSettings.cost) {
@@ -6819,7 +6879,8 @@ function readAffiliateForm() {
 function affProgramChanged(form) {
   var p = affSettings.program;
   return !!(p && form.program) && (form.program.commissionRatePercent !== Number(programRevenueRate(p)) || form.program.attributionWindowDays !== Number(p.attributionWindowDays) ||
-    form.program.payoutHoldDays !== Number(p.payoutHoldDays) || form.program.minimumPayoutCents !== Number(p.minimumPayoutCents) || form.program.payoutScheduleDays !== Number(p.payoutScheduleDays));
+    form.program.payoutHoldDays !== Number(p.payoutHoldDays) || form.program.minimumPayoutCents !== Number(p.minimumPayoutCents) || form.program.payoutScheduleDays !== Number(p.payoutScheduleDays) ||
+    form.program.affiliateFirstOrderDiscountPercent !== Number(p.firstOrderDiscountPercent || 0));
 }
 
 function affCostChanged(form) {
@@ -6839,7 +6900,7 @@ function saveAffiliateSettings(form, programChanged, costChanged) {
   costsSetStatus('aff-settings-status', 'Saving…');
   var result = { program: null, cost: null }; // null = not attempted; true = saved; Error = failed
   var step1 = programChanged
-    ? costsApi('PUT', '/content/referral-program-settings', form.program).then(function() { result.program = true; affSettings.program = Object.assign({}, affSettings.program, form.program, { revenueRatePercent: form.program.commissionRatePercent }); }, function(err) { result.program = err; })
+    ? costsApi('PUT', '/content/referral-program-settings', form.program).then(function() { result.program = true; affSettings.program = Object.assign({}, affSettings.program, form.program, { revenueRatePercent: form.program.commissionRatePercent, firstOrderDiscountPercent: form.program.affiliateFirstOrderDiscountPercent }); }, function(err) { result.program = err; })
     : Promise.resolve();
   step1.then(function() {
     if (result.program && result.program.loggedOut) return;
