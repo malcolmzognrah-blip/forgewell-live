@@ -306,9 +306,12 @@ body.gate-active{ overflow:hidden; }
 <div class="cat-tabs-row">
   <div class="cat-tabs" id="tabs"></div>
   <div class="shop-controls" id="shop-controls">
-    <input type="text" id="product-search-input" placeholder="Search products...">
-    <label class="in-stock-toggle"><input type="checkbox" id="in-stock-only-checkbox"> In Stock Only</label>
-    <select id="sort-select">
+    <!-- autocomplete="off": the browser must not refill these on Back -- the
+         page restores them itself from the saved shop state, so the menu and
+         the cards always agree (see the restore block in renderShopGrid()). -->
+    <input type="text" id="product-search-input" placeholder="Search products..." autocomplete="off">
+    <label class="in-stock-toggle"><input type="checkbox" id="in-stock-only-checkbox" autocomplete="off"> In Stock Only</label>
+    <select id="sort-select" autocomplete="off">
       <option value="az">Sort: A to Z</option>
       <option value="za">Sort: Z to A</option>
       <option value="price_low">Sort: Price Low to High</option>
@@ -414,6 +417,14 @@ function saveShopState() {
 
 const SORT_MODES = ['az', 'za', 'price_low', 'price_high', 'popular', 'sales'];
 
+// Leaving the page any way (a nav link, Back, closing the tab) records what
+// was on screen, so Back/Forward restores exactly that -- not only when a
+// product card was clicked. Only once the grid is set up (productGroupList
+// filled), so an early exit can't save the defaults over a real state.
+window.addEventListener('pagehide', function() {
+  if (productGroupList.length) saveShopState();
+});
+
 // Applied after the category filter and before pagination -- everything
 // needed (outOfStock/onSale/popularityRank/lowestPrice/name) was already computed
 // per-group in renderShopGrid()'s grouping step, so this never re-fetches
@@ -456,7 +467,13 @@ function sortGroupList(list, mode) {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
       break;
   }
-  return sorted;
+  // Whatever the sort, in-stock cards come first and out-of-stock cards
+  // sink to the bottom, each group keeping the order chosen above (a stable
+  // split). Uses the family flag from applyFamilyStock() -- a card is in
+  // stock if any strength is -- the same flag as the badge and the "In
+  // Stock Only" filter. Runs before pagination, so page 1 starts with what
+  // can actually be bought.
+  return sorted.filter((g) => !g.outOfStock).concat(sorted.filter((g) => g.outOfStock));
 }
 
 // Ids that are base component records for blend/kit products -- intentionally
@@ -1004,19 +1021,28 @@ async function renderShopGrid() {
   // used -- so the saved state can sit in sessionStorage indefinitely and
   // would otherwise get silently reapplied to ANY later shop.html visit
   // (Home link, logo, a different nav link, a bookmark, typing the URL
-  // directly), not just a real "came back via the breadcrumb" trip. Gating
-  // on document.referrer -- which reflects the actual previous page for a
-  // normal same-origin navigation, regardless of whether the link was a
-  // plain <a> (the breadcrumb) or a JS-driven window.location.href (the
-  // header search jump) -- restricts restoration to genuinely arriving
-  // from product.html, which is the only case this was ever meant for.
+  // directly), not just a real "came back via the breadcrumb" trip. So it's
+  // restored only when genuinely returning: arriving from product.html
+  // (document.referrer -- the breadcrumb or the header search jump), OR a
+  // Back/Forward navigation. The second case matters because a Back that
+  // reloads the page (no bfcache -- e.g. the live chat's open socket can
+  // prevent it) has the ORIGINAL referrer, not product.html; without it the
+  // cards came back A-Z while the menu showed the old sort. A fresh visit
+  // (nav link, logo, bookmark) still starts clean. The state is also saved
+  // on pagehide (the listener next to saveShopState()), so a Back from any
+  // page finds what was on screen.
   let cameFromProduct = false;
   try {
     cameFromProduct = !!document.referrer && new URL(document.referrer).pathname === '/product.html';
   } catch (e) { cameFromProduct = false; }
+  let cameBack = false;
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    cameBack = !!nav && nav.type === 'back_forward';
+  } catch (e) { cameBack = false; }
 
   let savedShopState = null;
-  if (cameFromProduct) {
+  if (cameFromProduct || cameBack) {
     try {
       const raw = sessionStorage.getItem(SHOP_STATE_KEY);
       if (raw) savedShopState = JSON.parse(raw);

@@ -192,7 +192,13 @@ strength by its own id.
 
 - `shop.html` `applyFamilyStock()`: a card is out of stock only when **every** strength is.
   Otherwise the card is built from the cheapest **in-stock** strength (link, Add/Buy, price, sale
-  badge, photo). "In Stock Only" uses the same family flag.
+  badge, photo). "In Stock Only" uses the same family flag, and so does ordering: under every sort
+  option, in-stock cards come first and out-of-stock cards sink to the bottom, each group keeping
+  the chosen sort's order (`sortGroupList()`, before pagination). The shop's tab/sort/filter/page/
+  scroll (`forgewell_shop_state`, sessionStorage, saved on a product click and on `pagehide`) is
+  restored only when returning: from `product.html` (referrer) or a Back/Forward navigation. A fresh
+  visit (nav link, logo, bookmark) starts clean. The controls have `autocomplete="off"` so the
+  browser never refills them over the restored state.
 - `product.html`: opening an out-of-stock strength switches (`location.replace`) to the cheapest
   in-stock sibling (same pack size first) with `&from=<id>`, which shows a notice ("10mg is
   currently out of stock. Showing 20mg.") linking back to the 10mg page with `&exact=1`.
